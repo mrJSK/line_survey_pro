@@ -12,6 +12,7 @@ import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Snackbar utility
 import 'package:share_plus/share_plus.dart'; // Share_plus for file sharing
 import 'package:line_survey_pro/screens/view_photo_screen.dart'; // Screen to view a single photo
 import 'package:line_survey_pro/models/transmission_line.dart'; // Needed for dropdown in modal
+import 'package:path/path.dart' as p; // For basename in image sharing
 
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
@@ -38,9 +39,8 @@ class _ExportScreenState extends State<ExportScreen>
   TransmissionLine? _selectedLineForShare;
   final Set<String> _selectedImageRecordIds =
       {}; // For multi-selection in image share modal
-  final TextEditingController _searchController =
-      TextEditingController(); // For tower search
-  String _searchQuery = '';
+  // Removed _searchController from here as it will be local to the modal
+  String _searchQuery = ''; // Keep this for filtering logic
 
   @override
   void initState() {
@@ -60,7 +60,7 @@ class _ExportScreenState extends State<ExportScreen>
   @override
   void dispose() {
     _animationController.dispose();
-    _searchController.dispose();
+    // No need to dispose _searchController here anymore, as it's moved
     super.dispose();
   }
 
@@ -173,7 +173,6 @@ class _ExportScreenState extends State<ExportScreen>
 
     // Reset selection state for the modal each time it's opened
     _selectedImageRecordIds.clear();
-    _searchController.clear(); // Clear search query
     setState(() {
       _selectedLineForShare =
           _transmissionLines.isNotEmpty ? _transmissionLines.first : null;
@@ -188,10 +187,14 @@ class _ExportScreenState extends State<ExportScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      // --- START: MODIFICATIONS FOR SMOOTHER ANIMATION ---
       useRootNavigator: true, // Ensures the modal appears above all content
-      // --- END: MODIFICATIONS FOR SMOOTHER ANIMATION ---
       builder: (BuildContext sheetContext) {
+        // Create a local TextEditingController for the modal
+        final TextEditingController localSearchController =
+            TextEditingController();
+        // Set its initial text from the state's _searchQuery
+        localSearchController.text = _searchQuery;
+
         return StatefulBuilder(
           // Use StatefulBuilder for state management within the modal
           builder: (BuildContext context, StateSetter modalSetState) {
@@ -208,7 +211,6 @@ class _ExportScreenState extends State<ExportScreen>
             }).toList();
 
             return AnimatedSize(
-              // Keep AnimatedSize for smooth transitions of content changes within the modal
               duration: const Duration(
                   milliseconds:
                       600), // This controls internal content animation, not sheet slide
@@ -263,9 +265,9 @@ class _ExportScreenState extends State<ExportScreen>
                           _selectedLineForShare = line;
                           _selectedImageRecordIds
                               .clear(); // Clear selection when line changes
-                          _searchController
-                              .clear(); // Clear search on line change
-                          _searchQuery = ''; // Reset search query
+                          localSearchController
+                              .clear(); // Clear local search controller
+                          _searchQuery = ''; // Reset search query state
                         });
                       },
                       validator: (value) {
@@ -278,17 +280,17 @@ class _ExportScreenState extends State<ExportScreen>
                     const SizedBox(height: 15),
                     // Tower Number Search Field
                     TextFormField(
-                      controller: _searchController,
+                      controller: localSearchController, // Use local controller
                       decoration: InputDecoration(
                         labelText: 'Search Tower Number',
                         prefixIcon:
                             Icon(Icons.search, color: colorScheme.primary),
-                        suffixIcon: _searchController.text.isNotEmpty
+                        suffixIcon: localSearchController.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
                                   modalSetState(() {
-                                    _searchController.clear();
+                                    localSearchController.clear();
                                     _searchQuery = '';
                                   });
                                 },
@@ -352,31 +354,58 @@ class _ExportScreenState extends State<ExportScreen>
                           ? null
                           : () async {
                               final List<XFile> imageFilesToShare = [];
+                              final StringBuffer shareMessage = StringBuffer();
+
+                              // Build the share message and gather file paths
                               for (String recordId in _selectedImageRecordIds) {
                                 final record = _allRecords
                                     .firstWhere((r) => r.id == recordId);
                                 final file = File(record.photoPath);
+
                                 if (await file.exists()) {
                                   imageFilesToShare.add(XFile(file.path));
+
+                                  // Append details to the message for each image
+                                  shareMessage
+                                      .writeln('--- Shared image for ---');
+                                  shareMessage
+                                      .writeln('Line: ${record.lineName}');
+                                  shareMessage
+                                      .writeln('Tower: ${record.towerNumber}');
+                                  shareMessage.writeln(
+                                      'Lat: ${record.latitude.toStringAsFixed(6)}, Long: ${record.longitude.toStringAsFixed(6)}');
+                                  shareMessage.writeln(
+                                      'Time: ${record.timestamp.toLocal().toString().split('.')[0]}');
+                                  shareMessage.writeln(
+                                      'Status: ${record.status.toUpperCase()}');
+                                  shareMessage.writeln(
+                                      ''); // Add an empty line for separation
                                 } else {
                                   print(
                                       'Warning: Image file not found for record ID: $recordId at ${record.photoPath}');
+                                  shareMessage.writeln(
+                                      'Warning: Image file not found for record ID: $recordId');
                                 }
                               }
 
-                              if (imageFilesToShare.isEmpty) {
+                              if (imageFilesToShare.isEmpty &&
+                                  shareMessage.isEmpty) {
                                 SnackBarUtils.showSnackBar(context,
-                                    'No valid image files found for selected records.',
+                                    'No valid image files or details to share for selected records.',
                                     isError: true);
                                 return;
                               }
 
                               try {
-                                await Share.shareXFiles(imageFilesToShare,
-                                    text: 'Selected Line Survey Photos');
+                                await Share.shareXFiles(
+                                  imageFilesToShare,
+                                  text: shareMessage
+                                      .toString()
+                                      .trim(), // Pass the collected message
+                                );
                                 if (mounted) {
-                                  SnackBarUtils.showSnackBar(
-                                      context, 'Selected images shared.');
+                                  SnackBarUtils.showSnackBar(context,
+                                      'Selected images and details shared.');
                                   Navigator.pop(context); // Close the modal
                                 }
                               } catch (e) {
@@ -385,6 +414,9 @@ class _ExportScreenState extends State<ExportScreen>
                                       'Error sharing images: ${e.toString()}',
                                       isError: true);
                                 }
+                              } finally {
+                                // Dispose the local controller when the modal is about to close
+                                localSearchController.dispose();
                               }
                             },
                       icon: const Icon(Icons.share),
@@ -485,7 +517,6 @@ class _ExportScreenState extends State<ExportScreen>
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // Removed AppBar from here. The AppBar should be managed by the parent Scaffold (e.g., HomeScreen).
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(

@@ -63,7 +63,7 @@ class _DashboardTabState extends State<DashboardTab> {
           });
           if (lines.isEmpty && mounted) {
             SnackBarUtils.showSnackBar(context,
-                'No transmission lines found. Add new lines from the Firebase console or an admin screen.',
+                'No transmission lines found. Add new lines from the console or an admin screen.',
                 isError: false);
           }
         }
@@ -142,7 +142,7 @@ class _DashboardTabState extends State<DashboardTab> {
                         padding: const EdgeInsets.all(20.0),
                         child: Center(
                           child: Text(
-                            'No transmission lines found.\nAdd lines from Firebase console to get started!',
+                            'No transmission lines found.\nAdd lines from console to get started!',
                             textAlign: TextAlign.center,
                             style: Theme.of(context)
                                 .textTheme

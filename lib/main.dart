@@ -184,7 +184,7 @@ class MyApp extends StatelessWidget {
           if (snapshot.hasError) {
             return Scaffold(
               body: Center(
-                child: Text('Error initializing Firebase: ${snapshot.error}'),
+                child: Text('Error initializing: ${snapshot.error}'),
               ),
             );
           }
