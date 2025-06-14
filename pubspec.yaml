@@ -1,0 +1,40 @@
+# pubspec.yaml
+# Updated to remove all Firebase-related dependencies for a local-only app.
+
+name: line_survey_pro
+description: A mobile application for transmission line survey and patrolling (Local-Only).
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0" # Adjust based on your Flutter SDK version
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2 # Default Flutter icons
+  camera: ^0.10.5+9 # For accessing the device camera
+  geolocator: ^11.0.0 # For obtaining GPS coordinates (Latitude, Longitude)
+  sqflite: ^2.3.2 # Local SQLite database for offline data storage
+  path_provider: ^2.1.2 # To find common locations on the filesystem (e.g., app documents directory)
+  path: ^1.8.3 # For cross-platform path manipulation
+  csv: ^5.1.1 # For generating CSV files from survey data
+  share_plus: ^7.0.2 # For sharing files (CSV, images)
+  image: ^4.1.7 # For image manipulation, specifically overlaying text
+  intl: ^0.18.1 # For internationalization, used for date/time formatting
+  permission_handler: ^11.3.0 # For requesting runtime permissions (camera, location, storage)
+  firebase_core: ^3.14.0
+  google_sign_in: ^6.3.0
+  firebase_auth: ^5.6.0
+  cloud_firestore: ^5.6.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0 # For code linting and analysis
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/google_logo.webp # Keep if you have other local assets, like an app_icon.png

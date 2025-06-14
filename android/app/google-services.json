@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "868850214190",
+    "project_id": "line-survey-pro-f6c5b",
+    "storage_bucket": "line-survey-pro-f6c5b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:868850214190:android:a4324fd91279f424a646bf",
+        "android_client_info": {
+          "package_name": "com.example.line_survey_pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANV4nXsR48JDwuKZIK9i3Urr1mhQGvX0A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
