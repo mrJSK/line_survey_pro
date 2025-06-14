@@ -8,9 +8,9 @@ import 'package:line_survey_pro/models/user_profile.dart'; // Import the UserPro
 
 import 'package:line_survey_pro/services/auth_service.dart'; // Service for authentication and user profiles
 import 'package:line_survey_pro/services/task_service.dart'; // Service for task management
+import 'package:line_survey_pro/screens/assign_task_screen.dart'; // NEW: Import AssignTaskScreen
 
 class RealTimeTasksScreen extends StatefulWidget {
-  // Changed to StatefulWidget
   const RealTimeTasksScreen({super.key});
 
   @override
@@ -23,15 +23,26 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   bool _isLoading = true;
 
   // Create instances of your services
-  final AuthService _authService =
-      AuthService(); // Correctly instantiate AuthService
-  final TaskService _taskService =
-      TaskService(); // Correctly instantiate TaskService
+  final AuthService _authService = AuthService();
+  final TaskService _taskService = TaskService();
 
   @override
   void initState() {
     super.initState();
     _loadUserDataAndTasks(); // Load data when the screen initializes
+  }
+
+  // Refresh tasks when the screen is re-focused (e.g., after returning from AssignTaskScreen)
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // This is a common pattern to refresh data when a screen comes into view again.
+    // However, be mindful of over-fetching. You might want to debounce or use a change notifier.
+    // For now, _loadUserDataAndTasks is safe because _isLoading prevents redundant fetches.
+    // But if you're using Streams for real-time updates, didChangeDependencies might not be needed.
+    // For this case, it's fine for ensuring tasks update after creation.
+    // We already call it in initState, so if this is part of a TabBarView, it might not re-run.
+    // Let's add a listener for future screen focus.
   }
 
   Future<void> _loadUserDataAndTasks() async {
@@ -73,12 +84,18 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     }
   }
 
-  void _assignNewTask() {
-    // This will eventually navigate to a screen where managers can assign tasks
+  void _assignNewTask() async {
+    // Made async to await navigation
     if (mounted) {
-      SnackBarUtils.showSnackBar(
-          context, 'Navigating to Task Assignment (not yet implemented)...');
-      // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => AssignTaskScreen()));
+      // Navigate to the AssignTaskScreen
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const AssignTaskScreen()),
+      );
+      // After returning from AssignTaskScreen, refresh tasks
+      if (result == true) {
+        // Assuming AssignTaskScreen returns true on successful assignment
+        _loadUserDataAndTasks();
+      }
     }
   }
 
@@ -126,12 +143,46 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       );
     }
 
+    // Display appropriate content based on user role
+    if (_currentUser!.role == null ||
+        (_currentUser!.role != 'Worker' && _currentUser!.role != 'Manager')) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.person_off, size: 80, color: colorScheme.error),
+              const SizedBox(height: 20),
+              Text(
+                'Your account role is not assigned or recognized.',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(color: colorScheme.onSurface),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Please ensure your role is correctly assigned by an administrator in the Firebase Console.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'Welcome, ${_currentUser!.displayName ?? _currentUser!.email} (${_currentUser!.role ?? 'Unassigned'})!', // Display user info and role
+            'Welcome, ${_currentUser!.displayName ?? _currentUser!.email} (${_currentUser!.role})!', // Display user info and role
             style: Theme.of(context)
                 .textTheme
                 .titleLarge

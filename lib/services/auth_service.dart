@@ -50,18 +50,18 @@ class AuthService {
   }
 
   // Method for traditional email/password registration.
-  // Note: For Google Sign-in, you'll first sign in with Google, then call ensureUserProfileExists.
+  // This will create a Firebase Auth user AND then call ensureUserProfileExists
+  // to set up their Firestore profile with a default 'Worker' role.
   Future<UserCredential> registerWithEmailAndPassword(
       String email, String password) async {
     try {
       final userCredential = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
       if (userCredential.user != null) {
-        // For new email/password users, create their profile with a default 'Worker' role
-        // or a 'Pending' role if you want admin approval for email users too.
-        // For this scenario, let's default to 'Worker' upon email registration.
-        await createUserProfileInFirestore(
-            userCredential.user!.uid, email, 'Worker', null); // Default role
+        // For new email/password users, create their profile with a default 'Worker' role.
+        // You might consider 'Pending' here if you want admin approval for all registrations.
+        await createUserProfileInFirestore(userCredential.user!.uid, email,
+            'Worker', userCredential.user!.displayName);
       }
       return userCredential;
     } on FirebaseAuthException catch (e) {
@@ -75,6 +75,7 @@ class AuthService {
 
   // Method to create/update a user's profile in Firestore with a specified role.
   // This method is intended for use by an admin/backend process.
+  // It uses merge: true to ensure it updates existing fields without overwriting the entire document.
   Future<void> createUserProfileInFirestore(
       String uid, String email, String role, String? displayName) async {
     try {
@@ -84,13 +85,26 @@ class AuthService {
             'email': email,
             'role': role, // Role is explicitly set here
             'displayName': displayName,
-            'createdAt': FieldValue.serverTimestamp(),
           },
           SetOptions(
               merge: true)); // Use merge: true to update existing document
     } catch (e) {
       print('Error creating/updating user profile in Firestore: $e');
       rethrow;
+    }
+  }
+
+  // NEW METHOD: Fetches all user profiles from Firestore.
+  // This is used by the manager to see available workers.
+  Future<List<UserProfile>> getAllUserProfiles() async {
+    try {
+      final querySnapshot = await _firestore.collection('userProfiles').get();
+      return querySnapshot.docs
+          .map((doc) => UserProfile.fromMap(doc.data()))
+          .toList();
+    } catch (e) {
+      print('Error fetching all user profiles: $e');
+      rethrow; // Re-throw the error to be handled by the UI
     }
   }
 
