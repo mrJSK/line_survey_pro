@@ -1,4 +1,5 @@
 // lib/screens/sign_in_screen.dart
+// Updated for consistent UI theming.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // For Firebase Authentication
@@ -105,55 +106,69 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Access the color scheme from the theme
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign In'),
-        centerTitle: true,
+        // AppBar style is inherited from main.dart ThemeData
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(
+              32.0), // Increased padding for better spacing
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Your app's logo or a welcoming message
               Text(
                 'Welcome to Line Survey Pro!',
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(color: colorScheme.primary),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 50), // More vertical spacing
               _isSigningIn
-                  ? const CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                  ? CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                          colorScheme.tertiary), // Use tertiary color (orange)
                     )
                   : ElevatedButton.icon(
                       onPressed: _signInWithGoogle,
                       icon: Image.network(
                         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/2048px-Google_%22G%22_logo.svg.png',
-                        height: 24.0,
-                        width: 24.0,
+                        height: 28.0, // Slightly larger icon
+                        width: 28.0,
                       ),
                       label: const Text('Sign in with Google'),
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
-                            double.infinity, 50), // Make button full width
+                        minimumSize:
+                            const Size(double.infinity, 55), // Taller button
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(30), // More rounded corners
+                          borderRadius: BorderRadius.circular(
+                              30), // More rounded corners (Pill shape)
                         ),
                         backgroundColor:
                             Colors.white, // White background for Google button
                         foregroundColor:
                             Colors.black87, // Dark text for Google button
-                        elevation: 3, // Add a slight shadow
+                        elevation: 5, // More prominent shadow
+                        textStyle: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(
+                                color: Colors.black87), // Use themed text style
                       ),
                     ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30), // More spacing
               Text(
                 'Please sign in to continue using the app.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: colorScheme.onSurface.withOpacity(0.7)),
                 textAlign: TextAlign.center,
               ),
             ],

@@ -1,6 +1,7 @@
 // lib/screens/view_photo_screen.dart
 // A simple screen dedicated to displaying a single full-screen image.
 // It uses InteractiveViewer to enable zooming and panning capabilities.
+// Updated for consistent UI theming.
 
 import 'dart:io'; // Required for working with File objects (to load image from path)
 import 'package:flutter/material.dart'; // Core Flutter UI toolkit
@@ -17,6 +18,7 @@ class ViewPhotoScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('View Photo'), // Title displayed in the AppBar
+        // AppBar style is inherited from main.dart ThemeData
       ),
       body: Center(
         // The Center widget ensures its child (the image or error message) is centered on the screen.
@@ -29,12 +31,14 @@ class ViewPhotoScreen extends StatelessWidget {
                     0.5, // Minimum zoom level (0.5 means half the original size)
                 maxScale:
                     4.0, // Maximum zoom level (4.0 means four times the original size)
-                child: Image.file(
-                  File(
-                      imagePath), // Loads the image from the provided local file path
-                  fit: BoxFit
-                      .contain, // Ensures the entire image is visible, fitting within the bounds
-                  // without cropping, while maintaining its aspect ratio.
+                child: Hero(
+                  // Added Hero animation for smooth transition from list
+                  tag: imagePath, // Unique tag for the Hero animation
+                  child: Image.file(
+                    File(
+                        imagePath), // Loads the image from the provided local file path
+                    fit: BoxFit.contain, // Ensures the entire image is visible
+                  ),
                 ),
               )
             : Column(

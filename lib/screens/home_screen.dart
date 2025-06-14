@@ -88,6 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get the current user from the state variable, which is updated by the authStateChanges listener
+    final user = _currentUser;
+
     // Determine the AppBar title based on the selected tab
     String appBarTitle;
     switch (_selectedIndex) {
@@ -139,6 +142,11 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex, // The currently selected tab
         selectedItemColor:
             Theme.of(context).primaryColor, // Color for selected icon/label
+        unselectedItemColor:
+            Theme.of(context).hintColor, // Color for unselected icons/labels
+        backgroundColor:
+            Theme.of(context).canvasColor, // Background color of the bar
+        type: BottomNavigationBarType.fixed, // Ensure all items are visible
         onTap: _onItemTapped, // Callback when a tab is tapped
       ),
     );

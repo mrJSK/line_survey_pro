@@ -1,6 +1,7 @@
 // lib/screens/camera_screen.dart
 // Displays a live camera preview and allows capturing photos.
 // Passes captured image path and survey details to PhotoReviewScreen.
+// Updated for consistent UI theming.
 
 import 'package:flutter/material.dart'; // Flutter UI toolkit
 import 'package:camera/camera.dart'; // Camera package for camera access
@@ -210,7 +211,10 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Capture Survey Photo')),
+      appBar: AppBar(
+        title: const Text('Capture Survey Photo'),
+        // AppBar style is inherited from main.dart ThemeData
+      ),
       body: _isCameraInitialized
           ? Stack(
               children: [
@@ -227,12 +231,24 @@ class _CameraScreenState extends State<CameraScreen>
                       onPressed: _isTakingPicture
                           ? null
                           : _takePicture, // Disable button if currently taking picture
-                      backgroundColor: Colors.blueAccent,
+                      // Use theme's primary color for background, or a specific accent
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(30.0), // Fully rounded
+                      ),
+                      elevation: 8, // More pronounced shadow
                       child: _isTakingPicture
-                          ? const CircularProgressIndicator(
-                              // Show a loading indicator during capture
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                          ? const SizedBox(
+                              width: 28, // Slightly larger loader
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                // Show a loading indicator during capture
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                strokeWidth: 3, // Thicker stroke
+                              ),
                             )
                           : const Icon(Icons.camera_alt,
                               size: 36), // Camera icon

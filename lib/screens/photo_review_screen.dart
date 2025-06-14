@@ -4,13 +4,10 @@
 
 import 'dart:io'; // For File operations
 import 'package:flutter/material.dart'; // Flutter UI toolkit
-// Removed: import 'package:image/image.dart' as img; // 'image' package no longer used
-// Removed: import 'package:line_survey_pro/services/image_processing_service.dart'; // Service no longer used
 import 'package:line_survey_pro/services/file_service.dart'; // Service for file operations
 import 'package:line_survey_pro/services/local_database_service.dart'; // Local database service
 import 'package:line_survey_pro/models/survey_record.dart'; // SurveyRecord data model
 import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Snackbar utility
-// Removed: import 'package:intl/intl.dart'; // No longer needed for timestamp on image
 
 class PhotoReviewScreen extends StatefulWidget {
   final String imagePath; // Path to the temporarily captured image
@@ -33,63 +30,48 @@ class PhotoReviewScreen extends StatefulWidget {
 }
 
 class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
-  // `_displayImageFile` can now directly be the `widget.imagePath`
-  late File _capturedImageFile; // The captured image file to be displayed
-  // Removed: bool _isProcessing = true; // No longer processing image
+  late File _capturedImageFile;
   bool _isSaving = false; // State for saving record
 
   @override
   void initState() {
     super.initState();
-    _capturedImageFile =
-        File(widget.imagePath); // Directly assign the captured image
-    // Removed: _processImage(); // No longer processing image
+    _capturedImageFile = File(widget.imagePath);
   }
 
-  // Removed: _processImage() method
-
-  // Saves the captured photo locally.
   Future<void> _savePhotoAndRecord() async {
     setState(() {
-      _isSaving = true; // Show saving indicator
+      _isSaving = true;
     });
 
     try {
-      // Ensure the image file exists.
       if (!_capturedImageFile.existsSync()) {
         throw Exception('Captured image file does not exist.');
       }
 
-      // Save the captured image to a permanent location within the app's directory.
       final fileService = FileService();
       final permanentImagePath = await fileService.saveImageToAppDirectory(
           _capturedImageFile.path, 'survey_photos');
 
-      // Create a new SurveyRecord object.
       final newRecord = SurveyRecord(
-        id: DateTime.now()
-            .millisecondsSinceEpoch
-            .toString(), // Unique ID for local storage
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         lineName: widget.lineName,
         towerNumber: widget.towerNumber,
         latitude: widget.latitude,
         longitude: widget.longitude,
         timestamp: DateTime.now(),
         photoPath: permanentImagePath,
-        status: 'saved', // Status set to 'saved' (no cloud sync)
+        status: 'saved',
       );
 
-      // Save the new record to the local SQLite database.
       await LocalDatabaseService().saveSurveyRecord(newRecord);
 
       if (mounted) {
         SnackBarUtils.showSnackBar(context, 'Photo and record saved locally!');
-        // Pop PhotoReviewScreen then CameraScreen to return to Dashboard.
-        Navigator.of(context).pop();
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // Pops PhotoReviewScreen
+        Navigator.of(context).pop(); // Pops CameraScreen
       }
     } catch (e) {
-      // Handle any errors during the saving process.
       if (mounted) {
         SnackBarUtils.showSnackBar(
             context, 'Error saving photo and record: ${e.toString()}',
@@ -98,81 +80,113 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
     } finally {
       if (mounted) {
         setState(() {
-          _isSaving = false; // Hide saving indicator
+          _isSaving = false;
         });
       }
     }
   }
 
-  // Discards the current photo and returns to the CameraScreen to retake.
   void _retakePhoto() {
-    Navigator.of(context)
-        .pop(); // Pops PhotoReviewScreen, returning to CameraScreen
+    Navigator.of(context).pop();
   }
 
-  // Discards the current photo and survey details, returning to the Dashboard.
   void _goBack() {
-    Navigator.of(context).pop(); // Pops PhotoReviewScreen
-    Navigator.of(context).pop(); // Pops CameraScreen, returning to DashboardTab
+    Navigator.of(context).pop();
+    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Review Photo')),
       body: Column(
         children: [
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              // Directly display the captured image file
-              child: Image.file(_capturedImageFile),
+              padding: const EdgeInsets.all(10.0), // Consistent padding
+              child: Card(
+                // Wrap image in a card for better visual
+                elevation: 4,
+                clipBehavior: Clip.antiAlias, // Clip image to card shape
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Image.file(
+                    _capturedImageFile,
+                    fit: BoxFit.contain, // Ensure image fits
+                  ),
+                ),
+              ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding:
+                const EdgeInsets.all(20.0), // Increased padding for buttons
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                // Retake Button: Changed to OutlinedButton for secondary action
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed:
-                        _isSaving ? null : _retakePhoto, // Disable if saving
-                    icon: const Icon(Icons.refresh),
+                  child: OutlinedButton.icon(
+                    onPressed: _isSaving ? null : _retakePhoto,
+                    icon: const Icon(
+                        Icons.refresh), // More generic refresh/retake icon
                     label: const Text('Retake'),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange), // Orange for retake
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          colorScheme.primary, // Primary color for text/icon
+                      side: BorderSide(
+                          color: colorScheme.primary
+                              .withOpacity(0.5)), // Subtle border
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 14), // Consistent padding
+                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 15),
+                // Save Button: Remains prominent ElevatedButton
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isSaving
-                        ? null
-                        : _savePhotoAndRecord, // Disable if saving
+                    onPressed: _isSaving ? null : _savePhotoAndRecord,
                     icon: _isSaving
                         ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                                // Loader for saving
-                                color: Colors.white,
-                                strokeWidth: 2),
+                                color: Colors.white, strokeWidth: 2),
                           )
                         : const Icon(Icons.save),
                     label: Text(_isSaving ? 'Saving...' : 'Save'),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green), // Green for save
+                      backgroundColor: colorScheme
+                          .primary, // Use primary color for main action
+                      foregroundColor: colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 15),
+                // Back Button: Changed to TextButton for least prominence
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _goBack, // Disable if saving
+                  child: TextButton.icon(
+                    onPressed: _isSaving ? null : _goBack,
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('Back'),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey), // Grey for back
+                    style: TextButton.styleFrom(
+                      foregroundColor: colorScheme.onSurface
+                          .withOpacity(0.7), // Subtler color
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
               ],

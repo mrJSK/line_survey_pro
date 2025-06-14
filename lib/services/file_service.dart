@@ -65,7 +65,6 @@ class FileService {
       'Latitude',
       'Longitude',
       'Timestamp',
-      'Photo Path (Local)', // Local path on the device
       'Status', // Local status (e.g., 'saved')
     ]);
 
@@ -80,7 +79,6 @@ class FileService {
         record.longitude,
         record.timestamp
             .toIso8601String(), // Convert DateTime to ISO 8601 string for consistent formatting
-        record.photoPath,
         record.status,
       ]);
     }
