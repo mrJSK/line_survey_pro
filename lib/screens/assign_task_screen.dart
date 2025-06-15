@@ -3,15 +3,21 @@
 import 'package:flutter/material.dart';
 import 'package:line_survey_pro/models/task.dart';
 import 'package:line_survey_pro/models/user_profile.dart';
-import 'package:line_survey_pro/models/transmission_line.dart'; // To get line names if needed
+import 'package:line_survey_pro/models/transmission_line.dart';
 import 'package:line_survey_pro/services/auth_service.dart';
 import 'package:line_survey_pro/services/task_service.dart';
-import 'package:line_survey_pro/services/firestore_service.dart'; // For fetching transmission lines
+import 'package:line_survey_pro/services/firestore_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
-import 'package:uuid/uuid.dart'; // For generating unique task IDs
+import 'package:uuid/uuid.dart';
+import 'package:collection/collection.dart';
 
 class AssignTaskScreen extends StatefulWidget {
-  const AssignTaskScreen({super.key});
+  final Task? taskToEdit;
+
+  const AssignTaskScreen({
+    super.key,
+    this.taskToEdit,
+  });
 
   @override
   State<AssignTaskScreen> createState() => _AssignTaskScreenState();
@@ -19,16 +25,17 @@ class AssignTaskScreen extends StatefulWidget {
 
 class _AssignTaskScreenState extends State<AssignTaskScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _targetTowerRangeController =
-      TextEditingController();
+  // Replaced _targetTowerRangeController
+  final TextEditingController _fromTowerController = TextEditingController();
+  final TextEditingController _toTowerController = TextEditingController();
 
-  UserProfile? _selectedWorker; // For the worker dropdown
-  TransmissionLine? _selectedLine; // For the line dropdown
+  UserProfile? _selectedWorker;
+  TransmissionLine? _selectedLine;
   DateTime? _selectedDueDate;
 
   List<UserProfile> _workers = [];
   List<TransmissionLine> _transmissionLines = [];
-  UserProfile? _currentManager; // To get assignedByUserId/Name
+  UserProfile? _currentManager;
 
   bool _isLoading = true;
   bool _isAssigning = false;
@@ -36,17 +43,38 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
   final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
   final FirestoreService _firestoreService = FirestoreService();
-  final Uuid _uuid = const Uuid(); // For generating unique IDs
+  final Uuid _uuid = const Uuid();
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+
+    // If editing an existing task, populate fields
+    if (widget.taskToEdit != null) {
+      // Parse the targetTowerRange string (e.g., "10-30") to populate From/To fields
+      _selectedDueDate = widget.taskToEdit!.dueDate;
+
+      final range = widget.taskToEdit!.targetTowerRange.trim();
+      if (range.contains('-')) {
+        final parts = range.split('-');
+        if (parts.length == 2) {
+          _fromTowerController.text = parts[0].trim();
+          _toTowerController.text = parts[1].trim();
+        }
+      } else if (int.tryParse(range) != null) {
+        // Single tower case
+        _fromTowerController.text = range;
+        _toTowerController.text = range;
+      }
+      // If "All" or complex, manager has to re-enter
+    }
   }
 
   @override
   void dispose() {
-    _targetTowerRangeController.dispose();
+    _fromTowerController.dispose();
+    _toTowerController.dispose();
     super.dispose();
   }
 
@@ -55,15 +83,32 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       _isLoading = true;
     });
     try {
-      // Fetch current manager's profile
       _currentManager = await _authService.getCurrentUserProfile();
 
-      // Fetch all user profiles and filter for workers
       final allUsers = await _authService.getAllUserProfiles();
       _workers = allUsers.where((user) => user.role == 'Worker').toList();
 
-      // Fetch all transmission lines
       _transmissionLines = await _firestoreService.getTransmissionLinesOnce();
+
+      // If editing, find the selected worker and line from loaded data
+      if (widget.taskToEdit != null) {
+        _selectedWorker = _workers.firstWhereOrNull(// Use firstWhereOrNull
+            (worker) => worker.id == widget.taskToEdit!.assignedToUserId);
+        _selectedLine =
+            _transmissionLines.firstWhereOrNull(// Use firstWhereOrNull
+                (line) => line.name == widget.taskToEdit!.lineName);
+
+        // Handle cases where worker or line from taskToEdit might not be found
+        if (_selectedWorker == null && _workers.isNotEmpty)
+          _selectedWorker = _workers.first;
+        if (_selectedLine == null && _transmissionLines.isNotEmpty)
+          _selectedLine = _transmissionLines.first;
+      } else {
+        // For new task, pre-select first worker/line if available
+        if (_workers.isNotEmpty) _selectedWorker = _workers.first;
+        if (_transmissionLines.isNotEmpty)
+          _selectedLine = _transmissionLines.first;
+      }
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
@@ -83,8 +128,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
   Future<void> _selectDueDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDueDate ??
-          DateTime.now().add(const Duration(days: 1)), // Default to tomorrow
+      initialDate:
+          _selectedDueDate ?? DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime(2030),
     );
@@ -95,7 +140,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     }
   }
 
-  Future<void> _assignTask() async {
+  Future<void> _assignOrUpdateTask() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedWorker == null) {
         SnackBarUtils.showSnackBar(context, 'Please select a worker.',
@@ -118,9 +163,49 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       });
 
       try {
-        final String taskId = _uuid.v4(); // Generate a unique ID
+        final String taskId = widget.taskToEdit?.id ?? _uuid.v4();
 
-        final newTask = Task(
+        // New logic for targetTowerRange and numberOfTowersToPatrol
+        final String targetRangeString;
+        final int numberOfTowers;
+
+        final int? fromTower = int.tryParse(_fromTowerController.text.trim());
+        final int? toTower = int.tryParse(_toTowerController.text.trim());
+
+        if (fromTower != null && toTower != null && fromTower <= toTower) {
+          targetRangeString = '$fromTower-$toTower';
+          numberOfTowers = toTower - fromTower + 1;
+        } else if (fromTower != null &&
+            _toTowerController.text.trim().isEmpty) {
+          // Single tower case
+          targetRangeString = fromTower.toString();
+          numberOfTowers = 1;
+        } else if (_fromTowerController.text.trim().toLowerCase() == 'all' &&
+            _toTowerController.text.trim().isEmpty) {
+          targetRangeString = 'All';
+          numberOfTowers = _selectedLine?.totalTowers ??
+              0; // Use totalTowers from the selected line
+        } else {
+          // This case should ideally be caught by validator, but as a fallback
+          if (mounted) {
+            SnackBarUtils.showSnackBar(
+                context, 'Invalid tower range. Please check From/To values.',
+                isError: true);
+          }
+          return;
+        }
+
+        if (numberOfTowers == 0 && targetRangeString.toLowerCase() != 'all') {
+          // If it's "All" and totalTowers is 0, allow.
+          if (mounted) {
+            SnackBarUtils.showSnackBar(context,
+                'Number of towers to patrol cannot be zero. Check range or line total towers.',
+                isError: true);
+          }
+          return;
+        }
+
+        final Task task = Task(
           id: taskId,
           assignedToUserId: _selectedWorker!.id,
           assignedToUserName:
@@ -129,26 +214,37 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           assignedByUserName:
               _currentManager!.displayName ?? _currentManager!.email,
           lineName: _selectedLine!.name,
-          targetTowerRange: _targetTowerRangeController.text.trim(),
+          targetTowerRange: targetRangeString, // Use the new string format
+          numberOfTowersToPatrol: numberOfTowers, // Use the calculated number
           dueDate: _selectedDueDate!,
-          createdAt: DateTime.now(),
-          status: 'Pending', // Default status for new tasks
+          createdAt: widget.taskToEdit?.createdAt ?? DateTime.now(),
+          status: widget.taskToEdit?.status ?? 'Pending',
+          completionDate: widget.taskToEdit?.completionDate,
+          reviewNotes: widget.taskToEdit?.reviewNotes,
+          associatedSurveyRecordIds:
+              widget.taskToEdit?.associatedSurveyRecordIds ?? [],
         );
 
-        await _taskService.createTask(newTask);
+        if (widget.taskToEdit == null) {
+          await _taskService.createTask(task);
+          if (mounted)
+            SnackBarUtils.showSnackBar(context, 'Task assigned successfully!');
+        } else {
+          await _taskService.updateTask(task);
+          if (mounted)
+            SnackBarUtils.showSnackBar(context, 'Task updated successfully!');
+        }
 
         if (mounted) {
-          SnackBarUtils.showSnackBar(context, 'Task assigned successfully!');
-          Navigator.of(context)
-              .pop(true); // Go back to RealTimeTasksScreen and indicate success
+          Navigator.of(context).pop(true);
         }
       } catch (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error assigning task: ${e.toString()}',
+              context, 'Error saving task: ${e.toString()}',
               isError: true);
         }
-        print('Error assigning task: $e');
+        print('Error saving task: $e');
       } finally {
         if (mounted) {
           setState(() {
@@ -165,17 +261,20 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Assign New Task')),
+        appBar: AppBar(
+            title: Text(
+                widget.taskToEdit == null ? 'Assign New Task' : 'Edit Task')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    // This check is important as _currentManager might be null if user profile is incomplete or network issue
     if (_currentManager == null ||
         _workers.isEmpty ||
         _transmissionLines.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Assign New Task')),
+        appBar: AppBar(
+            title: Text(
+                widget.taskToEdit == null ? 'Assign New Task' : 'Edit Task')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -186,7 +285,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                     size: 60, color: colorScheme.tertiary),
                 const SizedBox(height: 20),
                 Text(
-                  'Cannot assign tasks at this time.',
+                  'Cannot ${widget.taskToEdit == null ? 'assign' : 'edit'} tasks at this time.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context)
                       .textTheme
@@ -221,7 +320,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Assign New Task'),
+        title:
+            Text(widget.taskToEdit == null ? 'Assign New Task' : 'Edit Task'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -231,7 +331,9 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Assign a new patrolling task to a worker.',
+                widget.taskToEdit == null
+                    ? 'Assign a new patrolling task to a worker.'
+                    : 'Edit the details of this task.',
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
@@ -247,16 +349,14 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       borderRadius: BorderRadius.circular(12)),
                 ),
                 hint: const Text('Select a worker'),
-                isExpanded:
-                    true, // Crucial for dropdown to take available width
+                isExpanded: true,
                 items: _workers.map((worker) {
                   return DropdownMenuItem(
                     value: worker,
                     child: Text(
                       worker.displayName ?? worker.email,
-                      overflow:
-                          TextOverflow.ellipsis, // NEW: Prevent text overflow
-                      maxLines: 1, // NEW: Restrict to single line
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   );
                 }).toList(),
@@ -280,16 +380,14 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       borderRadius: BorderRadius.circular(12)),
                 ),
                 hint: const Text('Select a transmission line'),
-                isExpanded:
-                    true, // Crucial for dropdown to take available width
+                isExpanded: true,
                 items: _transmissionLines.map((line) {
                   return DropdownMenuItem(
                     value: line,
                     child: Text(
                       line.name,
-                      overflow:
-                          TextOverflow.ellipsis, // NEW: Prevent text overflow
-                      maxLines: 1, // NEW: Restrict to single line
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   );
                 }).toList(),
@@ -303,19 +401,66 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Target Tower Range Input
+              // NEW: From Tower Input
               TextFormField(
-                controller: _targetTowerRangeController,
+                controller: _fromTowerController,
                 decoration: InputDecoration(
-                  labelText: 'Target Tower Range (e.g., 10-30, 15, All)',
-                  prefixIcon: Icon(Icons.format_list_numbered,
-                      color: colorScheme.primary),
+                  labelText: 'From Tower Number (e.g., 10)',
+                  prefixIcon:
+                      Icon(Icons.arrow_right_alt, color: colorScheme.primary),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
+                keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter target towers (e.g., 10-30, All)';
+                    return 'Please enter a "From" tower number or "All"';
+                  }
+                  if (value.trim().toLowerCase() == 'all')
+                    return null; // "All" is valid
+
+                  final int? num = int.tryParse(value.trim());
+                  if (num == null || num <= 0) {
+                    return 'Must be a positive number or "All"';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // NEW: To Tower Input
+              TextFormField(
+                controller: _toTowerController,
+                decoration: InputDecoration(
+                  labelText:
+                      'To Tower Number (e.g., 30, leave empty for single tower)',
+                  prefixIcon:
+                      Icon(Icons.arrow_left, color: colorScheme.primary),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  final String fromText = _fromTowerController.text.trim();
+                  if (fromText.toLowerCase() == 'all')
+                    return null; // If "All", no "To" needed
+
+                  final int? fromNum = int.tryParse(fromText);
+                  if (fromNum == null)
+                    return null; // If From is invalid, this field is not responsible
+
+                  if (value == null || value.trim().isEmpty) {
+                    // If "To" is empty, it implies a single tower (From)
+                    return null;
+                  }
+
+                  final int? toNum = int.tryParse(value.trim());
+                  if (toNum == null || toNum <= 0) {
+                    return 'Must be a positive number or empty for single tower';
+                  }
+
+                  if (fromNum > toNum) {
+                    return '"From" tower cannot be greater than "To" tower';
                   }
                   return null;
                 },
@@ -354,9 +499,13 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       ),
                     )
                   : ElevatedButton.icon(
-                      onPressed: _assignTask,
-                      icon: const Icon(Icons.assignment_add),
-                      label: const Text('Assign Task'),
+                      onPressed: _assignOrUpdateTask,
+                      icon: Icon(widget.taskToEdit == null
+                          ? Icons.assignment_add
+                          : Icons.save),
+                      label: Text(widget.taskToEdit == null
+                          ? 'Assign Task'
+                          : 'Save Changes'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                         foregroundColor: colorScheme.onPrimary,

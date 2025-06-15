@@ -50,16 +50,12 @@ class AuthService {
   }
 
   // Method for traditional email/password registration.
-  // This will create a Firebase Auth user AND then call ensureUserProfileExists
-  // to set up their Firestore profile with a default 'Worker' role.
   Future<UserCredential> registerWithEmailAndPassword(
       String email, String password) async {
     try {
       final userCredential = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
       if (userCredential.user != null) {
-        // For new email/password users, create their profile with a default 'Worker' role.
-        // You might consider 'Pending' here if you want admin approval for all registrations.
         await createUserProfileInFirestore(userCredential.user!.uid, email,
             'Worker', userCredential.user!.displayName);
       }
@@ -74,8 +70,6 @@ class AuthService {
   }
 
   // Method to create/update a user's profile in Firestore with a specified role.
-  // This method is intended for use by an admin/backend process.
-  // It uses merge: true to ensure it updates existing fields without overwriting the entire document.
   Future<void> createUserProfileInFirestore(
       String uid, String email, String role, String? displayName) async {
     try {
@@ -94,8 +88,12 @@ class AuthService {
     }
   }
 
-  // NEW METHOD: Fetches all user profiles from Firestore.
-  // This is used by the manager to see available workers.
+  // NEW METHOD: Get the current Firebase User object.
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
+
+  // Fetches all user profiles from Firestore.
   Future<List<UserProfile>> getAllUserProfiles() async {
     try {
       final querySnapshot = await _firestore.collection('userProfiles').get();
@@ -104,7 +102,7 @@ class AuthService {
           .toList();
     } catch (e) {
       print('Error fetching all user profiles: $e');
-      rethrow; // Re-throw the error to be handled by the UI
+      rethrow;
     }
   }
 

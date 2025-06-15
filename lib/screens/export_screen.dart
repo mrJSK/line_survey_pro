@@ -6,13 +6,15 @@
 import 'dart:io'; // For File operations
 import 'package:flutter/material.dart'; // Flutter UI toolkit
 import 'package:line_survey_pro/models/survey_record.dart'; // SurveyRecord data model
-import 'package:line_survey_pro/services/local_database_service.dart'; // Local database service
+import 'package:line_survey_pro/services/local_database_service.dart'; // Local database service (for deleting local records)
 import 'package:line_survey_pro/services/file_service.dart'; // File service for CSV/sharing
+import 'package:line_survey_pro/services/survey_firestore_service.dart'; // For fetching records from Firestore
 import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Snackbar utility
 import 'package:share_plus/share_plus.dart'; // Share_plus for file sharing
 import 'package:line_survey_pro/screens/view_photo_screen.dart'; // Screen to view a single photo
 import 'package:line_survey_pro/models/transmission_line.dart'; // Needed for dropdown in modal
-import 'package:path/path.dart' as p; // For basename in image sharing
+import 'dart:async'; // For StreamSubscription
+import 'package:path/path.dart' as p; // For path.basename
 
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
@@ -23,12 +25,12 @@ class ExportScreen extends StatefulWidget {
 
 class _ExportScreenState extends State<ExportScreen>
     with SingleTickerProviderStateMixin {
-  List<SurveyRecord> _allRecords = []; // All survey records (local)
+  List<SurveyRecord> _allRecords = []; // Combined records (local + Firestore)
   bool _isLoading = true; // State for loading records
   Map<String, List<SurveyRecord>> _groupedRecords =
       {}; // Records grouped by line name
   List<TransmissionLine> _transmissionLines =
-      []; // List of transmission lines for dropdown
+      []; // List of transmission lines for dropdown (based on record lines)
 
   // State for multi-action FAB
   bool _isFabOpen = false;
@@ -39,13 +41,21 @@ class _ExportScreenState extends State<ExportScreen>
   TransmissionLine? _selectedLineForShare;
   final Set<String> _selectedImageRecordIds =
       {}; // For multi-selection in image share modal
-  // Removed _searchController from here as it will be local to the modal
-  String _searchQuery = ''; // Keep this for filtering logic
+  final TextEditingController _searchController =
+      TextEditingController(); // For tower search
+  String _searchQuery = '';
+
+  final SurveyFirestoreService _surveyFirestoreService =
+      SurveyFirestoreService();
+  final LocalDatabaseService _localDatabaseService =
+      LocalDatabaseService(); // For local file check and deletion
+  StreamSubscription?
+      _firestoreRecordsSubscription; // Stream for Firestore records
 
   @override
   void initState() {
     super.initState();
-    _fetchRecords(); // Fetch records when the screen initializes
+    _fetchAndCombineRecords(); // Call combine method
 
     _animationController = AnimationController(
       vsync: this,
@@ -60,7 +70,8 @@ class _ExportScreenState extends State<ExportScreen>
   @override
   void dispose() {
     _animationController.dispose();
-    // No need to dispose _searchController here anymore, as it's moved
+    _searchController.dispose();
+    _firestoreRecordsSubscription?.cancel();
     super.dispose();
   }
 
@@ -75,42 +86,109 @@ class _ExportScreenState extends State<ExportScreen>
     });
   }
 
-  // Fetches all survey records from the local database and transmission lines.
-  Future<void> _fetchRecords() async {
+  // Fetches records from Firestore and Local DB, then combines them.
+  Future<void> _fetchAndCombineRecords() async {
     setState(() {
-      _isLoading = true; // Show loading indicator
-      _selectedImageRecordIds
-          .clear(); // Clear selections from previous modal sessions
+      _isLoading = true;
+      _selectedImageRecordIds.clear();
     });
-    try {
-      final records = await LocalDatabaseService().getAllSurveyRecords();
-      // Fetch distinct line names from existing records to populate the dropdown
-      final uniqueLineNames = records.map((r) => r.lineName).toSet();
-      _transmissionLines = uniqueLineNames
-          .map((name) => TransmissionLine(id: name, name: name, totalTowers: 0))
-          .toList();
-      _transmissionLines.sort(
-          (a, b) => a.name.compareTo(b.name)); // Sort for consistent order
 
-      if (mounted) {
+    _firestoreRecordsSubscription?.cancel();
+
+    _firestoreRecordsSubscription =
+        _surveyFirestoreService.streamAllSurveyRecords().listen(
+      (firestoreRecords) async {
+        if (!mounted) return;
+
+        // Fetch all local records to get photoPaths and 'saved' statuses
+        final allLocalRecords =
+            await _localDatabaseService.getAllSurveyRecords();
+
+        // Combine logic: Create a map to hold the final combined records.
+        // Prioritize local records for photoPath, and Firestore for 'uploaded' status.
+        Map<String, SurveyRecord> combinedMap = {};
+
+        // 1. Add all local records to the map. These will have photoPaths.
+        for (var record in allLocalRecords) {
+          combinedMap[record.id] = record;
+        }
+
+        // 2. Iterate through Firestore records.
+        for (var fRecord in firestoreRecords) {
+          final localRecord = combinedMap[fRecord.id];
+          if (localRecord != null) {
+            // Record exists both locally and in Firestore.
+            // Take Firestore's status, but preserve local photoPath.
+            combinedMap[fRecord.id] = localRecord.copyWith(
+              status: fRecord.status, // Always take status from Firestore
+            );
+          } else {
+            // If the record is in Firestore but NOT locally, add it.
+            // Its photoPath will be empty, indicating no local image.
+            combinedMap[fRecord.id] = fRecord;
+          }
+        }
+
+        List<SurveyRecord> finalCombinedList = combinedMap.values.toList();
+        // Sort by timestamp for consistent display (most recent first)
+        finalCombinedList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+        final uniqueLineNames =
+            finalCombinedList.map((r) => r.lineName).toSet();
+        _transmissionLines = uniqueLineNames
+            .map((name) =>
+                TransmissionLine(id: name, name: name, totalTowers: 0))
+            .toList();
+        _transmissionLines.sort((a, b) => a.name.compareTo(b.name));
+
         setState(() {
-          _allRecords = records; // Update the list of all records
-          _groupedRecords = _groupRecordsByLineName(records); // Group records
-          _isLoading = false; // Hide loading indicator
+          _allRecords = finalCombinedList; // Display the combined list
+          _groupedRecords = _groupRecordsByLineName(finalCombinedList);
+          _isLoading = false;
           _selectedLineForShare =
               _transmissionLines.isNotEmpty ? _transmissionLines.first : null;
         });
-      }
-    } catch (e) {
-      if (mounted) {
-        SnackBarUtils.showSnackBar(
-            context, 'Error fetching records: ${e.toString()}',
-            isError: true);
-        setState(() {
-          _isLoading = false; // Hide loading indicator even on error
-        });
+
+        // Update the SnackBar message based on actual data
+        if (finalCombinedList.isEmpty && mounted) {
+          SnackBarUtils.showSnackBar(context,
+              'No survey records found. Conduct a survey first and save/upload it!',
+              isError: false);
+        } else if (allLocalRecords.isNotEmpty &&
+            firestoreRecords.isEmpty &&
+            mounted) {
+          SnackBarUtils.showSnackBar(context,
+              'You have local records. Upload them to the cloud for full sync!',
+              isError: false);
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'Error fetching records: ${error.toString()}',
+              isError: true);
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        print('ExportScreen error fetching records: $error');
+      },
+      cancelOnError:
+          false, // Keep listening even on errors (e.g., permission issues for some queries)
+    );
+  }
+
+  // Helper function to check if any local images are available for sharing
+  Future<bool> _hasLocalImagesAvailable() async {
+    if (_allRecords.isEmpty) return false;
+    for (var record in _allRecords) {
+      if (record.photoPath != null &&
+          record.photoPath!.isNotEmpty &&
+          await File(record.photoPath!).exists()) {
+        return true;
       }
     }
+    return false;
   }
 
   // Helper function to group survey records by their line name.
@@ -131,7 +209,7 @@ class _ExportScreenState extends State<ExportScreen>
 
   // Exports ALL records to a CSV file.
   Future<void> _exportAllRecordsToCsv() async {
-    _toggleFab(); // Close the FAB menu
+    _toggleFab();
 
     if (_allRecords.isEmpty) {
       SnackBarUtils.showSnackBar(context, 'No records to export to CSV.');
@@ -164,46 +242,56 @@ class _ExportScreenState extends State<ExportScreen>
 
   // Shares SELECTED images via a modal.
   Future<void> _shareSelectedImagesFromModal(BuildContext context) async {
-    _toggleFab(); // Close the FAB menu
+    _toggleFab();
 
-    if (_allRecords.isEmpty) {
-      SnackBarUtils.showSnackBar(context, 'No records to share images from.');
+    // Filter only records that have a valid local photoPath
+    final List<SurveyRecord> recordsWithLocalImages = [];
+    for (var record in _allRecords) {
+      if (record.photoPath != null &&
+          record.photoPath!.isNotEmpty &&
+          await File(record.photoPath!).exists()) {
+        recordsWithLocalImages.add(record);
+      }
+    }
+
+    if (recordsWithLocalImages.isEmpty) {
+      SnackBarUtils.showSnackBar(
+          context, 'No images available locally to share.',
+          isError: false);
       return;
     }
 
-    // Reset selection state for the modal each time it's opened
     _selectedImageRecordIds.clear();
+    _searchController.clear();
     setState(() {
       _selectedLineForShare =
           _transmissionLines.isNotEmpty ? _transmissionLines.first : null;
-      _searchQuery = ''; // Reset search query state
+      _searchQuery = '';
     });
 
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     await showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Allow modal to take more height
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      useRootNavigator: true, // Ensures the modal appears above all content
+      useRootNavigator: true,
       builder: (BuildContext sheetContext) {
-        // Create a local TextEditingController for the modal
         final TextEditingController localSearchController =
             TextEditingController();
-        // Set its initial text from the state's _searchQuery
         localSearchController.text = _searchQuery;
 
         return StatefulBuilder(
-          // Use StatefulBuilder for state management within the modal
           builder: (BuildContext context, StateSetter modalSetState) {
             final List<SurveyRecord> recordsForSelectedLine =
                 _selectedLineForShare != null
-                    ? _groupedRecords[_selectedLineForShare!.name] ?? []
+                    ? recordsWithLocalImages
+                        .where((r) => r.lineName == _selectedLineForShare!.name)
+                        .toList()
                     : [];
 
-            // Filter records based on search query
             final List<SurveyRecord> filteredRecords =
                 recordsForSelectedLine.where((record) {
               return _searchQuery.isEmpty ||
@@ -211,20 +299,15 @@ class _ExportScreenState extends State<ExportScreen>
             }).toList();
 
             return AnimatedSize(
-              duration: const Duration(
-                  milliseconds:
-                      600), // This controls internal content animation, not sheet slide
+              duration: const Duration(milliseconds: 600),
               curve: Curves.easeInOut,
               child: Container(
-                // Use Container to define height for scrollability
-                height: MediaQuery.of(context).size.height *
-                    0.8, // Take 80% of screen height
+                height: MediaQuery.of(context).size.height * 0.8,
                 padding: EdgeInsets.only(
                   top: 20,
                   left: 20,
                   right: 20,
-                  bottom: MediaQuery.of(context).viewInsets.bottom +
-                      20, // Adjust for keyboard
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -247,27 +330,23 @@ class _ExportScreenState extends State<ExportScreen>
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                       ),
-                      isExpanded:
-                          true, // Important: Allows the dropdown to take available width
+                      isExpanded: true,
                       items: _transmissionLines.map((line) {
                         return DropdownMenuItem(
                           value: line,
                           child: Text(
                             line.name,
-                            overflow: TextOverflow
-                                .ellipsis, // Truncate long text with ellipsis
-                            maxLines: 1, // Ensure text stays on a single line
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         );
                       }).toList(),
                       onChanged: (line) {
                         modalSetState(() {
                           _selectedLineForShare = line;
-                          _selectedImageRecordIds
-                              .clear(); // Clear selection when line changes
-                          localSearchController
-                              .clear(); // Clear local search controller
-                          _searchQuery = ''; // Reset search query state
+                          _selectedImageRecordIds.clear();
+                          localSearchController.clear();
+                          _searchQuery = '';
                         });
                       },
                       validator: (value) {
@@ -278,9 +357,8 @@ class _ExportScreenState extends State<ExportScreen>
                       },
                     ),
                     const SizedBox(height: 15),
-                    // Tower Number Search Field
                     TextFormField(
-                      controller: localSearchController, // Use local controller
+                      controller: localSearchController,
                       decoration: InputDecoration(
                         labelText: 'Search Tower Number',
                         prefixIcon:
@@ -306,7 +384,6 @@ class _ExportScreenState extends State<ExportScreen>
                     ),
                     const SizedBox(height: 15),
                     Expanded(
-                      // Use Expanded for the ListView to occupy available space
                       child: filteredRecords.isEmpty
                           ? Center(
                               child: Text(
@@ -314,7 +391,7 @@ class _ExportScreenState extends State<ExportScreen>
                                     ? 'Please select a transmission line.'
                                     : (_searchQuery.isNotEmpty
                                         ? 'No towers found matching search.'
-                                        : 'No records for this line.'),
+                                        : 'No images for this line available locally.'),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -330,7 +407,7 @@ class _ExportScreenState extends State<ExportScreen>
                                 return CheckboxListTile(
                                   title: Text('Tower: ${record.towerNumber}'),
                                   subtitle: Text(
-                                    'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}', // Fixed to 6 decimal places
+                                    'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}',
                                   ),
                                   value: isSelected,
                                   onChanged: (bool? value) {
@@ -356,57 +433,78 @@ class _ExportScreenState extends State<ExportScreen>
                               final List<XFile> imageFilesToShare = [];
                               final StringBuffer shareMessage = StringBuffer();
 
-                              // Build the share message and gather file paths
+                              // Get the line name from the first selected record (assuming all are from the same line, or handle multiple)
+                              String commonLineName = '';
+                              if (_selectedImageRecordIds.isNotEmpty) {
+                                commonLineName = _allRecords
+                                    .firstWhere((r) =>
+                                        r.id == _selectedImageRecordIds.first)
+                                    .lineName;
+                              }
+
+                              // Add a main heading for the shared data
+                              shareMessage.writeln(
+                                  '*--- Line Survey Photos for $commonLineName ---*'); // Bold line name
+                              shareMessage
+                                  .writeln(''); // Blank line for spacing
+
+                              int photoCount = 0; // Counter for photos
                               for (String recordId in _selectedImageRecordIds) {
-                                final record = _allRecords
+                                final record = recordsWithLocalImages
                                     .firstWhere((r) => r.id == recordId);
-                                final file = File(record.photoPath);
+                                // Ensure photoPath is not null/empty before proceeding
+                                if (record.photoPath != null &&
+                                    record.photoPath!.isNotEmpty) {
+                                  final File file = File(record.photoPath!);
+                                  // Re-generate overlaid image for sharing
+                                  final File? overlaidFile = await FileService()
+                                      .addTextOverlayToImage(record);
 
-                                if (await file.exists()) {
-                                  imageFilesToShare.add(XFile(file.path));
+                                  if (overlaidFile != null &&
+                                      await overlaidFile.exists()) {
+                                    photoCount++;
+                                    imageFilesToShare
+                                        .add(XFile(overlaidFile.path));
 
-                                  // Append details to the message for each image
-                                  shareMessage
-                                      .writeln('--- Shared image for ---');
-                                  shareMessage
-                                      .writeln('Line: ${record.lineName}');
-                                  shareMessage
-                                      .writeln('Tower: ${record.towerNumber}');
-                                  shareMessage.writeln(
-                                      'Lat: ${record.latitude.toStringAsFixed(6)}, Long: ${record.longitude.toStringAsFixed(6)}');
-                                  shareMessage.writeln(
-                                      'Time: ${record.timestamp.toLocal().toString().split('.')[0]}');
-                                  shareMessage.writeln(
-                                      'Status: ${record.status.toUpperCase()}');
-                                  shareMessage.writeln(
-                                      ''); // Add an empty line for separation
+                                    // Append details to the message for EACH image (using original record data)
+                                    // shareMessage.writeln(
+                                    //     '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}'); // Bold Photo X with original filename
+                                    shareMessage.writeln(
+                                        '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}'); // Bold Tower
+                                    shareMessage.writeln(
+                                        '  *Lat/Lon:* ${record.latitude.toStringAsFixed(6)}, ${record.longitude.toStringAsFixed(6)}'); // Bold Lat/Lon
+                                    shareMessage.writeln(
+                                        '  *Time:* ${record.timestamp.toLocal().toString().split('.')[0]}'); // Bold Time
+                                    shareMessage.writeln(
+                                        '  *Status:* ${record.status.toUpperCase()}'); // Bold Status
+                                    shareMessage.writeln(
+                                        '-----------------------------------'); // Separator
+                                    shareMessage
+                                        .writeln(''); // Blank line for spacing
+                                  } else {
+                                    print(
+                                        'Warning: Could not create overlay for image file for record ID: $recordId at ${record.photoPath}. Skipping this image from share.');
+                                  }
                                 } else {
                                   print(
-                                      'Warning: Image file not found for record ID: $recordId at ${record.photoPath}');
-                                  shareMessage.writeln(
-                                      'Warning: Image file not found for record ID: $recordId');
+                                      'Warning: photoPath is null or empty for record ID: $recordId. Skipping this image from share.');
                                 }
                               }
 
-                              if (imageFilesToShare.isEmpty &&
-                                  shareMessage.isEmpty) {
+                              if (imageFilesToShare.isEmpty) {
                                 SnackBarUtils.showSnackBar(context,
-                                    'No valid image files or details to share for selected records.',
+                                    'No valid images with overlays found for selected records to share.',
                                     isError: true);
                                 return;
                               }
 
                               try {
-                                await Share.shareXFiles(
-                                  imageFilesToShare,
-                                  text: shareMessage
-                                      .toString()
-                                      .trim(), // Pass the collected message
-                                );
+                                await Share.shareXFiles(imageFilesToShare,
+                                    text: shareMessage.toString().trim());
                                 if (mounted) {
                                   SnackBarUtils.showSnackBar(context,
                                       'Selected images and details shared.');
-                                  Navigator.pop(context); // Close the modal
+                                  Navigator.pop(context);
                                 }
                               } catch (e) {
                                 if (mounted) {
@@ -415,7 +513,6 @@ class _ExportScreenState extends State<ExportScreen>
                                       isError: true);
                                 }
                               } finally {
-                                // Dispose the local controller when the modal is about to close
                                 localSearchController.dispose();
                               }
                             },
@@ -438,7 +535,7 @@ class _ExportScreenState extends State<ExportScreen>
     );
   }
 
-  // Deletes a single record from the local database.
+  // Deletes a single record. Deletes local file, then details from local DB and Firestore.
   Future<void> _deleteSingleRecord(SurveyRecord recordToDelete) async {
     final bool confirmDelete = await showDialog(
           context: context,
@@ -446,7 +543,7 @@ class _ExportScreenState extends State<ExportScreen>
             return AlertDialog(
               title: const Text('Confirm Deletion'),
               content: Text(
-                  'Are you sure you want to delete record for Tower ${recordToDelete.towerNumber} on ${recordToDelete.lineName}? This action cannot be undone and will also delete the photo.'),
+                  'Are you sure you want to delete record for Tower ${recordToDelete.towerNumber} on ${recordToDelete.lineName}? This action cannot be undone.'),
               actions: <Widget>[
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -455,8 +552,7 @@ class _ExportScreenState extends State<ExportScreen>
                 ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(true),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Theme.of(context).colorScheme.error, // Red for delete
+                    backgroundColor: Theme.of(context).colorScheme.error,
                     foregroundColor: Theme.of(context).colorScheme.onError,
                   ),
                   child: const Text('Delete'),
@@ -465,20 +561,29 @@ class _ExportScreenState extends State<ExportScreen>
             );
           },
         ) ??
-        false; // Default to false if dialog is dismissed
+        false;
 
     if (!confirmDelete) {
       return;
     }
 
     try {
-      // Delete photo file from storage
+      // 1. Delete photo file from local storage
       final photoFile = File(recordToDelete.photoPath);
       if (await photoFile.exists()) {
         await photoFile.delete();
+      } else {
+        print(
+            'Warning: Local photo file not found for record ID: ${recordToDelete.id}');
       }
-      // Delete record from database
-      await LocalDatabaseService().deleteSurveyRecord(recordToDelete.id);
+
+      // 2. Delete record from local database
+      await _localDatabaseService.deleteSurveyRecord(recordToDelete.id);
+
+      // 3. Delete record details from Firestore
+      await _surveyFirestoreService
+          .deleteSurveyRecordDetails(recordToDelete.id);
+
       if (mounted) {
         SnackBarUtils.showSnackBar(context,
             'Record for Tower ${recordToDelete.towerNumber} deleted successfully.');
@@ -489,18 +594,18 @@ class _ExportScreenState extends State<ExportScreen>
             context, 'Error deleting record: ${e.toString()}',
             isError: true);
       }
+      print('Export screen delete record error: $e');
     } finally {
-      await _fetchRecords(); // Refresh list after deletion attempt
+      // Data is streamed, so UI will automatically update.
     }
   }
 
-  // Custom FAB buttons for the speed dial
   Widget _buildFabChild(IconData icon, String tooltip, VoidCallback onPressed,
       {Color? backgroundColor, Color? foregroundColor}) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       child: FloatingActionButton.small(
-        heroTag: tooltip, // Unique tag for each FAB in a SpeedDial-like setup
+        heroTag: tooltip,
         onPressed: onPressed,
         tooltip: tooltip,
         backgroundColor:
@@ -531,7 +636,7 @@ class _ExportScreenState extends State<ExportScreen>
                             padding: const EdgeInsets.all(20.0),
                             child: Center(
                               child: Text(
-                                'No survey records found. Conduct a survey first!',
+                                'No survey records found. Conduct a survey first and save/upload it!',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context)
                                     .textTheme
@@ -545,7 +650,7 @@ class _ExportScreenState extends State<ExportScreen>
                           ),
                         )
                       : RefreshIndicator(
-                          onRefresh: _fetchRecords,
+                          onRefresh: _fetchAndCombineRecords,
                           color: colorScheme.primary,
                           child: ListView.builder(
                             itemCount: _groupedRecords.keys.length,
@@ -576,7 +681,7 @@ class _ExportScreenState extends State<ExportScreen>
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                              'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}', // Fixed to 6 decimal places
+                                              'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}',
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .bodySmall),
@@ -587,22 +692,43 @@ class _ExportScreenState extends State<ExportScreen>
                                                   .bodySmall),
                                           Row(
                                             children: [
-                                              Text('Status: ',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall),
-                                              Icon(
-                                                Icons.check_circle,
-                                                color: colorScheme.secondary,
-                                                size: 16,
-                                              ),
-                                              Text(record.status.toUpperCase(),
+                                              Text(
+                                                  'Status: ${record.status.toUpperCase()}',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
                                                       ?.copyWith(
-                                                          color: colorScheme
-                                                              .secondary)),
+                                                          color: record
+                                                                      .status ==
+                                                                  'uploaded'
+                                                              ? Colors.green
+                                                              : colorScheme
+                                                                  .tertiary)),
+                                              const SizedBox(width: 8),
+                                              FutureBuilder<bool>(
+                                                future: record.photoPath !=
+                                                            null &&
+                                                        record.photoPath!
+                                                            .isNotEmpty
+                                                    ? File(record.photoPath!)
+                                                        .exists()
+                                                    : Future.value(false),
+                                                builder: (context, snapshot) {
+                                                  if (snapshot.connectionState ==
+                                                          ConnectionState
+                                                              .done &&
+                                                      snapshot.data == true) {
+                                                    return Icon(
+                                                      Icons.image,
+                                                      color:
+                                                          colorScheme.secondary,
+                                                      size: 16,
+                                                    );
+                                                  }
+                                                  return const SizedBox
+                                                      .shrink();
+                                                },
+                                              ),
                                             ],
                                           ),
                                         ],
@@ -614,15 +740,24 @@ class _ExportScreenState extends State<ExportScreen>
                                             _deleteSingleRecord(record),
                                         tooltip: 'Delete this record',
                                       ),
-                                      onTap: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                ViewPhotoScreen(
-                                                    imagePath:
-                                                        record.photoPath),
-                                          ),
-                                        );
+                                      onTap: () async {
+                                        if (record.photoPath != null &&
+                                            record.photoPath!.isNotEmpty &&
+                                            await File(record.photoPath!)
+                                                .exists()) {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ViewPhotoScreen(
+                                                      imagePath:
+                                                          record.photoPath),
+                                            ),
+                                          );
+                                        } else {
+                                          SnackBarUtils.showSnackBar(context,
+                                              'Image not available locally for this record. Only details are synced.',
+                                              isError: false);
+                                        }
                                       },
                                     );
                                   }).toList(),
@@ -634,45 +769,47 @@ class _ExportScreenState extends State<ExportScreen>
                 ),
               ],
             ),
-      // Multi-action Floating Action Button (FAB)
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment:
-            CrossAxisAlignment.end, // Align to end for right placement
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Share Images FAB (sub-FAB)
-          ScaleTransition(
-            scale: _expandAnimation,
-            alignment: Alignment.bottomRight,
-            child: _buildFabChild(
-              Icons.image,
-              'Share Images',
-              () => _shareSelectedImagesFromModal(context),
-              backgroundColor: colorScheme.secondary,
-              foregroundColor: colorScheme.onSecondary,
-            ),
+          FutureBuilder<bool>(
+            future: _hasLocalImagesAvailable(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done &&
+                  snapshot.data == true) {
+                return ScaleTransition(
+                  scale: _expandAnimation,
+                  alignment: Alignment.bottomRight,
+                  child: _buildFabChild(
+                    Icons.image,
+                    'Share Images',
+                    () => _shareSelectedImagesFromModal(context),
+                    backgroundColor: colorScheme.secondary,
+                    foregroundColor: colorScheme.onSecondary,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
-          // Export CSV FAB (sub-FAB)
           ScaleTransition(
             scale: _expandAnimation,
             alignment: Alignment.bottomRight,
             child: _buildFabChild(
-              Icons.description, // Changed icon to description for CSV
+              Icons.description,
               'Export All CSV',
               _exportAllRecordsToCsv,
               backgroundColor: colorScheme.tertiary,
               foregroundColor: colorScheme.onTertiary,
             ),
           ),
-          const SizedBox(height: 16), // Spacing between sub-FABs and main FAB
-          // Main FAB to toggle the menu
+          const SizedBox(height: 16),
           FloatingActionButton.extended(
             onPressed: _toggleFab,
             label:
                 _isFabOpen ? const Text('Close Menu') : const Text('Actions'),
-            icon: Icon(_isFabOpen
-                ? Icons.close
-                : Icons.menu_open), // Icon changes based on state
+            icon: Icon(_isFabOpen ? Icons.close : Icons.menu_open),
             backgroundColor: colorScheme.primary,
             foregroundColor: colorScheme.onPrimary,
             shape: RoundedRectangleBorder(
@@ -682,8 +819,18 @@ class _ExportScreenState extends State<ExportScreen>
           ),
         ],
       ),
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.endFloat, // Place FAB at bottom end
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
+  }
+}
+
+extension IterableExtension<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T element) test) {
+    for (final element in this) {
+      if (test(element)) {
+        return element;
+      }
+    }
+    return null;
   }
 }

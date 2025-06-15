@@ -3,8 +3,9 @@
 // generating CSV files, and facilitating file sharing.
 
 import 'dart:io'; // Provides File and Directory classes for file system interactions
-import 'dart:ui' as ui; // Alias 'dart:ui' to 'ui' for image operations
-import 'package:flutter/services.dart'; // For ByteData
+import 'dart:typed_data'; // Required for Uint8List
+// import 'dart:ui' as ui; // No longer needed directly by image package
+import 'package:flutter/services.dart'; // For ByteData (Uint8List)
 import 'package:path_provider/path_provider.dart'; // Plugin to get common file system locations (e.g., app documents directory)
 import 'package:path/path.dart'
     as p; // Utility for manipulating file paths in a cross-platform way
@@ -103,13 +104,13 @@ class FileService {
     return file; // Return the created CSV file object.
   }
 
-  // Adds a semi-transparent overlay with survey details to an image.
+  // NEW/REVIVED: Adds a semi-transparent overlay with survey details to an image.
   // Returns the File object of the modified image saved in a temporary directory.
   Future<File?> addTextOverlayToImage(SurveyRecord record) async {
     try {
       final originalFile = File(record.photoPath);
       if (!await originalFile.exists()) {
-        print('Original image file not found: ${record.photoPath}');
+        print('Original image file not found for overlay: ${record.photoPath}');
         return null;
       }
 
@@ -119,18 +120,21 @@ class FileService {
           img.decodeImage(Uint8List.fromList(imageBytes));
 
       if (originalImage == null) {
-        print('Failed to decode image: ${record.photoPath}');
+        print('Failed to decode image for overlay: ${record.photoPath}');
         return null;
       }
 
       // Determine font size and padding dynamically based on image width
-      // These divisors can be tuned for better appearance on different image resolutions
-      final int fontSize = (originalImage.width / 30)
+      // These values are approximations to get a readable size.
+      final int baseFontSize = (originalImage.width / 25)
           .round()
-          .clamp(12, 40); // Adjusted for more lines
-      final int padding = (originalImage.width / 60)
+          .clamp(10, 48); // Clamped to a reasonable range
+      final int smallFontSize = (originalImage.width / 40)
           .round()
-          .clamp(5, 15); // Adjusted for more lines
+          .clamp(8, 36); // Smaller font for Lat/Lon/Time/Status
+      final int padding = (originalImage.width / 50)
+          .round()
+          .clamp(5, 20); // Clamped to a reasonable range
 
       // Text to overlay
       final String lineText = 'Line: ${record.lineName}';
@@ -139,26 +143,66 @@ class FileService {
           'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}';
       final String timeText =
           'Time: ${record.timestamp.toLocal().toString().split('.')[0]}';
-      final String statusText = 'Status: ${record.status.toUpperCase()}';
+      final String statusText =
+          'Status: ${record.status.toUpperCase()}'; // Include status
 
-      final List<String> textLines = [
-        lineText,
-        towerText,
-        latLonText,
-        timeText,
-        statusText,
-      ];
+      // Select a font based on the calculated fontSize. The image package has fixed-size bitmap fonts.
+      img.BitmapFont? baseFont;
+      if (baseFontSize >= 24) {
+        baseFont = img.arial24;
+      } else if (baseFontSize >= 14) {
+        baseFont = img.arial24;
+      } else {
+        baseFont = img.arial24; // Fallback to smallest available font
+      }
 
-      // Calculate approximate total text height to determine background rectangle size.
-      // This is an approximation as actual text rendering size can vary.
-      double textHeightPerLine =
-          fontSize * 1.3; // Rough estimation for line height, adjusted
-      double totalTextHeight = textLines.length * textHeightPerLine;
-      double backgroundHeight = totalTextHeight + (padding * 2);
+      img.BitmapFont? smallFont;
+      if (smallFontSize >= 14) {
+        smallFont = img.arial24;
+      } else {
+        smallFont = img.arial24; // Fallback to smallest available font
+      }
+
+      if (baseFont == null || smallFont == null) {
+        print(
+            "Warning: No suitable font found for overlay. Text might not render.");
+        return null;
+      }
+
+      // Estimate line heights using the font's own height property
+      final int baseLineHeight = baseFont.lineHeight;
+      final int smallLineHeight = smallFont.lineHeight;
+
+      // Calculate approximate text widths for centering or positioning
+      // Since BitmapFont does not have a 'width' property, estimate average character width.
+      double getFontCharWidth(img.BitmapFont font) {
+        if (font == img.arial24) return 14.0;
+        if (font == img.arial24) return 8.0;
+        if (font == img.arial24) return 5.0;
+        return 8.0; // Default fallback
+      }
+
+      final int lineTextEstimatedWidth =
+          (lineText.length * getFontCharWidth(baseFont)).toInt();
+      final int towerTextEstimatedWidth =
+          (towerText.length * getFontCharWidth(smallFont)).toInt();
+      final int latLonTextEstimatedWidth =
+          (latLonText.length * getFontCharWidth(smallFont)).toInt();
+      final int timeTextEstimatedWidth =
+          (timeText.length * getFontCharWidth(smallFont)).toInt();
+      final int statusTextEstimatedWidth =
+          (statusText.length * getFontCharWidth(smallFont)).toInt();
+
+      // Calculate background height (enough for 5 lines of text + padding)
+      int backgroundHeight = (baseLineHeight + padding) +
+          (smallLineHeight + padding) + // Tower line
+          (smallLineHeight + padding) + // LatLon line
+          (smallLineHeight + padding) + // Time line
+          (smallLineHeight + padding); // Status line
 
       // Ensure background rectangle doesn't exceed image height
       if (backgroundHeight > originalImage.height) {
-        backgroundHeight = originalImage.height.toDouble();
+        backgroundHeight = originalImage.height;
       }
 
       // Create a new image for drawing (a copy of the original)
@@ -166,56 +210,88 @@ class FileService {
           width: originalImage.width, height: originalImage.height);
 
       // Draw semi-transparent rectangle at the bottom
-      // Using drawRect with thickness -1 to fill it. Rgba8 for transparency.
       img.drawRect(
         outputImage,
         x1: 0,
-        y1: (outputImage.height - backgroundHeight).toInt(),
+        y1: outputImage.height - backgroundHeight,
         x2: outputImage.width,
         y2: outputImage.height,
-        color: img.ColorUint16.rgba(
-            0, 0, 0, 255), // Semi-transparent black (150/255 opacity)
-        thickness: 1, // Fill the rectangle
+        color: img.ColorRgba8(0, 0, 0,
+            0), // Semi-transparent black (increased opacity slightly to 180)
+        thickness: -1, // Fill the rectangle
       );
 
       // Current Y position for drawing text, starting from the top of the background rectangle
-      int currentY =
-          (originalImage.height - backgroundHeight).toInt() + padding;
+      int currentY = (outputImage.height - backgroundHeight) + padding;
 
-      // Use a default font from the `image` package.
-      img.BitmapFont? font;
-      if (fontSize >= 24) {
-        font = img.arial24;
-      } else if (fontSize >= 14) {
-        font = img.arial14;
-      } else {
-        font = img.arial14; // Fallback to a smaller font
-      }
+      // --- Draw text with formatting attempts ---
 
-      if (font == null) {
-        print(
-            "Warning: No suitable font found for overlay. Text might not render.");
-        // Fallback or handle error
-      } else {
-        // Draw each text line
-        for (String line in textLines) {
-          img.drawString(
-            outputImage,
-            line,
-            font: font,
-            x: padding,
-            y: currentY,
-            color: img.ColorRgb8(255, 255, 255), // White text
-          );
-          currentY += textHeightPerLine.toInt();
-        }
-      }
+      // Line Name: Center aligned
+      int lineTextX = (outputImage.width - lineTextEstimatedWidth) ~/ 2;
+      lineTextX = lineTextX.clamp(
+          padding, outputImage.width - padding - lineTextEstimatedWidth);
+      img.drawString(
+        outputImage,
+        lineText,
+        font: baseFont,
+        x: lineTextX,
+        y: currentY,
+        color: img.ColorRgb8(255, 255, 255), // White text
+      );
+      currentY += baseLineHeight + padding;
+
+      // Tower Number: Left aligned
+      img.drawString(
+        outputImage,
+        towerText,
+        font: smallFont,
+        x: padding,
+        y: currentY,
+        color: img.ColorRgb8(255, 255, 255),
+      );
+      currentY += smallLineHeight + 2; // Small spacing
+
+      // Lat and Lon: Left aligned (can adjust 'x' for right alignment if font metrics allow)
+      img.drawString(
+        outputImage,
+        latLonText,
+        font: smallFont,
+        x: padding, // Left aligned
+        y: currentY,
+        color: img.ColorRgb8(255, 255, 255),
+      );
+      currentY += smallLineHeight + padding;
+
+      // Time: Left aligned
+      img.drawString(
+        outputImage,
+        timeText,
+        font: smallFont,
+        x: padding,
+        y: currentY,
+        color: img.ColorRgb8(255, 255, 255),
+      );
+      currentY += smallLineHeight + 2; // Small spacing
+
+      // Status: Left aligned, with green color for 'uploaded'
+      final img.Color statusColor = record.status.toUpperCase() == 'UPLOADED'
+          ? img.ColorRgb8(0, 255, 0) // Green for UPLOADED
+          : img.ColorRgb8(
+              255, 255, 255); // White for other statuses (saved, etc.)
+      img.drawString(
+        outputImage,
+        statusText,
+        font: smallFont,
+        x: padding,
+        y: currentY,
+        color: statusColor,
+      );
 
       // Get temporary directory to save the modified image
       final Directory tempDir = await getTemporaryDirectory();
       final String tempPath = tempDir.path;
       final String outputFileName =
-          'survey_photo_overlay_${p.basenameWithoutExtension(record.photoPath)}.jpg';
+          'survey_photo_overlay_${p.basenameWithoutExtension(record.id)}.jpg'; // Use record ID for unique filename
       final File outputFile = File('$tempPath/$outputFileName');
 
       // Encode and save the new image as JPEG
@@ -229,12 +305,8 @@ class FileService {
   }
 
   // Shares a list of files using the platform's native sharing mechanism.
-  // This allows users to send files to other apps (e.g., email, cloud storage, messaging).
   Future<void> shareFiles(List<String> filePaths, {String? text}) async {
-    // Convert a list of file paths (String) to a list of XFile objects,
-    // which is the required input type for `share_plus`.
     final List<XFile> files = filePaths.map((path) => XFile(path)).toList();
-    // Use the `share_plus` plugin to open the native share sheet.
     await Share.shareXFiles(files, text: text);
   }
 }

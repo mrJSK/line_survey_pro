@@ -8,14 +8,19 @@ import 'package:line_survey_pro/screens/dashboard_tab.dart'; // Import your Dash
 import 'package:line_survey_pro/screens/export_screen.dart'; // Import your ExportScreen
 import 'package:line_survey_pro/screens/realtime_tasks_screen.dart'; // Import your RealTimeTasksScreen
 
+// Define a GlobalKey for HomeScreenState
+final GlobalKey<HomeScreenState> homeScreenKey = GlobalKey<HomeScreenState>();
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() =>
+      HomeScreenState(); // Changed to public for GlobalKey
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
+  // Changed to public
   User? _currentUser; // Variable to hold the current authenticated user
   int _selectedIndex = 0; // State for the currently selected tab index
 
@@ -42,6 +47,13 @@ class _HomeScreenState extends State<HomeScreen> {
           _currentUser = user; // Update the user when auth state changes
         });
       }
+    });
+  }
+
+  // NEW: Method to change the selected tab programmatically
+  void changeTab(int index) {
+    setState(() {
+      _selectedIndex = index;
     });
   }
 
@@ -130,12 +142,11 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Dashboard',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons
-                .upload_file), // Changed from cloud_upload as this is local export
+            icon: Icon(Icons.upload_file),
             label: 'Export',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.location_on), // Placeholder for real-time tasks
+            icon: Icon(Icons.location_on),
             label: 'Real-Time',
           ),
         ],

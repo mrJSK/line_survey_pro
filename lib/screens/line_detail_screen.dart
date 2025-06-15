@@ -1,22 +1,24 @@
 // lib/screens/line_detail_screen.dart
-// Displays details for a specific transmission line and allows adding new survey entries.
+// Displays details for a specific transmission line/task and allows adding new survey entries.
 
 import 'dart:async'; // For Timer and StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart'; // For GPS coordinates
-import 'package:line_survey_pro/models/transmission_line.dart';
+import 'package:line_survey_pro/models/task.dart'; // Import Task model
 import 'package:line_survey_pro/screens/camera_screen.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/services/permission_service.dart';
 import 'package:line_survey_pro/services/location_service.dart';
 import 'package:line_survey_pro/services/local_database_service.dart'; // For validation
+import 'package:line_survey_pro/services/auth_service.dart'; // For current user ID
+import 'package:line_survey_pro/services/survey_firestore_service.dart'; // For fetching cloud records for validation
 
 class LineDetailScreen extends StatefulWidget {
-  final TransmissionLine line;
+  final Task task;
 
   const LineDetailScreen({
     super.key,
-    required this.line,
+    required this.task,
   });
 
   @override
@@ -28,44 +30,87 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   final TextEditingController _towerNumberController = TextEditingController();
   Position? _currentPosition;
   bool _isFetchingLocation = false;
-  bool _isLocationAccurateEnough =
-      false; // State to track if desired accuracy is met
-  StreamSubscription<Position>?
-      _positionStreamSubscription; // For continuous updates
-  Timer? _accuracyTimeoutTimer; // Timer for maximum wait time
-  static const int _maximumWaitSeconds =
-      30; // Max wait time for accuracy acquisition
-  static const double _desiredAccuracyMeters = 5.0; // Target accuracy set to 5m
+  bool _isLocationAccurateEnough = false;
+  StreamSubscription<Position>? _positionStreamSubscription;
+  Timer? _accuracyTimeoutTimer;
+  static const int _maximumWaitSeconds = 30;
   static const double _requiredAccuracyForCapture =
       10.0; // Minimum accuracy required to proceed
 
-  final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
+  final LocalDatabaseService _localDatabaseService =
+      LocalDatabaseService(); // Used for local survey record saving
+  final AuthService _authService = AuthService();
+  final SurveyFirestoreService _surveyFirestoreService =
+      SurveyFirestoreService(); // Used for fetching cloud records for validation
 
-  // Define the minimum distance threshold in meters
-  static const double _minDistanceMeters = 200.0;
+  static const double _minDistanceMeters =
+      200.0; // Min distance between different towers
+  static const double _sameTowerToleranceMeters =
+      20.0; // Tolerance for re-surveying same tower number
+
+  // Add properties to parse the targetTowerRange for validation
+  int? _minTower;
+  int? _maxTower;
+  bool _isAllTowers = false;
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation(); // Get current location on init
+    _parseTowerRange(widget.task.targetTowerRange);
+    _getCurrentLocation();
   }
 
   @override
   void dispose() {
     _towerNumberController.dispose();
-    _positionStreamSubscription
-        ?.cancel(); // Cancel stream to prevent memory leaks
-    _accuracyTimeoutTimer?.cancel(); // Cancel timer
+    _positionStreamSubscription?.cancel();
+    _accuracyTimeoutTimer?.cancel();
     super.dispose();
   }
 
+  void _parseTowerRange(String range) {
+    range = range.trim().toLowerCase();
+    if (range == 'all') {
+      _isAllTowers = true;
+      _minTower = null; // No specific min/max for "all"
+      _maxTower = null;
+    } else if (range.contains('-')) {
+      final parts = range.split('-');
+      if (parts.length == 2) {
+        _minTower = int.tryParse(parts[0].trim());
+        _maxTower = int.tryParse(parts[1].trim());
+        if (_minTower == null || _maxTower == null || _minTower! > _maxTower!) {
+          print('Warning: Invalid tower range format (from-to): $range');
+          _minTower = null;
+          _maxTower = null;
+          _isAllTowers = false;
+        }
+      } else {
+        print('Warning: Invalid tower range format (multiple hyphens): $range');
+        _minTower = null;
+        _maxTower = null;
+        _isAllTowers = false;
+      }
+    } else {
+      // Single tower case
+      _minTower = int.tryParse(range);
+      _maxTower = _minTower;
+      if (_minTower == null) {
+        print('Warning: Invalid single tower number: $range');
+        _minTower = null;
+        _maxTower = null;
+        _isAllTowers = false;
+      }
+    }
+  }
+
   Future<void> _getCurrentLocation() async {
-    if (_isFetchingLocation) return; // Prevent multiple simultaneous fetches
+    if (_isFetchingLocation) return;
 
     setState(() {
       _isFetchingLocation = true;
-      _isLocationAccurateEnough = false; // Reset status
-      _currentPosition = null; // Clear previous position
+      _isLocationAccurateEnough = false;
+      _currentPosition = null;
     });
 
     final hasPermission =
@@ -81,27 +126,24 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       return;
     }
 
-    // Cancel any existing stream and timer before starting new ones
     _positionStreamSubscription?.cancel();
     _accuracyTimeoutTimer?.cancel();
 
     try {
-      // Start listening to continuous location updates with best accuracy
       _positionStreamSubscription = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best, // Request maximum accuracy
-          distanceFilter: 0, // Get updates frequently, even for small movements
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
         ),
       ).listen((Position position) {
         if (mounted) {
           setState(() {
             _currentPosition = position;
-            // Check if accuracy is within the required threshold (10m)
             if (position.accuracy <= _requiredAccuracyForCapture) {
               _isLocationAccurateEnough = true;
-              _isFetchingLocation = false; // Stop loading indicator
-              _accuracyTimeoutTimer?.cancel(); // Stop the timeout timer
-              _positionStreamSubscription?.cancel(); // Stop listening
+              _isFetchingLocation = false;
+              _accuracyTimeoutTimer?.cancel();
+              _positionStreamSubscription?.cancel();
               SnackBarUtils.showSnackBar(
                 context,
                 'Required accuracy (${position.accuracy.toStringAsFixed(2)}m) achieved!',
@@ -124,19 +166,15 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         _accuracyTimeoutTimer?.cancel();
       });
 
-      // Start a timeout timer for maximum wait time
       _accuracyTimeoutTimer =
           Timer(const Duration(seconds: _maximumWaitSeconds), () {
         if (mounted) {
           setState(() {
-            // After timeout, if desired accuracy not met, then it's NOT accurate enough
             _isLocationAccurateEnough = (_currentPosition != null &&
-                _currentPosition!.accuracy <=
-                    _requiredAccuracyForCapture); // Strict check
-            _isFetchingLocation = false; // Stop fetching indicator
+                _currentPosition!.accuracy <= _requiredAccuracyForCapture);
+            _isFetchingLocation = false;
           });
-          _positionStreamSubscription
-              ?.cancel(); // Stop listening to further updates
+          _positionStreamSubscription?.cancel();
 
           if (!_isLocationAccurateEnough && mounted) {
             String accuracyMessage = _currentPosition != null
@@ -145,7 +183,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
             SnackBarUtils.showSnackBar(
               context,
               'Timeout reached. $accuracyMessage',
-              isError: true, // Mark as error since requirement wasn't met
+              isError: true,
             );
           } else if (mounted && _currentPosition != null) {
             SnackBarUtils.showSnackBar(
@@ -171,17 +209,49 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     }
   }
 
-  Future<bool> _validateSurveyEntry(String lineName, int towerNumber,
-      double latitude, double longitude) async {
-    final allExistingRecordsForLine =
-        await _localDatabaseService.getSurveyRecordsByLine(lineName);
+  Future<bool> _validateSurveyEntry(int towerNumber) async {
+    // Validate against assigned task range from manager
+    if (!_isAllTowers) {
+      if (_minTower != null && _maxTower != null) {
+        if (towerNumber < _minTower! || towerNumber > _maxTower!) {
+          if (mounted) {
+            SnackBarUtils.showSnackBar(
+              context,
+              'Tower number $towerNumber is outside the assigned range (${widget.task.targetTowerRange}).',
+              isError: true,
+            );
+          }
+          return false;
+        }
+      } else if (_minTower != null) {
+        // Case for a single assigned tower number
+        if (towerNumber != _minTower!) {
+          if (mounted) {
+            SnackBarUtils.showSnackBar(
+              context,
+              'You are assigned to survey only Tower ${widget.task.targetTowerRange}.',
+              isError: true,
+            );
+          }
+          return false;
+        }
+      }
+    }
+
+    // CRITICAL CHANGE: Validate against ALL *uploaded* survey records from Firestore.
+    // This ensures cross-device validation for previously surveyed points.
+    final allUploadedRecordsForLine =
+        (await _surveyFirestoreService.streamAllSurveyRecords().first)
+            .where((record) =>
+                record.lineName == widget.task.lineName &&
+                record.status == 'uploaded')
+            .toList();
 
     final newPosition = Position(
-      latitude: latitude,
-      longitude: longitude,
+      latitude: _currentPosition!.latitude,
+      longitude: _currentPosition!.longitude,
       timestamp: DateTime.now(),
-      accuracy:
-          0.0, // This is just a placeholder, actual accuracy is in _currentPosition
+      accuracy: 0.0,
       altitude: 0.0,
       heading: 0.0,
       speed: 0.0,
@@ -190,12 +260,12 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       headingAccuracy: 0.0,
     );
 
-    for (var record in allExistingRecordsForLine) {
+    for (var record in allUploadedRecordsForLine) {
       final existingPosition = Position(
         latitude: record.latitude,
         longitude: record.longitude,
         timestamp: record.timestamp,
-        accuracy: 0.0, // Placeholder
+        accuracy: 0.0,
         altitude: 0.0,
         heading: 0.0,
         speed: 0.0,
@@ -211,38 +281,39 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         newPosition.longitude,
       );
 
-      // If it's the SAME tower number being surveyed again, allow a larger tolerance for GPS drift.
-      if (record.towerNumber == towerNumber && distance < 20.0) {
+      // Rule 1: Cannot re-survey the SAME tower number too close to its previous (uploaded) record.
+      // This prevents multiple surveys of the *same* tower number at essentially the same spot.
+      if (record.towerNumber == towerNumber &&
+          distance < _sameTowerToleranceMeters) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
             context,
-            'A survey for Tower $towerNumber at this location (${distance.toStringAsFixed(2)}m from previous record) already exists for Line $lineName. Please ensure you are at a new tower or update the existing record if this is a re-survey.',
+            'A survey for Tower $towerNumber at this location (${distance.toStringAsFixed(2)}m from previous record) already exists for Line ${widget.task.lineName}. Please ensure you are at a new tower or update the existing record if this is a re-survey.',
             isError: true,
           );
         }
         return false;
       }
 
-      // This check applies to DIFFERENT towers on the SAME line.
-      // If the new point is too close to *any other* existing point on the same line, reject it.
-      if (distance < _minDistanceMeters) {
+      // Rule 2: Cannot survey a DIFFERENT tower that is too close to an existing surveyed (uploaded) tower on the same line.
+      // This prevents surveying adjacent towers if they are too close together, ensuring distinct survey points.
+      if (record.towerNumber != towerNumber && distance < _minDistanceMeters) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
             context,
-            'Another survey point on Line $lineName is too close (${distance.toStringAsFixed(2)}m). All survey points on the same line must be at least ${_minDistanceMeters.toStringAsFixed(0)} meters apart.',
+            'Another surveyed tower on Line ${widget.task.lineName} is too close (${distance.toStringAsFixed(2)}m from Tower ${record.towerNumber}). All DIFFERENT survey points on the same line must be at least ${_minDistanceMeters.toStringAsFixed(0)} meters apart.',
             isError: true,
           );
         }
         return false;
       }
     }
-    return true;
+    return true; // All validations passed
   }
 
   void _navigateToCameraScreen() async {
     if (_formKey.currentState!.validate()) {
       if (_currentPosition == null || !_isLocationAccurateEnough) {
-        // This condition now strictly checks if _isLocationAccurateEnough is true
         SnackBarUtils.showSnackBar(context,
             'Accuracy less than ${_requiredAccuracyForCapture.toStringAsFixed(1)}m. Please wait or move to an open area for better GPS signal.',
             isError: true);
@@ -252,32 +323,45 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         return;
       }
 
-      final String lineName = widget.line.name;
       final int towerNumber = int.parse(_towerNumberController.text);
-      final double latitude = _currentPosition!.latitude;
-      final double longitude = _currentPosition!.longitude;
 
-      final isValid = await _validateSurveyEntry(
-          lineName, towerNumber, latitude, longitude);
+      final isValid = await _validateSurveyEntry(towerNumber);
 
       if (!isValid) {
         return;
       }
 
-      Navigator.of(context)
-          .push(
+      final String? currentUserId = _authService.getCurrentUser()?.uid;
+      if (currentUserId == null) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'User not logged in. Cannot save survey.',
+              isError: true);
+        }
+        return;
+      }
+
+      // Navigate to CameraScreen, passing task details
+      final String? newSurveyRecordId = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => CameraScreen(
-            lineName: lineName,
+            lineName: widget.task.lineName,
             towerNumber: towerNumber,
-            latitude: latitude,
-            longitude: longitude,
+            latitude: _currentPosition!.latitude,
+            longitude: _currentPosition!.longitude,
+            taskId: widget.task.id,
+            userId: currentUserId,
           ),
         ),
-      )
-          .then((_) {
-        Navigator.of(context).pop();
-      });
+      );
+
+      // After returning from CameraScreen (photo saved locally)
+      if (newSurveyRecordId != null) {
+        if (mounted) {
+          Navigator.of(context)
+              .pop(); // Go back to Real-Time Tasks list (or wherever it came from)
+        }
+      }
     }
   }
 
@@ -301,20 +385,29 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     } else {
       accuracyStatusText =
           'Current: ${_currentPosition!.accuracy.toStringAsFixed(2)}m (Required < ${_requiredAccuracyForCapture.toStringAsFixed(1)}m)';
-      accuracyStatusColor =
-          colorScheme.tertiary; // Warning color for insufficient accuracy
+      accuracyStatusColor = colorScheme.tertiary;
+    }
+
+    String towerRangeDisplay = widget.task.targetTowerRange;
+    if (_isAllTowers) {
+      towerRangeDisplay = 'All Towers';
+    } else if (_minTower != null && _maxTower != null) {
+      towerRangeDisplay = 'Towers ${_minTower!}-${_maxTower!}';
+    } else if (_minTower != null) {
+      // Single tower case
+      towerRangeDisplay = 'Tower ${_minTower!}';
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.line.name} - Survey Entry'),
+        title: Text('${widget.task.lineName} - Survey Entry'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Line Details Card
+            // Task Details Card
             Card(
               margin: EdgeInsets.zero,
               elevation: 4,
@@ -324,18 +417,26 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Transmission Line Details:',
+                      'Assigned Task Details:',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: colorScheme.primary,
                           ),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Name: ${widget.line.name}',
+                      'Line Name: ${widget.task.lineName}',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     Text(
-                      'Total Towers: ${widget.line.totalTowers}',
+                      'Assigned Towers: $towerRangeDisplay',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    Text(
+                      'Due Date: ${widget.task.dueDate.toLocal().toString().split(' ')[0]}',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    Text(
+                      'Status: ${widget.task.status}',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ],
@@ -372,9 +473,23 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                           if (value == null || value.isEmpty) {
                             return 'Please enter a tower number';
                           }
-                          if (int.tryParse(value) == null ||
-                              int.parse(value) <= 0) {
+                          final int? towerNum = int.tryParse(value);
+                          if (towerNum == null || towerNum <= 0) {
                             return 'Please enter a valid positive number';
+                          }
+                          // Validate against assigned range
+                          if (!_isAllTowers) {
+                            if (_minTower != null && _maxTower != null) {
+                              if (towerNum < _minTower! ||
+                                  towerNum > _maxTower!) {
+                                return 'Tower must be within ${widget.task.targetTowerRange}';
+                              }
+                            } else if (_minTower != null) {
+                              // Single tower assigned
+                              if (towerNum != _minTower!) {
+                                return 'Tower must be ${widget.task.targetTowerRange}';
+                              }
+                            }
                           }
                           return null;
                         },
@@ -480,7 +595,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                       children: [
                                         Text(
                                           'Lat: ${_currentPosition?.latitude.toStringAsFixed(6) ?? 'N/A'}\n'
-                                          'Lon: ${_currentPosition?.longitude.toStringAsFixed(6) ?? 'N/A'}', // Fixed to 6 decimal places
+                                          'Lon: ${_currentPosition?.longitude.toStringAsFixed(6) ?? 'N/A'}',
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodyLarge
@@ -522,7 +637,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                         onPressed: (_currentPosition != null &&
                                 _isLocationAccurateEnough)
                             ? _navigateToCameraScreen
-                            : null, // Disable button if location isn't ready
+                            : null,
                         icon: const Icon(Icons.camera_alt),
                         label: Text((_currentPosition != null &&
                                 _isLocationAccurateEnough)
