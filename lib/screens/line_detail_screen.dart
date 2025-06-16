@@ -14,13 +14,16 @@ import 'package:line_survey_pro/services/auth_service.dart'; // For current user
 import 'package:line_survey_pro/services/survey_firestore_service.dart'; // For fetching cloud records for validation
 import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord for validation
 import 'package:line_survey_pro/screens/patrolling_detail_screen.dart'; // Import PatrollingDetailScreen
+import 'package:line_survey_pro/models/transmission_line.dart'; // Import TransmissionLine
 
 class LineDetailScreen extends StatefulWidget {
   final Task task;
+  final TransmissionLine transmissionLine; // Receive TransmissionLine
 
   const LineDetailScreen({
     super.key,
     required this.task,
+    required this.transmissionLine, // Make it required
   });
 
   @override
@@ -30,6 +33,7 @@ class LineDetailScreen extends StatefulWidget {
 class _LineDetailScreenState extends State<LineDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _towerNumberController = TextEditingController();
+  // final TextEditingController _generalNotesController = TextEditingController(); // REMOVED: Controller for general notes
   Position? _currentPosition;
   bool _isFetchingLocation = false;
   bool _isLocationAccurateEnough = false;
@@ -37,7 +41,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   Timer? _accuracyTimeoutTimer;
   static const int _maximumWaitSeconds = 30;
   static const double _requiredAccuracyForCapture =
-      10.0; // Minimum accuracy required to proceed
+      50.0; // Minimum accuracy required to proceed
 
   final LocalDatabaseService _localDatabaseService =
       LocalDatabaseService(); // Used for local survey record saving
@@ -59,15 +63,19 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     super.initState();
     _parseTowerRange(widget.task.targetTowerRange);
     _getCurrentLocation();
+    // _loadExistingSurveyData(); // REMOVED as general notes moved
   }
 
   @override
   void dispose() {
     _towerNumberController.dispose();
+    // _generalNotesController.dispose(); // REMOVED: Dispose controller
     _positionStreamSubscription?.cancel();
     _accuracyTimeoutTimer?.cancel();
     super.dispose();
   }
+
+  // _loadExistingSurveyData() is no longer needed here as general notes moved.
 
   void _parseTowerRange(String range) {
     range = range.trim().toLowerCase();
@@ -370,7 +378,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         return;
       }
 
-      // Navigate to PatrollingDetailScreen, passing all initial survey data
+      // Navigate to PatrollingDetailScreen, passing all initial survey data. generalNotes removed from here.
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => PatrollingDetailScreen(
@@ -386,11 +394,13 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                   'saved_photo_only', // Status indicating photo is yet to be taken
               taskId: widget.task.id,
               userId: currentUserId,
+              // generalNotes: _generalNotesController.text.trim().isEmpty ? null : _generalNotesController.text.trim(), // REMOVED: Pass general notes from here
             ),
+            transmissionLine: widget.transmissionLine, // Pass TransmissionLine
           ),
         ),
       );
-      // After PatrollingDetailScreen (and CameraScreen) returns, this screen pops back.
+      // After PatrollingDetailScreen (and LineSurveyScreen and CameraScreen) returns, this screen pops back.
       if (mounted) {
         Navigator.of(context)
             .pop(); // Go back to Real-Time Tasks list (or wherever it came from)
@@ -528,6 +538,24 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                         },
                       ),
                       const SizedBox(height: 20),
+                      // General Notes Text Area (REMOVED from here, moved to LineSurveyScreen)
+                      // TextFormField(
+                      //   controller: _generalNotesController,
+                      //   decoration: InputDecoration(
+                      //     labelText: 'General Observations/Notes',
+                      //     prefixIcon: Icon(Icons.notes, color: colorScheme.primary),
+                      //     hintText: 'Enter any additional notes here',
+                      //     alignLabelWithHint: true,
+                      //     border: OutlineInputBorder(
+                      //       borderRadius: BorderRadius.circular(12),
+                      //     ),
+                      //     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      //     isDense: true,
+                      //   ),
+                      //   maxLines: 5,
+                      //   keyboardType: TextInputType.multiline,
+                      // ),
+                      // const SizedBox(height: 20),
                       // GPS Coordinates Display Card
                       Card(
                         elevation: 2,

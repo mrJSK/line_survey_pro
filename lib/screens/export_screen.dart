@@ -16,6 +16,8 @@ import 'package:line_survey_pro/models/transmission_line.dart'; // Needed for dr
 import 'dart:async'; // For StreamSubscription
 import 'package:path/path.dart' as p; // For path.basename
 import 'package:line_survey_pro/services/firestore_service.dart'; // NEW: Import FirestoreService to get real TransmissionLine objects
+import 'package:collection/collection.dart'
+    as collection; // For firstWhereOrNull
 
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
@@ -56,6 +58,95 @@ class _ExportScreenState extends State<ExportScreen>
       _firestoreRecordsSubscription; // Stream for Firestore records
   StreamSubscription?
       _transmissionLinesSubscription; // NEW: Stream for transmission lines
+
+  // Filter options for export screen
+  final Map<String, List<String>> _filterOptions = {
+    'overallIssueStatus': ['Issue', 'OK'],
+    'missingTowerParts': ['Damaged', 'Missing', 'OK'],
+    'soilCondition': [
+      'Backfilling Required',
+      'Revetment Wall Required',
+      'Excavation Of Soil Required',
+      'Eroded',
+      'OK'
+    ],
+    'stubCopingLeg': ['Damaged', 'Missing', 'Corroded', 'Cracked', 'OK'],
+    'earthing': [
+      'Loose',
+      'Corroded',
+      'Disconnected',
+      'Missing',
+      'Damaged',
+      'OK'
+    ],
+    'conditionOfTowerParts': [
+      'Rusted',
+      'Bent',
+      'Hanging',
+      'Damaged',
+      'Cracked',
+      'Broken',
+      'OK'
+    ],
+    'statusOfInsulator': [
+      'Broken',
+      'Flashover',
+      'Damaged',
+      'Dirty',
+      'Cracked',
+      'OK'
+    ],
+    'jumperStatus': [
+      'Damaged',
+      'Bolt Missing',
+      'Loose Bolt',
+      'Spacers Missing',
+      'Corroded',
+      'OK'
+    ],
+    'hotSpots': ['OK', 'Minor', 'Moderate', 'Severe'],
+    'numberPlate': ['Missing', 'Loose', 'Faded', 'Damaged', 'OK'],
+    'dangerBoard': ['Missing', 'Loose', 'Faded', 'Damaged', 'OK'],
+    'phasePlate': ['Missing', 'Loose', 'Faded', 'Damaged', 'OK'],
+    'nutAndBoltCondition': ['Loose', 'Missing', 'Rusted', 'Damaged', 'OK'],
+    'antiClimbingDevice': ['Intact', 'Damaged', 'Missing', 'OK'],
+    'wildGrowth': [
+      'OK',
+      'Trimming Required',
+      'Lopping Required',
+      'Cutting Required'
+    ],
+    'birdGuard': ['Damaged', 'Missing', 'OK'],
+    'birdNest': ['OK', 'Present'],
+    'archingHorn': ['Bent', 'Broken', 'Missing', 'Corroded', 'OK'],
+    'coronaRing': ['Bent', 'Broken', 'Missing', 'Corroded', 'OK'],
+    'insulatorType': [
+      'Broken',
+      'Flashover',
+      'Damaged',
+      'Dirty',
+      'Cracked',
+      'OK'
+    ],
+    'opgwJointBox': ['Damaged', 'Open', 'Leaking', 'Corroded', 'OK'],
+    // New fields from Line Survey Screen
+    'building': ['Yes', 'No'],
+    'tree': ['Yes', 'No'],
+    'conditionOfOpgw': ['OK', 'Damaged'],
+    'conditionOfEarthWire': ['OK', 'Damaged'],
+    'conditionOfConductor': ['OK', 'Damaged'],
+    'midSpanJoint': ['OK', 'Damaged'],
+    'newConstruction': ['Yes', 'No'],
+    'objectOnConductor': ['Yes', 'No'],
+    'objectOnEarthwire': ['Yes', 'No'],
+    'spacers': ['OK', 'Damaged'],
+    'vibrationDamper': ['OK', 'Damaged'],
+    'roadCrossing': ['NH', 'SH', 'Chakk road', 'Over Bridge', 'Underpass'],
+    'riverCrossing': ['Yes', 'No'],
+    'electricalLine': ['400kV', '220kV', '132kV', '33kV', '11kV', 'PTW'],
+    'railwayCrossing': ['Yes', 'No'],
+    // General Notes is text, not suitable for direct filter dropdown
+  };
 
   @override
   void initState() {
@@ -233,7 +324,9 @@ class _ExportScreenState extends State<ExportScreen>
     }
 
     try {
-      final csvFile = await FileService().generateCsvFile(_allRecords);
+      // Pass allTransmissionLines to generateCsvFile
+      final csvFile = await FileService().generateCsvFile(_allRecords,
+          allTransmissionLines: _transmissionLines);
       if (csvFile != null) {
         await Share.shareXFiles([XFile(csvFile.path)],
             text: 'Line Survey Data Export');
@@ -455,14 +548,14 @@ class _ExportScreenState extends State<ExportScreen>
                               if (_selectedImageRecordIds.isNotEmpty) {
                                 // Find the actual TransmissionLine object
                                 final selectedRecord =
-                                    IterableExtension<SurveyRecord>(_allRecords)
+                                    collection.IterableExtension<SurveyRecord>(
+                                            _allRecords)
                                         .firstWhereOrNull((r) =>
                                             r.id ==
                                             _selectedImageRecordIds.first);
                                 if (selectedRecord != null) {
-                                  final line = IterableExtension<
-                                          TransmissionLine>(_transmissionLines)
-                                      .firstWhereOrNull((l) =>
+                                  final line =
+                                      _transmissionLines.firstWhereOrNull((l) =>
                                           l.name == selectedRecord.lineName);
                                   commonLineName =
                                       line?.name ?? selectedRecord.lineName;
@@ -490,8 +583,8 @@ class _ExportScreenState extends State<ExportScreen>
                                     imageFilesToShare
                                         .add(XFile(overlaidFile.path));
 
-                                    shareMessage.writeln(
-                                        '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}');
+                                    // shareMessage.writeln(
+                                    //     '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}');
                                     shareMessage.writeln(
                                         '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}');
                                     shareMessage.writeln(
@@ -622,19 +715,22 @@ class _ExportScreenState extends State<ExportScreen>
     }
   }
 
-  Widget _buildFabChild(IconData icon, String tooltip, VoidCallback onPressed,
+  // Modified _buildFabChild to use FloatingActionButton.extended and display Icon + Text
+  Widget _buildFabChild(IconData iconData, String label, VoidCallback onPressed,
       {Color? backgroundColor, Color? foregroundColor}) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
-      child: FloatingActionButton.small(
-        heroTag: tooltip,
+      // Changed to FloatingActionButton.extended for icon + text
+      child: FloatingActionButton.extended(
+        heroTag: label, // Use label as heroTag
         onPressed: onPressed,
-        tooltip: tooltip,
+        tooltip: label, // Tooltip remains the label
         backgroundColor:
             backgroundColor ?? Theme.of(context).colorScheme.primary,
         foregroundColor:
             foregroundColor ?? Theme.of(context).colorScheme.onPrimary,
-        child: Icon(icon),
+        icon: Icon(iconData), // Icon part
+        label: Text(label), // Text part
       ),
     );
   }
@@ -791,68 +887,62 @@ class _ExportScreenState extends State<ExportScreen>
                 ),
               ],
             ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FutureBuilder<bool>(
-            future: _hasLocalImagesAvailable(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.done &&
-                  snapshot.data == true) {
-                return ScaleTransition(
+      // Conditionally hide Floating Action Buttons if no records exist
+      floatingActionButton: _allRecords.isEmpty
+          ? null // Return null to hide the FAB when there are no records
+          : Column(
+              // Existing FAB column logic
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FutureBuilder<bool>(
+                  future: _hasLocalImagesAvailable(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.done &&
+                        snapshot.data == true) {
+                      return ScaleTransition(
+                        scale: _expandAnimation,
+                        alignment: Alignment.bottomRight,
+                        child: _buildFabChild(
+                          Icons.image,
+                          'Share Images', // Text label for the button
+                          () => _shareSelectedImagesFromModal(context),
+                          backgroundColor: colorScheme.secondary,
+                          foregroundColor: colorScheme.onSecondary,
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                ScaleTransition(
                   scale: _expandAnimation,
                   alignment: Alignment.bottomRight,
                   child: _buildFabChild(
-                    Icons.image,
-                    'Share Images',
-                    () => _shareSelectedImagesFromModal(context),
-                    backgroundColor: colorScheme.secondary,
-                    foregroundColor: colorScheme.onSecondary,
+                    Icons.description,
+                    'Export CSV', // Text label for the button
+                    _exportAllRecordsToCsv,
+                    backgroundColor: colorScheme.tertiary,
+                    foregroundColor: colorScheme.onTertiary,
                   ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-          ScaleTransition(
-            scale: _expandAnimation,
-            alignment: Alignment.bottomRight,
-            child: _buildFabChild(
-              Icons.description,
-              'Export All CSV',
-              _exportAllRecordsToCsv,
-              backgroundColor: colorScheme.tertiary,
-              foregroundColor: colorScheme.onTertiary,
+                ),
+                const SizedBox(height: 16),
+                FloatingActionButton.extended(
+                  onPressed: _toggleFab,
+                  label: _isFabOpen
+                      ? const Text('Close Menu')
+                      : const Text('Actions'),
+                  icon: Icon(_isFabOpen ? Icons.close : Icons.menu_open),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 6,
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton.extended(
-            onPressed: _toggleFab,
-            label:
-                _isFabOpen ? const Text('Close Menu') : const Text('Actions'),
-            icon: Icon(_isFabOpen ? Icons.close : Icons.menu_open),
-            backgroundColor: colorScheme.primary,
-            foregroundColor: colorScheme.onPrimary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 6,
-          ),
-        ],
-      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
-  }
-}
-
-extension IterableExtension<T> on Iterable<T> {
-  T? firstWhereOrNull(bool Function(T element) test) {
-    for (final element in this) {
-      if (test(element)) {
-        return element;
-      }
-    }
-    return null;
   }
 }

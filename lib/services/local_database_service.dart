@@ -10,8 +10,8 @@ import 'package:collection/collection.dart'; // Ensure collection is imported fo
 class LocalDatabaseService {
   static Database? _database;
   static const String _databaseName = 'line_survey_pro.db';
-  // Increment to a new version (e.g., 4) because we're adding many new columns
-  static const int _databaseVersion = 4;
+  // Increment to a new version (e.g., 5) because we're adding many new columns
+  static const int _databaseVersion = 5; // UPDATED DATABASE VERSION
 
   static final StreamController<List<SurveyRecord>>
       _surveyRecordsStreamController =
@@ -150,10 +150,83 @@ class LocalDatabaseService {
       } catch (e) {}
       print('Migrated to DB Version 4: Added all patrolling detail columns.');
     }
+    // NEW: Migration from version 4 to 5 (Adding all new Line Survey and General Notes columns)
+    if (oldVersion < 5) {
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN building INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN tree INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN numberOfTrees INTEGER');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN conditionOfOpgw TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN conditionOfEarthWire TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN conditionOfConductor TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN midSpanJoint TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN newConstruction INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN objectOnConductor INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN objectOnEarthwire INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN spacers TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN vibrationDamper TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN roadCrossing TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN riverCrossing INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN electricalLine TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN railwayCrossing INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN generalNotes TEXT'); // NEW: General Notes
+      } catch (e) {}
+      print(
+          'Migrated to DB Version 5: Added all Line Survey and General Notes columns.');
+    }
     print('Database upgraded from version $oldVersion to $newVersion.');
   }
 
-  // Define the table schema for NEW database creations (version 4)
+  // Define the table schema for NEW database creations (version 5)
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_surveyRecordsTable(
@@ -167,7 +240,7 @@ class LocalDatabaseService {
         status TEXT,
         taskId TEXT,
         userId TEXT,
-        -- New Patrolling Details
+        -- New Patrolling Details (from version 4)
         missingTowerParts TEXT,
         soilCondition TEXT,
         stubCopingLeg TEXT,
@@ -187,7 +260,25 @@ class LocalDatabaseService {
         archingHorn TEXT,
         coronaRing TEXT,
         insulatorType TEXT,
-        opgwJointBox TEXT
+        opgwJointBox TEXT,
+        -- NEW Line Survey Details (from version 5)
+        building INTEGER,
+        tree INTEGER,
+        numberOfTrees INTEGER,
+        conditionOfOpgw TEXT,
+        conditionOfEarthWire TEXT,
+        conditionOfConductor TEXT,
+        midSpanJoint TEXT,
+        newConstruction INTEGER,
+        objectOnConductor INTEGER,
+        objectOnEarthwire INTEGER,
+        spacers TEXT,
+        vibrationDamper TEXT,
+        roadCrossing TEXT,
+        riverCrossing INTEGER,
+        electricalLine TEXT,
+        railwayCrossing INTEGER,
+        generalNotes TEXT -- NEW: General Notes
       )
     ''');
     print('Database created with version $version.');
@@ -250,6 +341,19 @@ class LocalDatabaseService {
     _updateStreamWithAllRecords(); // Notify listeners of change
   }
 
+  // ADDED: getSurveyRecordsByLine method back
+  Future<List<SurveyRecord>> getSurveyRecordsByLine(String lineName) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      _surveyRecordsTable,
+      where: 'lineName = ?',
+      whereArgs: [lineName],
+    );
+    return List.generate(maps.length, (i) {
+      return SurveyRecord.fromMap(maps[i]);
+    });
+  }
+
   Future<List<SurveyRecord>> getSurveyRecordsByLineAndTower(
       String lineName, int towerNumber) async {
     final db = await database;
@@ -257,18 +361,6 @@ class LocalDatabaseService {
       _surveyRecordsTable,
       where: 'lineName = ? AND towerNumber = ?',
       whereArgs: [lineName, towerNumber],
-    );
-    return List.generate(maps.length, (i) {
-      return SurveyRecord.fromMap(maps[i]);
-    });
-  }
-
-  Future<List<SurveyRecord>> getSurveyRecordsByLine(String lineName) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      _surveyRecordsTable,
-      where: 'lineName = ?',
-      whereArgs: [lineName],
     );
     return List.generate(maps.length, (i) {
       return SurveyRecord.fromMap(maps[i]);

@@ -30,8 +30,10 @@ class _LinePatrollingDetailsScreenState
   bool _isLoading = true;
 
   // Filter state
-  final Map<String, Set<String>> _selectedFilters =
-      {}; // Map of fieldName -> Set of selectedOptions
+  final Map<String, Set<String>> _selectedFilters = {
+    'overallIssueStatus': {'Issue'}
+  }; // Default to 'Issue' selected
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = ''; // For tower number search or other text search
 
@@ -39,127 +41,111 @@ class _LinePatrollingDetailsScreenState
       SurveyFirestoreService();
   StreamSubscription? _surveyRecordsSubscription;
 
-  // Define all possible options for filters (similar to ManagerWorkerDetailScreen)
+  // Define all possible options for filters (consistent with ManagerWorkerDetailScreen)
   final Map<String, List<String>> _filterOptions = {
-    'status': [
-      'saved_photo_only',
-      'saved_complete',
-      'uploaded'
-    ], // Though Firestore only has 'uploaded' generally
-    'missingTowerParts': ['Yes', 'No', 'Description', 'Other'],
+    'overallIssueStatus': ['Issue', 'OK'], // Primary filter
+    'missingTowerParts': ['Damaged', 'Missing', 'OK'], // Updated options
     'soilCondition': [
-      'Good',
       'Backfilling Required',
       'Revetment Wall Required',
       'Excavation Of Soil Required',
       'Eroded',
-      'Other'
+      'OK'
     ],
-    'stubCopingLeg': [
-      'Good',
-      'Damaged',
-      'Missing',
-      'Corroded',
-      'Cracked',
-      'Other'
-    ],
+    'stubCopingLeg': ['Damaged', 'Missing', 'Corroded', 'Cracked', 'OK'],
     'earthing': [
-      'Good',
       'Loose',
       'Corroded',
       'Disconnected',
       'Missing',
       'Damaged',
-      'Other'
+      'OK'
     ],
     'conditionOfTowerParts': [
-      'Good',
       'Rusted',
       'Bent',
       'Hanging',
       'Damaged',
       'Cracked',
       'Broken',
-      'Other'
+      'OK'
     ],
     'statusOfInsulator': [
-      'Good',
       'Broken',
       'Flashover',
       'Damaged',
       'Dirty',
       'Cracked',
-      'Other'
+      'OK'
     ],
     'jumperStatus': [
-      'Good',
       'Damaged',
       'Bolt Missing',
       'Loose Bolt',
       'Spacers Missing',
       'Corroded',
-      'Other'
+      'OK'
     ],
-    'hotSpots': ['None', 'Minor', 'Moderate', 'Severe', 'Other'],
-    'numberPlate': [
-      'Present (Good)',
-      'Missing',
-      'Loose',
-      'Faded',
-      'Damaged',
-      'Other'
-    ],
-    'dangerBoard': [
-      'Present (Good)',
-      'Missing',
-      'Loose',
-      'Faded',
-      'Damaged',
-      'Other'
-    ],
-    'phasePlate': [
-      'Present (Good)',
-      'Missing',
-      'Loose',
-      'Faded',
-      'Damaged',
-      'Other'
-    ],
-    'nutAndBoltCondition': [
-      'Good (Tight)',
-      'Loose',
-      'Missing',
-      'Rusted',
-      'Damaged',
-      'Other'
-    ],
-    'antiClimbingDevice': ['Intact', 'Damaged', 'Missing', 'Other'],
+    'hotSpots': ['OK', 'Minor', 'Moderate', 'Severe'],
+    'numberPlate': ['Missing', 'Loose', 'Faded', 'Damaged', 'OK'],
+    'dangerBoard': ['Missing', 'Loose', 'Faded', 'Damaged', 'OK'],
+    'phasePlate': ['Missing', 'Loose', 'Faded', 'Damaged', 'OK'],
+    'nutAndBoltCondition': ['Loose', 'Missing', 'Rusted', 'Damaged', 'OK'],
+    'antiClimbingDevice': ['Intact', 'Damaged', 'Missing', 'OK'],
     'wildGrowth': [
-      'None',
-      'Minor (Trim Required)',
-      'Moderate (Clearing Required)',
-      'Heavy (Urgent Clearing Required)',
-      'Other'
+      'OK',
+      'Trimming Required',
+      'Lopping Required',
+      'Cutting Required'
     ],
-    'birdGuard': ['Present (Good)', 'Damaged', 'Missing', 'Other'],
-    'birdNest': [
-      'None',
-      'Present (Active)',
-      'Present (Inactive)',
-      'Obstructing',
-      'Other'
-    ],
-    'archingHorn': ['Good', 'Bent', 'Broken', 'Missing', 'Corroded', 'Other'],
-    'coronaRing': ['Good', 'Bent', 'Broken', 'Missing', 'Corroded', 'Other'],
+    'birdGuard': ['Damaged', 'Missing', 'OK'],
+    'birdNest': ['OK', 'Present'],
+    'archingHorn': ['Bent', 'Broken', 'Missing', 'Corroded', 'OK'],
+    'coronaRing': ['Bent', 'Broken', 'Missing', 'Corroded', 'OK'],
     'insulatorType': [
-      'Disc',
-      'Long Rod',
-      'Polymer',
-      'Ceramic',
-      'Glass',
-      'Other'
+      'Broken',
+      'Flashover',
+      'Damaged',
+      'Dirty',
+      'Cracked',
+      'OK'
     ],
-    'opgwJointBox': ['Good', 'Damaged', 'Open', 'Leaking', 'Corroded', 'Other'],
+    'opgwJointBox': ['Damaged', 'Open', 'Leaking', 'Corroded', 'OK'],
+    // New fields from Line Survey Screen (consistent with manager_worker_detail_screen)
+    'building': ['OK', 'NOT OKAY'],
+    'tree': ['OK', 'NOT OKAY'],
+    'conditionOfOpgw': ['OK', 'Damaged'],
+    'conditionOfEarthWire': ['OK', 'Damaged'],
+    'conditionOfConductor': ['OK', 'Damaged'],
+    'midSpanJoint': ['OK', 'Damaged'],
+    'newConstruction': ['OK', 'NOT OKAY'],
+    'objectOnConductor': ['OK', 'NOT OKAY'],
+    'objectOnEarthwire': ['OK', 'NOT OKAY'],
+    'spacers': ['OK', 'Damaged'],
+    'vibrationDamper': ['OK', 'Damaged'],
+    'roadCrossing': [
+      'NH',
+      'SH',
+      'Chakk road',
+      'Over Bridge',
+      'Underpass',
+      'OK',
+      'NOT OKAY'
+    ], // Added OK/NOT OK for general status
+    'riverCrossing': ['OK', 'NOT OKAY'],
+    'electricalLine': [
+      '400kV',
+      '220kV',
+      '132kV',
+      '33kV',
+      '11kV',
+      'PTW',
+      'OK',
+      'NOT OKAY'
+    ], // Added OK/NOT OK for general status
+    'railwayCrossing': ['OK', 'NOT OKAY'],
+    'generalNotes':
+        [], // General notes is text, not suitable for direct filter dropdown
   };
 
   @override
@@ -219,6 +205,134 @@ class _LinePatrollingDetailsScreenState
     );
   }
 
+  // NEW: Helper to determine if a SurveyRecord is 'NOT OKAY' (has any issues)
+  bool _isNotOkay(SurveyRecord record) {
+    // Terms that explicitly indicate NO issue
+    const Set<String> nonIssueTerms = {
+      'ok',
+      'good',
+      'intact',
+      'not applicable'
+    };
+
+    // Keywords/phrases that explicitly indicate a PROBLEM.
+    const Set<String> problemKeywords = {
+      'missing', 'damaged', 'rusted', 'bent', 'hanging', 'cracked', 'broken',
+      'flashover', 'dirty', 'loose', 'bolt missing', 'spacers missing',
+      'corroded',
+      'faded', 'disconnected', 'open', 'leaking',
+      'present', // For birdNestOptions (if value is 'Present' it's an issue according to new list)
+      'trimming required', 'lopping required',
+      'cutting required', // For wildGrowth
+      'minor', 'moderate', 'severe', // For hotSpots
+      'backfilling required', 'revetment wall required',
+      'excavation of soil required', 'eroded', // For soil condition
+      'not okay', // Explicit 'NOT OKAY' for boolean fields
+    };
+
+    // Helper to check string fields
+    bool checkStringField(String? value) {
+      if (value == null ||
+          value.isEmpty ||
+          nonIssueTerms.contains(value.toLowerCase())) {
+        return false; // Null, empty, or explicit non-issue
+      }
+      final lowerCaseValue = value.toLowerCase();
+      // Check for specific problematic keywords
+      for (final keyword in problemKeywords) {
+        if (lowerCaseValue.contains(keyword)) {
+          return true;
+        }
+      }
+      // Specific checks for values that are issues but might not be caught by generic keywords
+      // based on the provided lists for filtering
+      if (lowerCaseValue == 'yes' &&
+          (record.building == true ||
+              record.tree == true ||
+              record.newConstruction == true ||
+              record.objectOnConductor == true ||
+              record.objectOnEarthwire == true ||
+              record.riverCrossing == true ||
+              record.railwayCrossing == true)) {
+        return true;
+      }
+      if (lowerCaseValue == 'no' &&
+          (record.building == false ||
+              record.tree == false ||
+              record.newConstruction == false ||
+              record.objectOnConductor == false ||
+              record.objectOnEarthwire == false ||
+              record.riverCrossing == false ||
+              record.railwayCrossing == false)) {
+        return false;
+      }
+
+      // Special case for 'insulatorType' when it implies a problem
+      if (record.insulatorType != null &&
+          ['broken', 'flashover', 'damaged', 'dirty', 'cracked']
+              .contains(record.insulatorType!.toLowerCase())) {
+        return true;
+      }
+
+      return false; // No issue found in this field
+    }
+
+    // Helper to check boolean fields (true means 'NOT OKAY' for these contexts)
+    bool checkBooleanField(bool? value) {
+      return value == true;
+    }
+
+    // --- Check all fields for 'NOT OKAY' conditions ---
+
+    // Patrolling Details
+    if (checkStringField(record.missingTowerParts) ||
+        checkStringField(record.soilCondition) ||
+        checkStringField(record.stubCopingLeg) ||
+        checkStringField(record.earthing) ||
+        checkStringField(record.conditionOfTowerParts) ||
+        checkStringField(record.statusOfInsulator) ||
+        checkStringField(record.jumperStatus) ||
+        checkStringField(record.hotSpots) ||
+        checkStringField(record.numberPlate) ||
+        checkStringField(record.dangerBoard) ||
+        checkStringField(record.phasePlate) ||
+        checkStringField(record.nutAndBoltCondition) ||
+        checkStringField(record.antiClimbingDevice) ||
+        checkStringField(record.wildGrowth) ||
+        checkStringField(record.birdGuard) ||
+        checkStringField(record.birdNest) ||
+        checkStringField(record.archingHorn) ||
+        checkStringField(record.coronaRing) ||
+        checkStringField(record.insulatorType) || // This is now also checked
+        checkStringField(record.opgwJointBox) ||
+        // Line Survey Details (boolean fields explicitly checked for 'true')
+        checkBooleanField(record.building) ||
+        checkBooleanField(record.tree) ||
+        (record.tree == true &&
+            (record.numberOfTrees == null ||
+                record.numberOfTrees! <=
+                    0)) || // Issue if tree is selected but no number
+        checkStringField(record.conditionOfOpgw) ||
+        checkStringField(record.conditionOfEarthWire) ||
+        checkStringField(record.conditionOfConductor) ||
+        checkStringField(record.midSpanJoint) ||
+        checkBooleanField(record.newConstruction) ||
+        checkBooleanField(record.objectOnConductor) ||
+        checkBooleanField(record.objectOnEarthwire) ||
+        checkStringField(record.spacers) ||
+        checkStringField(record.vibrationDamper) ||
+        checkStringField(record
+            .roadCrossing) || // If contains specific issues, e.g., 'Damaged road'
+        checkBooleanField(record.riverCrossing) ||
+        checkStringField(
+            record.electricalLine) || // If it contains 'Damaged' etc.
+        checkBooleanField(record.railwayCrossing)) {
+      return true; // At least one 'NOT OKAY' condition found
+    }
+
+    return false; // No 'NOT OKAY' conditions found
+  }
+
   void _applyFilters() {
     List<SurveyRecord> tempRecords = List.from(_allLineRecords);
 
@@ -243,12 +357,48 @@ class _LinePatrollingDetailsScreenState
 
     // Filter by each selected filter option (dropdown filters)
     _selectedFilters.forEach((fieldName, selectedOptions) {
-      if (selectedOptions.isNotEmpty) {
+      if (selectedOptions.isEmpty)
+        return; // Skip if no options selected for this filter
+
+      if (fieldName == 'overallIssueStatus') {
+        if (selectedOptions.contains('Issue') &&
+            !selectedOptions.contains('OK')) {
+          tempRecords =
+              tempRecords.where((record) => _isNotOkay(record)).toList();
+        } else if (selectedOptions.contains('OK') &&
+            !selectedOptions.contains('Issue')) {
+          tempRecords =
+              tempRecords.where((record) => !_isNotOkay(record)).toList();
+        }
+        // If both or neither selected, no specific filtering based on issue status.
+      } else {
+        // For other filter categories
         tempRecords = tempRecords.where((record) {
           String? fieldValue;
-          // Use record.toMap() to get field value dynamically by fieldName string
-          fieldValue = record.toMap()[fieldName] as String?;
-          return fieldValue != null && selectedOptions.contains(fieldValue);
+          // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
+          if (fieldName == 'building')
+            fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'tree')
+            fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'newConstruction')
+            fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'objectOnConductor')
+            fieldValue = (record.objectOnConductor == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'objectOnEarthwire')
+            fieldValue = (record.objectOnEarthwire == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'riverCrossing')
+            fieldValue = (record.riverCrossing == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'railwayCrossing')
+            fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
+          else
+            fieldValue = record.toMap()[fieldName]
+                as String?; // For string/dropdown fields
+
+          if (fieldValue == null)
+            return false; // If record has no value for this field, it doesn't match a selection
+
+          // For filter categories where specific values are selected (e.g., 'Damaged' for Condition of OPGW)
+          return selectedOptions.contains(fieldValue);
         }).toList();
       }
     });
@@ -273,6 +423,9 @@ class _LinePatrollingDetailsScreenState
   void _clearFilters() {
     setState(() {
       _selectedFilters.clear();
+      _selectedFilters['overallIssueStatus'] = {
+        'Issue'
+      }; // Reset to default 'Issue' selected
       _searchController.clear();
       _searchQuery = '';
       _applyFilters();
@@ -455,6 +608,58 @@ class _LinePatrollingDetailsScreenState
                                     'Insulator Type', record.insulatorType),
                                 _buildDetailRow(
                                     'OPGW Joint Box', record.opgwJointBox),
+                                // NEW Line Survey Details for display
+                                _buildDetailRow('Building',
+                                    record.building == true ? 'Yes' : 'No'),
+                                _buildDetailRow(
+                                    'Tree', record.tree == true ? 'Yes' : 'No'),
+                                if (record.tree == true)
+                                  _buildDetailRow('Number of Trees',
+                                      record.numberOfTrees?.toString()),
+                                _buildDetailRow('Condition of OPGW',
+                                    record.conditionOfOpgw),
+                                _buildDetailRow('Condition of Earth Wire',
+                                    record.conditionOfEarthWire),
+                                _buildDetailRow('Condition of Conductor',
+                                    record.conditionOfConductor),
+                                _buildDetailRow(
+                                    'Mid Span Joint', record.midSpanJoint),
+                                _buildDetailRow(
+                                    'New Construction',
+                                    record.newConstruction == true
+                                        ? 'Yes'
+                                        : 'No'),
+                                _buildDetailRow(
+                                    'Object on Conductor',
+                                    record.objectOnConductor == true
+                                        ? 'Yes'
+                                        : 'No'),
+                                _buildDetailRow(
+                                    'Object on Earthwire',
+                                    record.objectOnEarthwire == true
+                                        ? 'Yes'
+                                        : 'No'),
+                                _buildDetailRow('Spacers', record.spacers),
+                                _buildDetailRow(
+                                    'Vibration Damper', record.vibrationDamper),
+                                _buildDetailRow(
+                                    'Road Crossing', record.roadCrossing),
+                                _buildDetailRow(
+                                    'River Crossing',
+                                    record.riverCrossing == true
+                                        ? 'Yes'
+                                        : 'No'),
+                                _buildDetailRow(
+                                    'Electrical Line', record.electricalLine),
+                                _buildDetailRow(
+                                    'Railway Crossing',
+                                    record.railwayCrossing == true
+                                        ? 'Yes'
+                                        : 'No'),
+                                _buildDetailRow(
+                                    'General Notes',
+                                    record
+                                        .generalNotes), // General Notes for display
                                 // Photo display if available
                                 if (record.photoPath.isNotEmpty &&
                                     File(record.photoPath).existsSync())

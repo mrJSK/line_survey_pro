@@ -1,18 +1,22 @@
 // lib/screens/patrolling_detail_screen.dart
 
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:line_survey_pro/models/survey_record.dart';
 import 'package:line_survey_pro/services/local_database_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
-import 'package:line_survey_pro/screens/camera_screen.dart';
-import 'dart:io';
+import 'package:line_survey_pro/screens/camera_screen.dart'; // No longer direct target
+import 'package:line_survey_pro/models/transmission_line.dart'; // NEW: Import TransmissionLine
+import 'package:line_survey_pro/screens/line_survey_screen.dart'; // NEW: Import LineSurveyScreen
 
 class PatrollingDetailScreen extends StatefulWidget {
   final SurveyRecord initialRecord;
+  final TransmissionLine transmissionLine; // NEW: Receive TransmissionLine
 
   const PatrollingDetailScreen({
     super.key,
     required this.initialRecord,
+    required this.transmissionLine, // NEW: Make it required
   });
 
   @override
@@ -104,7 +108,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
     _opgwJointBoxController.text = _currentRecord.opgwJointBox ?? '';
   }
 
-  Future<void> _navigateToCameraScreenWithDetails() async {
+  Future<void> _navigateToLineSurveyScreen() async {
+    // Changed method name
     if (!_formKey.currentState!.validate()) {
       SnackBarUtils.showSnackBar(
           context, 'Please fill all required fields correctly.',
@@ -160,27 +165,19 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
             : _opgwJointBoxController.text.trim(),
       );
 
-      // Navigate to CameraScreen, passing the now detailed record.
-      // CameraScreen will save the photo and update the status to 'saved_complete' locally.
-      final String? finalSavedRecordId = await Navigator.of(context).push(
+      // Navigate to LineSurveyScreen, passing the detailed record and TransmissionLine
+      await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => CameraScreen(
-            initialRecordWithDetails: recordWithDetails,
+          builder: (context) => LineSurveyScreen(
+            initialRecord: recordWithDetails,
+            transmissionLine:
+                widget.transmissionLine, // NEW: Pass TransmissionLine
           ),
         ),
       );
-
-      // After CameraScreen completes and pops, it will return the record ID.
-      if (finalSavedRecordId != null) {
-        if (mounted) {
-          Navigator.of(context).pop(); // Pops back to LineDetailScreen
-        }
-      } else {
-        if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, 'Photo capture cancelled or failed.',
-              isError: true);
-        }
+      // After LineSurveyScreen (and CameraScreen) completes and pops, this screen pops back.
+      if (mounted) {
+        Navigator.of(context).pop(); // Pops back to LineDetailScreen
       }
     } catch (e) {
       if (mounted) {
@@ -188,7 +185,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
             context, 'Error processing details: ${e.toString()}',
             isError: true);
       }
-      print('Error processing patrolling details for camera nav: $e');
+      print('Error processing patrolling details for line survey nav: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -203,137 +200,117 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     // --- Specific Options for Dropdowns ---
+    // Modified: Removed 'Other', added 'OK' where applicable, made names more concise
     const List<String> generalGoodBadOptions = [
-      'Good',
-      'Damaged',
+      'OK',
       'Missing',
-      'Other'
+      'Not Applicable',
     ];
     const List<String> soilConditionOptions = [
       'Good',
       'Backfilling Required',
       'Revetment Wall Required',
       'Excavation Of Soil Required',
-      'Eroded',
-      'Other'
+      'OK'
     ];
     const List<String> towerPartsConditionOptions = [
-      'Good',
       'Rusted',
       'Bent',
       'Hanging',
       'Damaged',
       'Cracked',
       'Broken',
-      'Other'
+      'OK'
     ];
     const List<String> insulatorStatusOptions = [
-      'Good',
       'Broken',
       'Flashover',
       'Damaged',
       'Dirty',
       'Cracked',
-      'Other'
+      'OK'
     ];
     const List<String> jumperStatusOptions = [
-      'Good',
       'Damaged',
       'Bolt Missing',
       'Loose Bolt',
       'Spacers Missing',
       'Corroded',
-      'Other'
+      'OK'
     ];
     const List<String> numberPlateOptions = [
-      'Present (Good)',
       'Missing',
       'Loose',
       'Faded',
       'Damaged',
-      'Other'
+      'OK'
     ];
-    const List<String> birdGuardOptions = [
-      'Present (Good)',
-      'Damaged',
-      'Missing',
-      'Other'
-    ];
+    const List<String> birdGuardOptions = ['Damaged', 'Missing', 'OK'];
     const List<String> antiClimbingOptions = [
       'Intact',
       'Damaged',
       'Missing',
-      'Other'
+      'OK'
     ];
     const List<String> wildGrowthOptions = [
-      'None',
-      'Minor (Trim Required)',
-      'Moderate (Clearing Required)',
-      'Heavy (Urgent Clearing Required)',
-      'Other'
-    ];
+      'OK',
+      'Trimming Required',
+      'Lopping Required',
+      'Cutting Required'
+    ]; // 'None' changed to 'OK', 'Other' removed
     const List<String> birdNestOptions = [
-      'None',
-      'Present (Active)',
-      'Present (Inactive)',
-      'Obstructing',
-      'Other'
-    ];
+      'OK',
+      'Present',
+    ]; // 'None' changed to 'OK', 'Other' removed
     const List<String> archingHornOptions = [
-      'Good',
       'Bent',
       'Broken',
       'Missing',
       'Corroded',
-      'Other'
+      'OK'
     ];
     const List<String> coronaRingOptions = [
-      'Good',
       'Bent',
       'Broken',
       'Missing',
       'Corroded',
-      'Other'
+      'OK'
     ];
     const List<String> insulatorTypeOptions = [
-      'Disc',
-      'Long Rod',
-      'Polymer',
-      'Ceramic',
-      'Glass',
-      'Other'
-    ];
+      'Broken',
+      'Flashover',
+      'Damaged',
+      'Dirty',
+      'Cracked',
+      'OK',
+    ]; // Removed 'Other', 'OK' now included as a status option
     const List<String> opgwJointBoxOptions = [
-      'Good',
       'Damaged',
       'Open',
       'Leaking',
       'Corroded',
-      'Other'
+      'OK'
     ];
     const List<String> earthingOptions = [
-      'Good',
       'Loose',
       'Corroded',
       'Disconnected',
       'Missing',
       'Damaged',
-      'Other'
+      'OK'
     ];
     const List<String> hotSpotsOptions = [
-      'None',
+      'OK',
       'Minor',
       'Moderate',
-      'Severe',
-      'Other'
-    ];
+      'Severe'
+    ]; // 'None' changed to 'OK'
     const List<String> nutAndBoltOptions = [
-      'Good (Tight)',
       'Loose',
       'Missing',
       'Rusted',
       'Damaged',
-      'Other'
+      'OK'
     ];
     // --- END Specific Options ---
 
@@ -369,27 +346,19 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               const SizedBox(height: 20),
 
               // --- Detailed Patrolling Points ---
-
-              // Missing Tower Parts (TextFormField - kept as text)
-              TextFormField(
-                controller: _missingTowerPartsController,
-                decoration: _inputDecoration(
-                    'Missing Tower Parts (e.g., Cross-arm, Nut-Bolt)',
-                    Icons.precision_manufacturing,
-                    colorScheme),
-                maxLines: 3,
-                keyboardType: TextInputType.multiline,
-              ),
-              const SizedBox(height: 15),
-
               // Soil Condition (Dropdown)
               DropdownButtonFormField<String>(
                 value: _soilCondition,
                 decoration: _inputDecoration(
                     'Soil Condition', Icons.landscape, colorScheme),
                 items: soilConditionOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -407,8 +376,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Stub / Coping Leg', Icons.foundation, colorScheme),
                 items: generalGoodBadOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -428,8 +402,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Earthing', Icons.electrical_services, colorScheme),
                 items: earthingOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -447,8 +426,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Condition of Tower Parts', Icons.build, colorScheme),
                 items: towerPartsConditionOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -466,8 +450,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Status of Insulator', Icons.power, colorScheme),
                 items: insulatorStatusOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -485,8 +474,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration:
                     _inputDecoration('Jumper Status', Icons.cable, colorScheme),
                 items: jumperStatusOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -506,8 +500,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration:
                     _inputDecoration('Hot Spots', Icons.fireplace, colorScheme),
                 items: hotSpotsOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -525,8 +524,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Number Plate', Icons.looks_one, colorScheme),
                 items: numberPlateOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -544,8 +548,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Danger Board', Icons.warning, colorScheme),
                 items: numberPlateOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -563,8 +572,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Phase Plate', Icons.power_outlined, colorScheme),
                 items: numberPlateOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -582,8 +596,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Nut and Bolt Condition', Icons.handyman, colorScheme),
                 items: nutAndBoltOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -601,8 +620,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Anti Climbing Device', Icons.block, colorScheme),
                 items: antiClimbingOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -622,8 +646,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration:
                     _inputDecoration('Wild Growth', Icons.forest, colorScheme),
                 items: wildGrowthOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -641,8 +670,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Bird Guard', Icons.architecture, colorScheme),
                 items: birdGuardOptions
-                    .map((String option) =>
-                        DropdownMenuItem(value: option, child: Text(option)))
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -662,7 +696,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration:
                     _inputDecoration('Bird Nest', Icons.grass, colorScheme),
                 items: birdNestOptions.map((String option) {
-                  return DropdownMenuItem(value: option, child: Text(option));
+                  return DropdownMenuItem(
+                      value: option,
+                      child: Text(
+                        option,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ));
                 }).toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -682,7 +722,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Arching Horn', Icons.flash_on, colorScheme),
                 items: archingHornOptions.map((String option) {
-                  return DropdownMenuItem(value: option, child: Text(option));
+                  return DropdownMenuItem(
+                      value: option,
+                      child: Text(
+                        option,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ));
                 }).toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -702,7 +748,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration:
                     _inputDecoration('Corona Ring', Icons.circle, colorScheme),
                 items: coronaRingOptions.map((String option) {
-                  return DropdownMenuItem(value: option, child: Text(option));
+                  return DropdownMenuItem(
+                      value: option,
+                      child: Text(
+                        option,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ));
                 }).toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -722,7 +774,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'Insulator Type', Icons.electric_bolt, colorScheme),
                 items: insulatorTypeOptions.map((String option) {
-                  return DropdownMenuItem(value: option, child: Text(option));
+                  return DropdownMenuItem(
+                      value: option,
+                      child: Text(
+                        option,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ));
                 }).toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -742,7 +800,13 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 decoration: _inputDecoration(
                     'OPGW Joint Box', Icons.cable, colorScheme),
                 items: opgwJointBoxOptions.map((String option) {
-                  return DropdownMenuItem(value: option, child: Text(option));
+                  return DropdownMenuItem(
+                      value: option,
+                      child: Text(
+                        option,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ));
                 }).toList(),
                 onChanged: (String? newValue) {
                   setState(() {
@@ -752,15 +816,29 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 validator: (value) =>
                     value == null ? 'Select OPGW Joint Box status' : null,
               ),
+              const SizedBox(height: 15),
+
+              // Missing Tower Parts (TextFormField - Moved to end)
+              TextFormField(
+                controller: _missingTowerPartsController,
+                decoration: _inputDecoration(
+                    'Missing Tower Parts', // Shorter label
+                    Icons.precision_manufacturing,
+                    colorScheme),
+                maxLines: 3,
+                keyboardType: TextInputType.multiline,
+              ),
               const SizedBox(height: 30),
 
-              // Continue to Camera Button
+              // Continue to Line Survey Button
               _isSavingDetails
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton.icon(
-                      onPressed: _navigateToCameraScreenWithDetails,
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Continue to Camera'),
+                      onPressed:
+                          _navigateToLineSurveyScreen, // Changed navigation target
+                      icon: const Icon(Icons.arrow_forward), // Changed icon
+                      label: const Text(
+                          'Continue to Line Survey'), // Changed label
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                         foregroundColor: colorScheme.onPrimary,
@@ -784,6 +862,11 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      isDense: true, // Make input fields more compact
+      labelStyle: TextStyle(
+          color: colorScheme.primary.withOpacity(0.8),
+          overflow:
+              TextOverflow.ellipsis), // Ensure label text overflows gracefully
     );
   }
 }

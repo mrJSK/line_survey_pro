@@ -13,6 +13,8 @@ import 'package:share_plus/share_plus.dart'; // Plugin for sharing files and con
 import 'package:line_survey_pro/models/survey_record.dart'; // Data model for SurveyRecord
 import 'package:image/image.dart'
     as img; // Import the image package for image processing
+import 'package:line_survey_pro/models/transmission_line.dart'; // NEW: Import TransmissionLine for Span calculation
+import 'package:collection/collection.dart'; // For firstWhereOrNull
 
 class FileService {
   // Returns a temporary file path for a given filename.
@@ -54,51 +56,56 @@ class FileService {
 
   // Generates a CSV file from a list of SurveyRecord objects.
   // The CSV includes a header row followed by data for each record, now including patrolling details.
-  Future<File?> generateCsvFile(List<SurveyRecord> records) async {
+  Future<File?> generateCsvFile(List<SurveyRecord> records,
+      {List<TransmissionLine>? allTransmissionLines}) async {
+    // NEW: Added optional TransmissionLine list
     if (records.isEmpty) {
       return null; // If no records are provided, return null as there's nothing to export.
     }
 
     List<List<dynamic>> csvData = [];
 
-    // Add the header row to the CSV data, including NEW Patrolling Details.
+    // Add the header row to the CSV data, including NEW Patrolling Details and Line Survey Details.
     csvData.add([
-      'Record ID',
-      'Line Name',
-      'Tower Number',
-      'Latitude',
-      'Longitude',
-      'Timestamp',
-      'Status',
-      'Missing Tower Parts',
-      'Soil Condition',
-      'Stub / Coping Leg',
-      'Earthing',
-      'Condition of Tower Parts',
-      'Status of Insulator',
-      'Jumper Status',
+      'Record ID', 'Line Name', 'Tower Number', 'Span', // NEW: Span column
+      'Latitude', 'Longitude', 'Timestamp', 'Status',
+      'Missing Tower Parts', 'Soil Condition', 'Stub / Coping Leg', 'Earthing',
+      'Condition of Tower Parts', 'Status of Insulator', 'Jumper Status',
       'Hot Spots',
-      'Number Plate',
-      'Danger Board',
-      'Phase Plate',
-      'Nut and Bolt Condition',
-      'Anti Climbing Device',
-      'Wild Growth',
-      'Bird Guard',
-      'Bird Nest',
-      'Arching Horn',
-      'Corona Ring',
-      'Insulator Type',
-      'OPGW Joint Box',
+      'Number Plate', 'Danger Board', 'Phase Plate', 'Nut and Bolt Condition',
+      'Anti Climbing Device', 'Wild Growth', 'Bird Guard', 'Bird Nest',
+      'Arching Horn', 'Corona Ring', 'Insulator Type', 'OPGW Joint Box',
+      // NEW Line Survey Details
+      'Building', 'Tree', 'Number of Trees', 'Condition of OPGW',
+      'Condition of Earth Wire', 'Condition of Conductor', 'Mid Span Joint',
+      'New Construction', 'Object on Conductor', 'Object on Earthwire',
+      'Spacers', 'Vibration Damper', 'Road Crossing', 'River Crossing',
+      'Electrical Line', 'Railway Crossing',
+      'General Notes', // NEW: General Notes
     ]);
 
     // Iterate through each survey record and convert its properties into a list
     // suitable for a CSV row, including all details.
     for (var record in records) {
+      String span = '';
+      if (allTransmissionLines != null) {
+        final line = allTransmissionLines
+            .firstWhereOrNull((l) => l.name == record.lineName);
+        if (line != null) {
+          if (line.towerRangeEnd != null &&
+              line.towerRangeEnd == record.towerNumber) {
+            span = 'END';
+          } else {
+            span = '${record.towerNumber}-${record.towerNumber + 1}';
+          }
+        }
+      }
+
       csvData.add([
         record.id,
         record.lineName,
         record.towerNumber,
+        span, // Add calculated span
         record.latitude,
         record.longitude,
         record.timestamp
@@ -124,6 +131,24 @@ class FileService {
         record.coronaRing ?? '',
         record.insulatorType ?? '',
         record.opgwJointBox ?? '',
+        // NEW Line Survey Details
+        record.building == true ? 'Yes' : 'No',
+        record.tree == true ? 'Yes' : 'No',
+        record.numberOfTrees ?? '',
+        record.conditionOfOpgw ?? '',
+        record.conditionOfEarthWire ?? '',
+        record.conditionOfConductor ?? '',
+        record.midSpanJoint ?? '',
+        record.newConstruction == true ? 'Yes' : 'No',
+        record.objectOnConductor == true ? 'Yes' : 'No',
+        record.objectOnEarthwire == true ? 'Yes' : 'No',
+        record.spacers ?? '',
+        record.vibrationDamper ?? '',
+        record.roadCrossing ?? '',
+        record.riverCrossing == true ? 'Yes' : 'No',
+        record.electricalLine ?? '',
+        record.railwayCrossing == true ? 'Yes' : 'No',
+        record.generalNotes ?? '', // Add General Notes
       ]);
     }
 

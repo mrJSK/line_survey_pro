@@ -25,6 +25,7 @@ import 'package:uuid/uuid.dart'; // For generating unique IDs for dummy tasks
 import 'package:line_survey_pro/screens/home_screen.dart'; // Import HomeScreen and its key
 import 'package:line_survey_pro/screens/manager_worker_detail_screen.dart'; // Import ManagerWorkerDetailScreen
 import 'package:collection/collection.dart'; // Import the collection package for its extension
+import 'package:line_survey_pro/screens/line_patrolling_details_screen.dart'; // Import LinePatrollingDetailsScreen
 
 class DashboardTab extends StatefulWidget {
   const DashboardTab({super.key});
@@ -39,6 +40,7 @@ class _DashboardTabState extends State<DashboardTab> {
   List<Task> _tasksWithProgress = []; // Filtered based on role
   List<SurveyRecord> _allFirebaseSurveyRecords =
       []; // All records from Firestore
+  List<SurveyRecord> _allLocalSurveyRecords = []; // All records from local DB
 
   // Helper method to build a stat row for the admin dashboard summary
   Widget _buildStatRow(
@@ -90,6 +92,8 @@ class _DashboardTabState extends State<DashboardTab> {
   StreamSubscription? _tasksSubscription;
   StreamSubscription? _allSurveyRecordsSubscription;
   StreamSubscription?
+      _localSurveyRecordsSubscription; // NEW: Local records stream
+  StreamSubscription?
       _userProfileSubscription; // To get the latest UserProfile (including assignedLineIds)
   StreamSubscription?
       _allUserProfilesStreamSubscription; // NEW: To get all users for admin dashboard counts
@@ -106,6 +110,7 @@ class _DashboardTabState extends State<DashboardTab> {
     _linesSubscription?.cancel();
     _tasksSubscription?.cancel();
     _allSurveyRecordsSubscription?.cancel();
+    _localSurveyRecordsSubscription?.cancel(); // NEW
     _userProfileSubscription?.cancel();
     _allUserProfilesStreamSubscription?.cancel(); // NEW
     // Local survey records stream is managed by LocalDatabaseService internally,
@@ -139,8 +144,22 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       });
 
-      // 2. Fetch all local records once (needed for photoPath, local counts)
-      await _localDatabaseService.getAllSurveyRecords();
+      // 2. Stream all local records for workers' progress calculation
+      _localSurveyRecordsSubscription =
+          _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
+        if (mounted) {
+          setState(() {
+            _allLocalSurveyRecords = records;
+            _updateDashboardBasedOnRole(); // Re-evaluate dashboard based on new local data
+          });
+        }
+      }, onError: (error) {
+        if (mounted)
+          SnackBarUtils.showSnackBar(context,
+              'Error streaming local survey records: ${error.toString()}',
+              isError: true);
+      });
+
       // 3. Stream all necessary data from Firestore (will be filtered later)
       _linesSubscription =
           _firestoreService.getTransmissionLinesStream().listen((lines) {
@@ -235,7 +254,7 @@ class _DashboardTabState extends State<DashboardTab> {
       displayedTasks = _tasksWithProgress.where((task) {
         // Find the TransmissionLine object corresponding to the task's lineName
         final TransmissionLine? taskLine = _transmissionLines.firstWhereOrNull(
-          (line) => line.name == task.lineName,
+          (l) => l.name == task.lineName,
         );
         // Include task only if its line is among the manager's assigned lines
         return taskLine != null &&
@@ -246,6 +265,38 @@ class _DashboardTabState extends State<DashboardTab> {
       displayedTasks = _tasksWithProgress
           .where((task) => task.assignedToUserId == _currentUser!.id)
           .toList();
+
+      // Populate localCompletedCount and uploadedCompletedCount for worker tasks
+      final List<Task> enrichedWorkerTasks = [];
+      for (var task in displayedTasks) {
+        Set<int> uniqueLocalTowers = {};
+        Set<int> uniqueUploadedTowers = {};
+
+        // Use _allLocalSurveyRecords for local count
+        for (var record in _allLocalSurveyRecords.where(
+            (r) => r.taskId == task.id && r.userId == _currentUser!.id)) {
+          // Count a tower as locally completed if there's any record (saved_complete or uploaded) for it
+          if (record.status == 'saved_complete' ||
+              record.status == 'uploaded') {
+            uniqueLocalTowers.add(record.towerNumber);
+          }
+        }
+
+        // Use _allFirebaseSurveyRecords for uploaded count
+        for (var record in _allFirebaseSurveyRecords.where((r) =>
+            r.taskId == task.id &&
+            r.userId == _currentUser!.id &&
+            r.status == 'uploaded')) {
+          uniqueUploadedTowers.add(record.towerNumber);
+        }
+
+        enrichedWorkerTasks.add(task.copyWith(
+          localCompletedCount: uniqueLocalTowers.length,
+          uploadedCompletedCount: uniqueUploadedTowers.length,
+        ));
+      }
+      displayedTasks = enrichedWorkerTasks; // Use the enriched tasks
+
       // And lines associated with their assigned tasks
       final Set<String> workerAssignedLineNames =
           displayedTasks.map((task) => task.lineName).toSet();
@@ -299,7 +350,8 @@ class _DashboardTabState extends State<DashboardTab> {
         final Task tempTask =
             task.copyWith(uploadedCompletedCount: completedTowersForTask);
 
-        if (tempTask.derivedStatus == 'Completed') {
+        if (tempTask.derivedStatus == 'Patrolled') {
+          // Changed from 'Completed'
           completedLines.add(task.lineName);
         } else if (tempTask.derivedStatus != 'Pending' ||
             completedTowersForTask > 0) {
@@ -322,21 +374,34 @@ class _DashboardTabState extends State<DashboardTab> {
     });
   }
 
-  void _navigateToLineDetailForTask(Task task) {
+  void _navigateToLineDetailForTask(
+      Task task, TransmissionLine transmissionLine) {
+    // NEW: Added TransmissionLine parameter
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => LineDetailScreen(task: task),
+        builder: (context) => LineDetailScreen(
+            task: task,
+            transmissionLine: transmissionLine), // Pass TransmissionLine
+      ),
+    );
+  }
+
+  // NEW: Navigate to Line Patrolling Details screen for Managers/Admins
+  void _navigateToLinePatrollingDetails(TransmissionLine line) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => LinePatrollingDetailsScreen(line: line),
       ),
     );
   }
 
   // Navigate to Worker details screen for managers
-  void _navigateToWorkerDetails(UserProfile worker) {
+  void _navigateToWorkerDetails(UserProfile userProfile) {
+    // Changed parameter name
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ManagerWorkerDetailScreen(
-          workerId: worker.id,
-          workerDisplayName: worker.displayName ?? worker.email,
+          userProfile: userProfile, // Pass the full UserProfile
         ),
       ),
     );
@@ -444,7 +509,8 @@ class _DashboardTabState extends State<DashboardTab> {
 
     if (_currentUser?.role == 'Worker') {
       for (var task in _tasksWithProgress) {
-        totalCompletedTowers += task.uploadedCompletedCount;
+        totalCompletedTowers +=
+            task.uploadedCompletedCount; // Use uploaded for overall progress
         totalOverallTowers += task.numberOfTowersToPatrol;
       }
     } else {
@@ -600,7 +666,7 @@ class _DashboardTabState extends State<DashboardTab> {
                               ),
                               trailing: TextButton(
                                 onPressed: () => _navigateToWorkerDetails(
-                                    manager), // Re-using for Manager's details
+                                    manager), // Pass manager profile
                                 child: Text('View >',
                                     style:
                                         TextStyle(color: colorScheme.primary)),
@@ -670,14 +736,14 @@ class _DashboardTabState extends State<DashboardTab> {
                                   Text(
                                       'Lines Assigned: ${summary.linesAssigned}'),
                                   Text(
-                                      'Lines Completed: ${summary.linesCompleted}'),
+                                      'Lines Patrolled: ${summary.linesCompleted}'), // Changed from Completed
                                   Text(
                                       'Lines Working/Pending: ${summary.linesWorkingPending}'),
                                 ],
                               ),
                               trailing: TextButton(
-                                onPressed: () =>
-                                    _navigateToWorkerDetails(worker),
+                                onPressed: () => _navigateToWorkerDetails(
+                                    worker), // Pass worker profile
                                 child: Text('View >',
                                     style:
                                         TextStyle(color: colorScheme.primary)),
@@ -723,12 +789,25 @@ class _DashboardTabState extends State<DashboardTab> {
                   itemBuilder: (context, index) {
                     if (_currentUser?.role == 'Worker') {
                       final task = _tasksWithProgress[index];
+                      // Find the associated TransmissionLine for current task
+                      final TransmissionLine? taskLine =
+                          _transmissionLines.firstWhereOrNull(
+                              (line) => line.name == task.lineName);
+
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         elevation: 4,
                         child: InkWell(
                           onTap: () {
-                            _navigateToLineDetailForTask(task);
+                            if (taskLine != null) {
+                              // Ensure line data exists before navigating
+                              _navigateToLineDetailForTask(
+                                  task, taskLine); // Pass TransmissionLine
+                            } else {
+                              SnackBarUtils.showSnackBar(
+                                  context, 'Line data not found for this task.',
+                                  isError: true);
+                            }
                           },
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
@@ -743,7 +822,7 @@ class _DashboardTabState extends State<DashboardTab> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Completed: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                  'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}', // Changed from Completed
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
                                 Text(
@@ -802,23 +881,8 @@ class _DashboardTabState extends State<DashboardTab> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         elevation: 4,
                         child: InkWell(
-                          onTap: () => _navigateToLineDetailForTask(
-                            Task(
-                              id: const Uuid()
-                                  .v4(), // Generate ID for ad-hoc task
-                              assignedToUserId: _currentUser!.id,
-                              assignedByUserId: _currentUser!.id,
-                              lineName: line.name,
-                              targetTowerRange:
-                                  '${line.towerRangeStart}-${line.towerRangeEnd}', // Use line's actual range
-                              numberOfTowersToPatrol: line.computedTotalTowers,
-                              dueDate: DateTime.now().add(
-                                  const Duration(days: 365)), // Ad-hoc due date
-                              createdAt: DateTime.now(),
-                              status:
-                                  'AdHoc_Survey', // Custom status for direct survey
-                            ),
-                          ),
+                          // Updated navigation for Manager/Admin to LinePatrollingDetailsScreen
+                          onTap: () => _navigateToLinePatrollingDetails(line),
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -945,7 +1009,7 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 }
 
-// Helper class for worker progress summary (remains the same)
+// Simple data class to hold worker progress summary for dashboard
 class WorkerProgressSummary {
   final UserProfile worker;
   final int linesAssigned;
@@ -959,19 +1023,3 @@ class WorkerProgressSummary {
     required this.linesWorkingPending,
   });
 }
-
-// The custom IterableExtension from local_database_service.dart
-// This extension is causing a name collision with the one from package:collection.
-// To fix, we explicitly use CollectionIterableExtension from 'package:collection/collection.dart'
-// in this file, or consider removing this local extension if it's redundant.
-// For now, we'll keep the import as is, and use explicit override where needed.
-// extension IterableExtension<T> on Iterable<T> {
-//   T? firstWhereOrNull(bool Function(T element) test) {
-//     for (final element in this) {
-//       if (test(element)) {
-//         return element;
-//       }
-//     }
-//     return null;
-//   }
-// }

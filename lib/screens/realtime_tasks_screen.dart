@@ -313,7 +313,11 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
 
       for (var record
           in combinedAndFilteredRecords.where((r) => r.taskId == task.id)) {
-        uniqueLocalTowers.add(record.towerNumber);
+        // Only count towers if their status indicates actual completion (e.g., saved_complete or uploaded)
+        if (record.status == 'saved_complete' || record.status == 'uploaded') {
+          //
+          uniqueLocalTowers.add(record.towerNumber);
+        }
         if (record.status == 'uploaded') {
           uniqueUploadedTowers.add(record.towerNumber);
         }
@@ -481,7 +485,11 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     );
   }
 
+  // This method is no longer callable by workers directly from UI buttons.
+  // It's kept here for potential internal use or future re-introduction by admin.
   void _updateTaskStatus(Task task, String newStatus) async {
+    // This method is called by admins/managers or by the app internally.
+    // Workers cannot trigger this via a button anymore.
     setState(() {
       _isLoading = true;
     });
@@ -506,11 +514,14 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     }
   }
 
-  void _navigateToSurveyForTask(Task task) {
+  void _navigateToSurveyForTask(Task task, TransmissionLine transmissionLine) {
+    // NEW: Added TransmissionLine
     if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => LineDetailScreen(task: task),
+          builder: (context) => LineDetailScreen(
+              task: task,
+              transmissionLine: transmissionLine), // Pass TransmissionLine
         ),
       );
     }
@@ -627,7 +638,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Please ensure your role is correctly assigned by an administrator in the Firebase Console.',
+                'Please ensure your role (Worker, Manager, or Admin) is correctly assigned by an administrator in the Firebase Console.',
                 style: Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -714,6 +725,28 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                     final task = _tasks[index];
                     final recordsForTask = _surveyRecordsByTask[task.id] ?? [];
 
+                    // Determine icon and color based on derivedStatus
+                    IconData statusIconData;
+                    Color iconColor;
+
+                    if (task.derivedStatus == 'Patrolled') {
+                      statusIconData = Icons.check_circle;
+                      iconColor = Colors
+                          .green; // Green for fully patrolled and uploaded
+                    } else if (task.derivedStatus == 'In Progress (Uploaded)' ||
+                        task.derivedStatus == 'In Progress (Local)') {
+                      statusIconData = Icons.hourglass_empty;
+                      iconColor =
+                          colorScheme.tertiary; // Mustard for in progress
+                    } else if (task.derivedStatus == 'Pending') {
+                      statusIconData = Icons.error;
+                      iconColor = colorScheme.error; // Red for pending
+                    } else {
+                      statusIconData = Icons
+                          .help_outline; // Fallback for unrecognized status
+                      iconColor = Colors.grey;
+                    }
+
                     return Card(
                       margin: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
@@ -742,20 +775,11 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                 onPressed: () => _showManagerTaskOptions(task),
                                 tooltip: 'Task Options',
                               )
-                            : (_currentUser!.role == 'Worker' &&
-                                    task.status !=
-                                        'Completed' && // Original Firestore status
-                                    task.localCompletedCount >
-                                        0 && // Has some local progress
-                                    task.derivedStatus !=
-                                        'Completed' // Not yet derived as completed
-                                ? IconButton(
-                                    icon: const Icon(Icons.check_circle,
-                                        color: Colors.green),
-                                    onPressed: () =>
-                                        _updateTaskStatus(task, 'Completed'),
-                                    tooltip: 'Mark as Completed',
-                                  )
+                            : (_currentUser!.role == 'Worker'
+                                ? // Worker's status indicator only (no button for status update)
+                                Icon(statusIconData,
+                                    color:
+                                        iconColor) // Display the determined icon and color
                                 : null),
                         children: [
                           if (_currentUser!.role == 'Worker')
@@ -766,12 +790,12 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Completed: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol} (Local)',
+                                    'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}', // Changed from Completed
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   Text(
-                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol} (Cloud)',
+                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
@@ -808,8 +832,21 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                         ),
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
-                                    onPressed: () =>
-                                        _navigateToSurveyForTask(task),
+                                    onPressed: () {
+                                      // Find the associated TransmissionLine for current task
+                                      final TransmissionLine? taskLine =
+                                          _allTransmissionLines
+                                              .firstWhereOrNull((line) =>
+                                                  line.name == task.lineName);
+                                      if (taskLine != null) {
+                                        _navigateToSurveyForTask(task,
+                                            taskLine); // Pass TransmissionLine
+                                      } else {
+                                        SnackBarUtils.showSnackBar(context,
+                                            'Line data not found for this task. Cannot continue survey.',
+                                            isError: true);
+                                      }
+                                    },
                                     icon: const Icon(Icons.camera_alt),
                                     label: const Text(
                                         'Continue Survey for this Task'),

@@ -100,7 +100,7 @@ class Task {
   String get derivedStatus {
     if (uploadedCompletedCount >= numberOfTowersToPatrol &&
         numberOfTowersToPatrol > 0) {
-      return 'Completed';
+      return 'Patrolled'; // Changed from 'Completed'
     } else if (uploadedCompletedCount > 0) {
       return 'In Progress (Uploaded)';
     } else if (localCompletedCount > 0) {

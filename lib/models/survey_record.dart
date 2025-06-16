@@ -14,7 +14,7 @@ class SurveyRecord {
   final String? taskId;
   final String? userId;
 
-  // NEW: Detailed Patrolling Points
+  // Detailed Patrolling Points (existing)
   String? missingTowerParts; // E.g., "Yes", "No", "Description"
   String? soilCondition; // E.g., "Good", "Eroded", "Soft"
   String? stubCopingLeg; // E.g., "Good", "Damaged", "Missing"
@@ -36,6 +36,27 @@ class SurveyRecord {
   String? insulatorType; // E.g., "Disc", "Long Rod", "Polymer"
   String? opgwJointBox; // E.g., "Good", "Damaged", "Open"
 
+  // Line Survey Screen fields (existing)
+  bool? building;
+  bool? tree;
+  int? numberOfTrees; // Shown if tree is true
+  String? conditionOfOpgw; // Dropdown: OK, Damaged
+  String? conditionOfEarthWire; // Dropdown: OK, Damaged
+  String? conditionOfConductor; // Dropdown: OK, Damaged
+  String? midSpanJoint; // Dropdown: OK, Damaged
+  bool? newConstruction;
+  bool? objectOnConductor;
+  bool? objectOnEarthwire;
+  String? spacers; // Dropdown: OK, Damaged
+  String? vibrationDamper; // Dropdown: OK, Damaged
+  String? roadCrossing; // Dropdown: NH, SH, Chakk road, Over Bridge, Underpass
+  bool? riverCrossing;
+  String? electricalLine; // Dropdown: 400kV, 220kV, 132kV, 33kV, 11kV, PTW
+  bool? railwayCrossing;
+
+  // NEW: General Notes text area field
+  String? generalNotes;
+
   SurveyRecord({
     String? id,
     required this.lineName,
@@ -48,7 +69,7 @@ class SurveyRecord {
         'saved_photo_only', // Default status: photo captured, details pending
     this.taskId,
     this.userId,
-    // Initialize new fields
+    // Initialize existing detailed fields
     this.missingTowerParts,
     this.soilCondition,
     this.stubCopingLeg,
@@ -69,6 +90,25 @@ class SurveyRecord {
     this.coronaRing,
     this.insulatorType,
     this.opgwJointBox,
+    // Initialize Line Survey fields
+    this.building,
+    this.tree,
+    this.numberOfTrees,
+    this.conditionOfOpgw,
+    this.conditionOfEarthWire,
+    this.conditionOfConductor,
+    this.midSpanJoint,
+    this.newConstruction,
+    this.objectOnConductor,
+    this.objectOnEarthwire,
+    this.spacers,
+    this.vibrationDamper,
+    this.roadCrossing,
+    this.riverCrossing,
+    this.electricalLine,
+    this.railwayCrossing,
+    // Initialize NEW General Notes field
+    this.generalNotes,
   }) : id = id ?? const Uuid().v4();
 
   // Factory constructor to create a SurveyRecord from a Firestore document's data Map
@@ -85,7 +125,7 @@ class SurveyRecord {
       status: map['status'] as String,
       taskId: map['taskId'] as String?,
       userId: map['userId'] as String?,
-      // Read new fields
+      // Read existing detailed fields
       missingTowerParts: map['missingTowerParts'] as String?,
       soilCondition: map['soilCondition'] as String?,
       stubCopingLeg: map['stubCopingLeg'] as String?,
@@ -106,6 +146,25 @@ class SurveyRecord {
       coronaRing: map['coronaRing'] as String?,
       insulatorType: map['insulatorType'] as String?,
       opgwJointBox: map['opgwJointBox'] as String?,
+      // Read Line Survey fields
+      building: map['building'] as bool?,
+      tree: map['tree'] as bool?,
+      numberOfTrees: map['numberOfTrees'] as int?,
+      conditionOfOpgw: map['conditionOfOpgw'] as String?,
+      conditionOfEarthWire: map['conditionOfEarthWire'] as String?,
+      conditionOfConductor: map['conditionOfConductor'] as String?,
+      midSpanJoint: map['midSpanJoint'] as String?,
+      newConstruction: map['newConstruction'] as bool?,
+      objectOnConductor: map['objectOnConductor'] as bool?,
+      objectOnEarthwire: map['objectOnEarthwire'] as bool?,
+      spacers: map['spacers'] as String?,
+      vibrationDamper: map['vibrationDamper'] as String?,
+      roadCrossing: map['roadCrossing'] as String?,
+      riverCrossing: map['riverCrossing'] as bool?,
+      electricalLine: map['electricalLine'] as String?,
+      railwayCrossing: map['railwayCrossing'] as bool?,
+      // Read NEW General Notes field
+      generalNotes: map['generalNotes'] as String?,
     );
   }
 
@@ -122,7 +181,7 @@ class SurveyRecord {
       'taskId': taskId,
       'userId': userId,
       'createdAt': FieldValue.serverTimestamp(),
-      // Add new fields for Firestore
+      // Add existing detailed fields for Firestore
       'missingTowerParts': missingTowerParts,
       'soilCondition': soilCondition,
       'stubCopingLeg': stubCopingLeg,
@@ -143,6 +202,25 @@ class SurveyRecord {
       'coronaRing': coronaRing,
       'insulatorType': insulatorType,
       'opgwJointBox': opgwJointBox,
+      // Add Line Survey fields for Firestore
+      'building': building,
+      'tree': tree,
+      'numberOfTrees': numberOfTrees,
+      'conditionOfOpgw': conditionOfOpgw,
+      'conditionOfEarthWire': conditionOfEarthWire,
+      'conditionOfConductor': conditionOfConductor,
+      'midSpanJoint': midSpanJoint,
+      'newConstruction': newConstruction,
+      'objectOnConductor': objectOnConductor,
+      'objectOnEarthwire': objectOnEarthwire,
+      'spacers': spacers,
+      'vibrationDamper': vibrationDamper,
+      'roadCrossing': roadCrossing,
+      'riverCrossing': riverCrossing,
+      'electricalLine': electricalLine,
+      'railwayCrossing': railwayCrossing,
+      // Add NEW General Notes field for Firestore
+      'generalNotes': generalNotes,
     };
   }
 
@@ -159,7 +237,7 @@ class SurveyRecord {
       status: map['status'] as String,
       taskId: map['taskId'] as String?,
       userId: map['userId'] as String?,
-      // Read new fields
+      // Read existing detailed fields
       missingTowerParts: map['missingTowerParts'] as String?,
       soilCondition: map['soilCondition'] as String?,
       stubCopingLeg: map['stubCopingLeg'] as String?,
@@ -180,6 +258,25 @@ class SurveyRecord {
       coronaRing: map['coronaRing'] as String?,
       insulatorType: map['insulatorType'] as String?,
       opgwJointBox: map['opgwJointBox'] as String?,
+      // Read Line Survey fields
+      building: map['building'] == 1, // SQLite stores bool as int
+      tree: map['tree'] == 1,
+      numberOfTrees: map['numberOfTrees'] as int?,
+      conditionOfOpgw: map['conditionOfOpgw'] as String?,
+      conditionOfEarthWire: map['conditionOfEarthWire'] as String?,
+      conditionOfConductor: map['conditionOfConductor'] as String?,
+      midSpanJoint: map['midSpanJoint'] as String?,
+      newConstruction: map['newConstruction'] == 1,
+      objectOnConductor: map['objectOnConductor'] == 1,
+      objectOnEarthwire: map['objectOnEarthwire'] == 1,
+      spacers: map['spacers'] as String?,
+      vibrationDamper: map['vibrationDamper'] as String?,
+      roadCrossing: map['roadCrossing'] as String?,
+      riverCrossing: map['riverCrossing'] == 1,
+      electricalLine: map['electricalLine'] as String?,
+      railwayCrossing: map['railwayCrossing'] == 1,
+      // Read NEW General Notes field
+      generalNotes: map['generalNotes'] as String?,
     );
   }
 
@@ -196,7 +293,7 @@ class SurveyRecord {
       'status': status,
       'taskId': taskId,
       'userId': userId,
-      // Add new fields for SQLite
+      // Add existing detailed fields for SQLite
       'missingTowerParts': missingTowerParts,
       'soilCondition': soilCondition,
       'stubCopingLeg': stubCopingLeg,
@@ -217,6 +314,25 @@ class SurveyRecord {
       'coronaRing': coronaRing,
       'insulatorType': insulatorType,
       'opgwJointBox': opgwJointBox,
+      // Add Line Survey fields for SQLite
+      'building': building == true ? 1 : 0, // SQLite stores bool as int
+      'tree': tree == true ? 1 : 0,
+      'numberOfTrees': numberOfTrees,
+      'conditionOfOpgw': conditionOfOpgw,
+      'conditionOfEarthWire': conditionOfEarthWire,
+      'conditionOfConductor': conditionOfConductor,
+      'midSpanJoint': midSpanJoint,
+      'newConstruction': newConstruction == true ? 1 : 0,
+      'objectOnConductor': objectOnConductor == true ? 1 : 0,
+      'objectOnEarthwire': objectOnEarthwire == true ? 1 : 0,
+      'spacers': spacers,
+      'vibrationDamper': vibrationDamper,
+      'roadCrossing': roadCrossing,
+      'riverCrossing': riverCrossing == true ? 1 : 0,
+      'electricalLine': electricalLine,
+      'railwayCrossing': railwayCrossing == true ? 1 : 0,
+      // Add NEW General Notes field for SQLite
+      'generalNotes': generalNotes,
     };
   }
 
@@ -252,6 +368,25 @@ class SurveyRecord {
     String? coronaRing,
     String? insulatorType,
     String? opgwJointBox,
+    // Copy new fields
+    bool? building,
+    bool? tree,
+    int? numberOfTrees,
+    String? conditionOfOpgw,
+    String? conditionOfEarthWire,
+    String? conditionOfConductor,
+    String? midSpanJoint,
+    bool? newConstruction,
+    bool? objectOnConductor,
+    bool? objectOnEarthwire,
+    String? spacers,
+    String? vibrationDamper,
+    String? roadCrossing,
+    bool? riverCrossing,
+    String? electricalLine,
+    bool? railwayCrossing,
+    // Copy NEW General Notes field
+    String? generalNotes,
   }) {
     return SurveyRecord(
       id: id ?? this.id,
@@ -264,7 +399,7 @@ class SurveyRecord {
       status: status ?? this.status,
       taskId: taskId ?? this.taskId,
       userId: userId ?? this.userId,
-      // Copy new fields
+      // Copy existing detailed fields
       missingTowerParts: missingTowerParts ?? this.missingTowerParts,
       soilCondition: soilCondition ?? this.soilCondition,
       stubCopingLeg: stubCopingLeg ?? this.stubCopingLeg,
@@ -286,6 +421,25 @@ class SurveyRecord {
       coronaRing: coronaRing ?? this.coronaRing,
       insulatorType: insulatorType ?? this.insulatorType,
       opgwJointBox: opgwJointBox ?? this.opgwJointBox,
+      // Copy new fields
+      building: building ?? this.building,
+      tree: tree ?? this.tree,
+      numberOfTrees: numberOfTrees ?? this.numberOfTrees,
+      conditionOfOpgw: conditionOfOpgw ?? this.conditionOfOpgw,
+      conditionOfEarthWire: conditionOfEarthWire ?? this.conditionOfEarthWire,
+      conditionOfConductor: conditionOfConductor ?? this.conditionOfConductor,
+      midSpanJoint: midSpanJoint ?? this.midSpanJoint,
+      newConstruction: newConstruction ?? this.newConstruction,
+      objectOnConductor: objectOnConductor ?? this.objectOnConductor,
+      objectOnEarthwire: objectOnEarthwire ?? this.objectOnEarthwire,
+      spacers: spacers ?? this.spacers,
+      vibrationDamper: vibrationDamper ?? this.vibrationDamper,
+      roadCrossing: roadCrossing ?? this.roadCrossing,
+      riverCrossing: riverCrossing ?? this.riverCrossing,
+      electricalLine: electricalLine ?? this.electricalLine,
+      railwayCrossing: railwayCrossing ?? this.railwayCrossing,
+      // Copy NEW General Notes field
+      generalNotes: generalNotes ?? this.generalNotes,
     );
   }
 

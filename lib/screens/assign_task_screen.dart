@@ -295,33 +295,33 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       }
       // --- END NEW VALIDATION ---
 
-      // --- NEW VALIDATION: Check for conflicting incomplete tasks ---
-      if (widget.taskToEdit == null) {
-        // Only for new task creation
-        final existingTasks = await _taskService
-            .getTasksForUser(_selectedWorker!.id); // Get worker's tasks
+      // --- UPDATED VALIDATION: Check for conflicting incomplete tasks on this line (regardless of worker) ---
+      // This now checks against ALL tasks on the selected line.
+      final allExistingTasks = await _taskService.getAllTasks();
+      final relevantExistingTasks = allExistingTasks
+          .where((task) =>
+                  task.lineName == _selectedLine!.name &&
+                  task.id !=
+                      widget.taskToEdit?.id // Exclude current task if editing
+              )
+          .toList();
 
-        for (var existingTask in existingTasks) {
-          // If the existing task is not 'Completed'
-          // And if it's for the same line
-          // And if the tower ranges overlap
-          if (existingTask.status !=
-                  'Completed' && // Use actual Firestore status to determine if incomplete
-              existingTask.lineName == _selectedLine!.name &&
-              _doRangesOverlap(
-                  targetRangeString, existingTask.targetTowerRange)) {
-            if (mounted) {
-              SnackBarUtils.showSnackBar(
-                context,
-                'Conflict: Worker already has an incomplete task (${existingTask.lineName}, Towers: ${existingTask.targetTowerRange}, Status: ${existingTask.status}) that overlaps with this assignment. Please complete/resolve the existing task first.',
-                isError: true,
-              );
-            }
-            return; // Prevent assignment due to conflict
+      for (var existingTask in relevantExistingTasks) {
+        // If the existing task is not 'Patrolled' (derived status) or 'Completed' (Firestore status)
+        if (existingTask.derivedStatus !=
+                'Patrolled' && // Use derivedStatus for a more accurate check
+            existingTask.status != 'Completed' && // Also check Firestore status
+            _doRangesOverlap(
+                targetRangeString, existingTask.targetTowerRange)) {
+          if (mounted) {
+            String conflictMessage =
+                'Conflict: A task for Line: ${existingTask.lineName}, Towers: ${existingTask.targetTowerRange} (Assigned to: ${existingTask.assignedToUserName ?? 'N/A'}, Status: ${existingTask.derivedStatus}) overlaps with this assignment.';
+            SnackBarUtils.showSnackBar(context, conflictMessage, isError: true);
           }
+          return; // Prevent assignment due to conflict
         }
       }
-      // --- END NEW VALIDATION ---
+      // --- END UPDATED VALIDATION ---
 
       setState(() {
         _isAssigning = true;
