@@ -25,7 +25,6 @@ class AssignTaskScreen extends StatefulWidget {
 
 class _AssignTaskScreenState extends State<AssignTaskScreen> {
   final _formKey = GlobalKey<FormState>();
-  // Replaced _targetTowerRangeController
   final TextEditingController _fromTowerController = TextEditingController();
   final TextEditingController _toTowerController = TextEditingController();
 
@@ -50,9 +49,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     super.initState();
     _loadInitialData();
 
-    // If editing an existing task, populate fields
     if (widget.taskToEdit != null) {
-      // Parse the targetTowerRange string (e.g., "10-30") to populate From/To fields
       _selectedDueDate = widget.taskToEdit!.dueDate;
 
       final range = widget.taskToEdit!.targetTowerRange.trim();
@@ -63,11 +60,9 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           _toTowerController.text = parts[1].trim();
         }
       } else if (int.tryParse(range) != null) {
-        // Single tower case
         _fromTowerController.text = range;
         _toTowerController.text = range;
       }
-      // If "All" or complex, manager has to re-enter
     }
   }
 
@@ -90,24 +85,25 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
       _transmissionLines = await _firestoreService.getTransmissionLinesOnce();
 
-      // If editing, find the selected worker and line from loaded data
       if (widget.taskToEdit != null) {
-        _selectedWorker = _workers.firstWhereOrNull(// Use firstWhereOrNull
+        _selectedWorker = _workers.firstWhereOrNull(
             (worker) => worker.id == widget.taskToEdit!.assignedToUserId);
-        _selectedLine =
-            _transmissionLines.firstWhereOrNull(// Use firstWhereOrNull
-                (line) => line.name == widget.taskToEdit!.lineName);
+        _selectedLine = _transmissionLines.firstWhereOrNull(
+            (line) => line.name == widget.taskToEdit!.lineName);
 
-        // Handle cases where worker or line from taskToEdit might not be found
-        if (_selectedWorker == null && _workers.isNotEmpty)
+        if (_selectedWorker == null && _workers.isNotEmpty) {
           _selectedWorker = _workers.first;
-        if (_selectedLine == null && _transmissionLines.isNotEmpty)
+        }
+        if (_selectedLine == null && _transmissionLines.isNotEmpty) {
           _selectedLine = _transmissionLines.first;
+        }
       } else {
-        // For new task, pre-select first worker/line if available
-        if (_workers.isNotEmpty) _selectedWorker = _workers.first;
-        if (_transmissionLines.isNotEmpty)
+        if (_workers.isNotEmpty) {
+          _selectedWorker = _workers.first;
+        }
+        if (_transmissionLines.isNotEmpty) {
           _selectedLine = _transmissionLines.first;
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -140,6 +136,58 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     }
   }
 
+  // Helper function to parse tower range into a list of integers
+  // Returns empty list if "All" or invalid range
+  List<int> _parseRangeToTowers(String rangeString) {
+    rangeString = rangeString.trim().toLowerCase();
+    if (rangeString == 'all') {
+      return []; // Special case, implies all towers on the line.
+    }
+
+    final List<int> towers = [];
+    if (rangeString.contains('-')) {
+      final parts = rangeString.split('-');
+      if (parts.length == 2) {
+        final start = int.tryParse(parts[0].trim());
+        final end = int.tryParse(parts[1].trim());
+        if (start != null && end != null && start <= end) {
+          for (int i = start; i <= end; i++) {
+            towers.add(i);
+          }
+        }
+      }
+    } else {
+      final singleTower = int.tryParse(rangeString);
+      if (singleTower != null) {
+        towers.add(singleTower);
+      }
+    }
+    return towers;
+  }
+
+  // Helper to check for overlapping ranges
+  bool _doRangesOverlap(String range1, String range2) {
+    if (range1.toLowerCase() == 'all' || range2.toLowerCase() == 'all') {
+      return true; // "All" always conflicts with anything else.
+    }
+
+    final List<int> towers1 = _parseRangeToTowers(range1);
+    final List<int> towers2 = _parseRangeToTowers(range2);
+
+    if (towers1.isEmpty || towers2.isEmpty) {
+      return false; // Cannot determine overlap for invalid ranges
+    }
+
+    // Find min and max for each range
+    final int min1 = towers1.reduce((a, b) => a < b ? a : b);
+    final int max1 = towers1.reduce((a, b) => a > b ? a : b);
+    final int min2 = towers2.reduce((a, b) => a < b ? a : b);
+    final int max2 = towers2.reduce((a, b) => a > b ? a : b);
+
+    // Check for overlap: [min1, max1] overlaps [min2, max2] if max1 >= min2 AND max2 >= min1
+    return max1 >= min2 && max2 >= min1;
+  }
+
   Future<void> _assignOrUpdateTask() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedWorker == null) {
@@ -158,52 +206,72 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         return;
       }
 
+      final String targetRangeString;
+      final int numberOfTowers;
+
+      final String fromText = _fromTowerController.text.trim();
+      final String toText = _toTowerController.text.trim();
+
+      if (fromText.toLowerCase() == 'all' && toText.isEmpty) {
+        targetRangeString = 'All';
+        numberOfTowers = _selectedLine?.totalTowers ?? 0;
+      } else {
+        final int? fromTower = int.tryParse(fromText);
+        final int? toTower = int.tryParse(toText.isEmpty ? fromText : toText);
+        if (fromTower != null && toTower != null && fromTower <= toTower) {
+          targetRangeString = (fromTower == toTower)
+              ? fromTower.toString()
+              : '$fromTower-$toTower';
+          numberOfTowers = toTower - fromTower + 1;
+        } else {
+          SnackBarUtils.showSnackBar(
+              context, 'Invalid tower range. Please check From/To values.',
+              isError: true);
+          return;
+        }
+      }
+
+      if (numberOfTowers <= 0 && targetRangeString.toLowerCase() != 'all') {
+        SnackBarUtils.showSnackBar(context,
+            'Number of towers to patrol cannot be zero. Check range or line total towers if "All" is selected.',
+            isError: true);
+        return;
+      }
+
+      // --- NEW VALIDATION: Check for conflicting incomplete tasks ---
+      if (widget.taskToEdit == null) {
+        // Only for new task creation
+        final existingTasks = await _taskService
+            .getTasksForUser(_selectedWorker!.id); // Get worker's tasks
+
+        for (var existingTask in existingTasks) {
+          // If the existing task is not 'Completed'
+          // And if it's for the same line
+          // And if the tower ranges overlap
+          if (existingTask.status !=
+                  'Completed' && // Use actual Firestore status to determine if incomplete
+              existingTask.lineName == _selectedLine!.name &&
+              _doRangesOverlap(
+                  targetRangeString, existingTask.targetTowerRange)) {
+            if (mounted) {
+              SnackBarUtils.showSnackBar(
+                context,
+                'Conflict: Worker already has an incomplete task (${existingTask.lineName}, Towers: ${existingTask.targetTowerRange}, Status: ${existingTask.status}) that overlaps with this assignment. Please complete/resolve the existing task first.',
+                isError: true,
+              );
+            }
+            return; // Prevent assignment due to conflict
+          }
+        }
+      }
+      // --- END NEW VALIDATION ---
+
       setState(() {
         _isAssigning = true;
       });
 
       try {
         final String taskId = widget.taskToEdit?.id ?? _uuid.v4();
-
-        // New logic for targetTowerRange and numberOfTowersToPatrol
-        final String targetRangeString;
-        final int numberOfTowers;
-
-        final int? fromTower = int.tryParse(_fromTowerController.text.trim());
-        final int? toTower = int.tryParse(_toTowerController.text.trim());
-
-        if (fromTower != null && toTower != null && fromTower <= toTower) {
-          targetRangeString = '$fromTower-$toTower';
-          numberOfTowers = toTower - fromTower + 1;
-        } else if (fromTower != null &&
-            _toTowerController.text.trim().isEmpty) {
-          // Single tower case
-          targetRangeString = fromTower.toString();
-          numberOfTowers = 1;
-        } else if (_fromTowerController.text.trim().toLowerCase() == 'all' &&
-            _toTowerController.text.trim().isEmpty) {
-          targetRangeString = 'All';
-          numberOfTowers = _selectedLine?.totalTowers ??
-              0; // Use totalTowers from the selected line
-        } else {
-          // This case should ideally be caught by validator, but as a fallback
-          if (mounted) {
-            SnackBarUtils.showSnackBar(
-                context, 'Invalid tower range. Please check From/To values.',
-                isError: true);
-          }
-          return;
-        }
-
-        if (numberOfTowers == 0 && targetRangeString.toLowerCase() != 'all') {
-          // If it's "All" and totalTowers is 0, allow.
-          if (mounted) {
-            SnackBarUtils.showSnackBar(context,
-                'Number of towers to patrol cannot be zero. Check range or line total towers.',
-                isError: true);
-          }
-          return;
-        }
 
         final Task task = Task(
           id: taskId,
@@ -214,8 +282,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           assignedByUserName:
               _currentManager!.displayName ?? _currentManager!.email,
           lineName: _selectedLine!.name,
-          targetTowerRange: targetRangeString, // Use the new string format
-          numberOfTowersToPatrol: numberOfTowers, // Use the calculated number
+          targetTowerRange: targetRangeString,
+          numberOfTowersToPatrol: numberOfTowers,
           dueDate: _selectedDueDate!,
           createdAt: widget.taskToEdit?.createdAt ?? DateTime.now(),
           status: widget.taskToEdit?.status ?? 'Pending',
@@ -401,7 +469,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
               ),
               const SizedBox(height: 20),
 
-              // NEW: From Tower Input
+              // From Tower Input
               TextFormField(
                 controller: _fromTowerController,
                 decoration: InputDecoration(
@@ -428,7 +496,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
               ),
               const SizedBox(height: 20),
 
-              // NEW: To Tower Input
+              // To Tower Input
               TextFormField(
                 controller: _toTowerController,
                 decoration: InputDecoration(
@@ -442,16 +510,14 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   final String fromText = _fromTowerController.text.trim();
-                  if (fromText.toLowerCase() == 'all')
-                    return null; // If "All", no "To" needed
+                  if (fromText.toLowerCase() == 'all') return null;
 
                   final int? fromNum = int.tryParse(fromText);
                   if (fromNum == null)
                     return null; // If From is invalid, this field is not responsible
 
                   if (value == null || value.trim().isEmpty) {
-                    // If "To" is empty, it implies a single tower (From)
-                    return null;
+                    return null; // If "To" is empty, it implies a single tower (From)
                   }
 
                   final int? toNum = int.tryParse(value.trim());

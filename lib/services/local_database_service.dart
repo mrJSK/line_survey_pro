@@ -9,9 +9,9 @@ import 'dart:async'; // For StreamController
 class LocalDatabaseService {
   static Database? _database;
   static const String _databaseName = 'line_survey_pro.db';
-  static const int _databaseVersion = 3;
+  // Increment to a new version (e.g., 4) because we're adding many new columns
+  static const int _databaseVersion = 4;
 
-  // NEW: StreamController to notify listeners about local DB changes
   static final StreamController<List<SurveyRecord>>
       _surveyRecordsStreamController =
       StreamController<List<SurveyRecord>>.broadcast();
@@ -36,25 +36,123 @@ class LocalDatabaseService {
 
   Future<void> initializeDatabase() async {
     await database;
-    // Initial load into stream after DB is ready
     _updateStreamWithAllRecords();
     print('Local database initialized successfully.');
   }
 
+  // --- IMPORTANT: Database Schema Migration ---
+  // This is crucial for adding new columns to existing databases.
+  // Each 'if (oldVersion < X)' block should contain DDL for changes introduced in version X.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Migration from version 1 to 2 (taskId, userId)
     if (oldVersion < 2) {
       try {
         await db
             .execute('ALTER TABLE $_surveyRecordsTable ADD COLUMN taskId TEXT');
-      } catch (e) {/* ignore */}
+      } catch (e) {/* column might already exist from previous partial runs */}
       try {
         await db
             .execute('ALTER TABLE $_surveyRecordsTable ADD COLUMN userId TEXT');
       } catch (e) {/* ignore */}
+      print('Migrated to DB Version 2: Added taskId and userId.');
+    }
+    // Migration from version 2 to 3 (if photoUrl was added then removed, or just to sync version)
+    if (oldVersion < 3) {
+      // If photoUrl was explicitly added in a version 2 migration, and you want it removed
+      // this is where complex ALTER TABLE (rename, create new, copy, drop) would go.
+      // For now, if you just removed it from SurveyRecord.toMap() and onCreate,
+      // old DBs will just have the unused column.
+      print(
+          'Migrated to DB Version 3 (no new columns or complex schema change in this version logic).');
+    }
+    // Migration from version 3 to 4 (Adding all new patrolling detail columns)
+    if (oldVersion < 4) {
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN missingTowerParts TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN soilCondition TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN stubCopingLeg TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN earthing TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN conditionOfTowerParts TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN statusOfInsulator TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN jumperStatus TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN hotSpots TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN numberPlate TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN dangerBoard TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN phasePlate TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN nutAndBoltCondition TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN antiClimbingDevice TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN wildGrowth TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN birdGuard TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN birdNest TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN archingHorn TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN coronaRing TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN insulatorType TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN opgwJointBox TEXT');
+      } catch (e) {}
+      print('Migrated to DB Version 4: Added all patrolling detail columns.');
     }
     print('Database upgraded from version $oldVersion to $newVersion.');
   }
 
+  // Define the table schema for NEW database creations (version 4)
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_surveyRecordsTable(
@@ -67,14 +165,34 @@ class LocalDatabaseService {
         photoPath TEXT,
         status TEXT,
         taskId TEXT,
-        userId TEXT
+        userId TEXT,
+        -- New Patrolling Details
+        missingTowerParts TEXT,
+        soilCondition TEXT,
+        stubCopingLeg TEXT,
+        earthing TEXT,
+        conditionOfTowerParts TEXT,
+        statusOfInsulator TEXT,
+        jumperStatus TEXT,
+        hotSpots TEXT,
+        numberPlate TEXT,
+        dangerBoard TEXT,
+        phasePlate TEXT,
+        nutAndBoltCondition TEXT,
+        antiClimbingDevice TEXT,
+        wildGrowth TEXT,
+        birdGuard TEXT,
+        birdNest TEXT,
+        archingHorn TEXT,
+        coronaRing TEXT,
+        insulatorType TEXT,
+        opgwJointBox TEXT
       )
     ''');
     print('Database created with version $version.');
   }
 
   // --- Survey Record Operations ---
-
   Future<void> saveSurveyRecord(SurveyRecord record) async {
     final db = await database;
     await db.insert(
@@ -82,7 +200,7 @@ class LocalDatabaseService {
       record.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    _updateStreamWithAllRecords(); // NEW: Notify listeners of change
+    _updateStreamWithAllRecords(); // Notify listeners of change
   }
 
   Future<List<SurveyRecord>> getAllSurveyRecords() async {
@@ -93,14 +211,11 @@ class LocalDatabaseService {
     });
   }
 
-  // NEW: Stream of all local survey records for real-time local UI updates
   Stream<List<SurveyRecord>> getAllSurveyRecordsStream() {
-    // Ensure the stream is populated on first subscription
-    _updateStreamWithAllRecords();
+    _updateStreamWithAllRecords(); // Ensure stream is populated on first subscription
     return _surveyRecordsStreamController.stream;
   }
 
-  // Helper to fetch and add records to the stream
   Future<void> _updateStreamWithAllRecords() async {
     final records = await getAllSurveyRecords();
     if (!_surveyRecordsStreamController.isClosed) {
@@ -112,8 +227,9 @@ class LocalDatabaseService {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       _surveyRecordsTable,
-      where: "status = ?",
-      whereArgs: ['saved'],
+      where:
+          "status = ? OR status = ?", // Look for 'saved_photo_only' or 'saved_complete'
+      whereArgs: ['saved_photo_only', 'saved_complete'],
     );
     return List.generate(maps.length, (i) {
       return SurveyRecord.fromMap(maps[i]);
@@ -130,7 +246,7 @@ class LocalDatabaseService {
       whereArgs: [recordId],
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    _updateStreamWithAllRecords(); // NEW: Notify listeners of change
+    _updateStreamWithAllRecords(); // Notify listeners of change
   }
 
   Future<List<SurveyRecord>> getSurveyRecordsByLineAndTower(
@@ -212,7 +328,7 @@ class LocalDatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
-    _updateStreamWithAllRecords(); // NEW: Notify listeners of change
+    _updateStreamWithAllRecords(); // Notify listeners of change
   }
 
   Future<void> deleteSurveyRecords(Set<String> ids) async {
@@ -224,7 +340,7 @@ class LocalDatabaseService {
       where: 'id IN ($inClause)',
       whereArgs: ids.toList(),
     );
-    _updateStreamWithAllRecords(); // NEW: Notify listeners of change
+    _updateStreamWithAllRecords(); // Notify listeners of change
   }
 
   Future<void> deleteSurveyRecordsByTaskId(String taskId) async {
@@ -234,7 +350,7 @@ class LocalDatabaseService {
       where: 'taskId = ?',
       whereArgs: [taskId],
     );
-    _updateStreamWithAllRecords(); // NEW: Notify listeners of change
+    _updateStreamWithAllRecords(); // Notify listeners of change
     print('Deleted local survey records for task $taskId.');
   }
 
@@ -242,7 +358,7 @@ class LocalDatabaseService {
     final db = await database;
     await db.close();
     _database = null;
-    _surveyRecordsStreamController.close(); // NEW: Close the stream controller
+    _surveyRecordsStreamController.close(); // Close the stream controller
   }
 }
 

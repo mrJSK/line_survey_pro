@@ -13,6 +13,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
   cupertino_icons: ^1.0.2 # Default Flutter icons
   camera: ^0.10.5+9 # For accessing the device camera
   geolocator: ^11.0.0 # For obtaining GPS coordinates (Latitude, Longitude)
@@ -33,7 +35,15 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0 # For code linting and analysis
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png" # Path to your prepared icon image
+  # For adaptive icons (Android 8.0+), you can also specify background and foreground images:
+  # adaptive_icon_background: "#ffffff" # Hex color or path to drawable
+  # adaptive_icon_foreground: "assets/app_icon/icon_foreground.png" # Path to a foreground image
+  min_sdk_android: 21 # Set this to your app's minimum Android SDK version
 
 flutter:
   uses-material-design: true

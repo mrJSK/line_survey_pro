@@ -9,28 +9,19 @@ import 'package:path/path.dart' as p;
 import 'package:geolocator/geolocator.dart'; // Ensure this is imported for Position
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
-import 'package:line_survey_pro/models/survey_record.dart';
-import 'package:line_survey_pro/services/local_database_service.dart';
+import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord model
+import 'package:line_survey_pro/services/local_database_service.dart'; // Local database service
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
-// REMOVED: import 'package:line_survey_pro/services/survey_firestore_service.dart';
+// Removed: import 'package:line_survey_pro/screens/patrolling_detail_screen.dart'; // No longer navigate to it, pop from it
 import 'package:uuid/uuid.dart';
 
 class CameraScreen extends StatefulWidget {
-  final String lineName;
-  final int towerNumber;
-  final double latitude;
-  final double longitude;
-  final String? taskId;
-  final String? userId;
+  final SurveyRecord
+      initialRecordWithDetails; // NEW: Receives full record (without photoPath)
 
   const CameraScreen({
     super.key,
-    required this.lineName,
-    required this.towerNumber,
-    required this.latitude,
-    required this.longitude,
-    this.taskId,
-    this.userId,
+    required this.initialRecordWithDetails, // Required now
   });
 
   @override
@@ -43,6 +34,7 @@ class _CameraScreenState extends State<CameraScreen>
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   bool _isCapturing = false;
+  bool _isSaving = false;
   XFile? _capturedImageFile; // To hold the captured image temporarily
 
   final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
@@ -152,15 +144,19 @@ class _CameraScreenState extends State<CameraScreen>
     if (!_isCameraInitialized ||
         _controller == null ||
         _controller!.value.isTakingPicture) {
+      print('DEBUG: Camera not ready or already capturing.');
       return;
     }
     setState(() {
       _isCapturing = true;
+      print('DEBUG: Setting _isCapturing to true (capture).');
     });
     try {
       _capturedImageFile = await _controller!.takePicture();
       setState(() {
         _isCapturing = false;
+        print(
+            'DEBUG: Photo captured. Setting _isCapturing to false (capture).');
       });
     } on CameraException catch (e) {
       if (mounted) {
@@ -168,7 +164,8 @@ class _CameraScreenState extends State<CameraScreen>
             context, 'Error capturing picture: ${e.description}',
             isError: true);
       }
-      print('CameraException: ${e.code} - ${e.description}');
+      print(
+          'DEBUG: CameraException during capture: ${e.code} - ${e.description}');
       setState(() {
         _isCapturing = false;
       });
@@ -178,7 +175,7 @@ class _CameraScreenState extends State<CameraScreen>
             context, 'An unexpected error occurred during capture: $e',
             isError: true);
       }
-      print('General Capture Error: $e');
+      print('DEBUG: General Capture Error: $e');
       setState(() {
         _isCapturing = false;
       });
@@ -187,22 +184,27 @@ class _CameraScreenState extends State<CameraScreen>
 
   void _retakePhoto() {
     setState(() {
-      _capturedImageFile = null;
-      _isCapturing = false;
-      _controller?.resumePreview();
+      _capturedImageFile = null; // Clear captured image
+      _isSaving = false; // Reset saving state too
+      _isCapturing = false; // Reset capture state
+      _controller?.resumePreview(); // Resume camera preview
     });
+    print('DEBUG: Retaking photo.');
   }
 
+  // Saves the captured photo and updates the existing record with the photo path.
+  // Then pops back to PatrollingDetailScreen.
   Future<void> _savePhotoAndRecordLocally() async {
-    // Renamed method
     if (_capturedImageFile == null) {
+      print('DEBUG: _capturedImageFile is null, cannot save.');
       SnackBarUtils.showSnackBar(context, 'No photo captured to save.',
           isError: true);
       return;
     }
 
     setState(() {
-      _isCapturing = true; // Use this to show saving progress
+      _isSaving = true; // Show saving progress indicator on save button
+      print('DEBUG: Setting _isSaving to true.');
     });
 
     try {
@@ -219,41 +221,44 @@ class _CameraScreenState extends State<CameraScreen>
       // Copy the image from the temporary path to the permanent app-specific directory
       final File copiedFile =
           await File(_capturedImageFile!.path).copy(permanentImagePath);
+      print('DEBUG: Photo copied to permanent path: ${copiedFile.path}');
 
-      // Create a new SurveyRecord instance
-      final String recordId = _uuid.v4(); // Generate a unique ID for the record
-      final SurveyRecord newRecord = SurveyRecord(
-        id: recordId,
-        lineName: widget.lineName,
-        towerNumber: widget.towerNumber,
-        latitude: widget.latitude,
-        longitude: widget.longitude,
-        timestamp: DateTime.now(),
-        photoPath: copiedFile.path, // Use the permanent local path
-        status: 'saved', // Initial status: saved locally, not yet uploaded
-        taskId: widget.taskId,
-        userId: widget.userId,
+      // Update the *existing* SurveyRecord with the photoPath and 'saved_complete' status
+      final updatedRecord = widget.initialRecordWithDetails.copyWith(
+        photoPath: copiedFile.path, // Add the photoPath
+        status: 'saved_complete', // Status: photo taken, details entered
       );
 
-      // Save the record to the local database
-      await _localDatabaseService.saveSurveyRecord(newRecord);
+      // Save the updated record back to the local database (this will replace the old record)
+      await _localDatabaseService.saveSurveyRecord(updatedRecord);
+      print(
+          'DEBUG: Survey record updated in local DB with photo. Record ID: ${updatedRecord.id}');
 
       if (mounted) {
+        print(
+            'DEBUG: Widget is mounted. Attempting navigation back to PatrollingDetailScreen.');
         SnackBarUtils.showSnackBar(context, 'Photo saved locally!',
             isError: false);
-        Navigator.of(context).pop(newRecord
-            .id); // Pop CameraScreen and return the ID of the new survey record
+        // Pop back to PatrollingDetailScreen, passing the updated record's ID to indicate success
+        Navigator.of(context).pop(updatedRecord.id);
+        print('DEBUG: Navigation back to PatrollingDetailScreen triggered.');
+      } else {
+        print(
+            'DEBUG: Widget is NOT mounted after local save. Cannot navigate back.');
       }
-    } catch (e) {
+    } on Exception catch (e) {
+      // Catch more general Exception
+      print('DEBUG ERROR: Exception during local save/navigation: $e');
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error saving photo and record locally: $e',
+            context, 'Error saving photo and record locally: ${e.toString()}',
             isError: true);
       }
       print('Local Save Error: $e');
     } finally {
       setState(() {
-        _isCapturing = false; // Reset capturing indicator
+        _isSaving = false; // Reset saving indicator
+        print('DEBUG: Setting _isSaving to false.');
       });
     }
   }
@@ -273,11 +278,9 @@ class _CameraScreenState extends State<CameraScreen>
         children: [
           Positioned.fill(
             child: _capturedImageFile == null
-                ? CameraPreview(_controller!) // Show live camera preview
-                : Image.file(File(_capturedImageFile!.path),
-                    fit: BoxFit.cover), // Show captured image
+                ? CameraPreview(_controller!)
+                : Image.file(File(_capturedImageFile!.path), fit: BoxFit.cover),
           ),
-          // Control buttons (Capture / Retake & Save)
           Positioned(
             bottom: 20,
             left: 0,
@@ -285,8 +288,7 @@ class _CameraScreenState extends State<CameraScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                if (_capturedImageFile ==
-                    null) // Show capture button if no image captured
+                if (_capturedImageFile == null)
                   FloatingActionButton(
                     heroTag: 'capture',
                     onPressed: _isCapturing ? null : _capturePhoto,
@@ -295,8 +297,7 @@ class _CameraScreenState extends State<CameraScreen>
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Icon(Icons.camera_alt),
                   ),
-                if (_capturedImageFile !=
-                    null) // Show Retake and Save buttons if image captured
+                if (_capturedImageFile != null)
                   Row(
                     children: [
                       FloatingActionButton(
@@ -308,11 +309,10 @@ class _CameraScreenState extends State<CameraScreen>
                       const SizedBox(width: 20),
                       FloatingActionButton(
                         heroTag: 'save',
-                        onPressed: _isCapturing
-                            ? null
-                            : _savePhotoAndRecordLocally, // Call local save
+                        onPressed:
+                            _isSaving ? null : _savePhotoAndRecordLocally,
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: _isCapturing
+                        child: _isSaving
                             ? const CircularProgressIndicator(
                                 color: Colors.white)
                             : const Icon(Icons.save),
@@ -322,24 +322,21 @@ class _CameraScreenState extends State<CameraScreen>
               ],
             ),
           ),
-          // Back Button (Top Left)
           Positioned(
             top: 10,
             left: 10,
             child: FloatingActionButton.small(
               heroTag: 'back',
               onPressed: () {
-                Navigator.of(context).pop(); // Simply pop the screen
+                Navigator.of(context).pop();
               },
               backgroundColor: Colors.black54,
               child: const Icon(Icons.arrow_back, color: Colors.white),
             ),
           ),
-          // Display current GPS coordinates (optional overlay for context)
           Positioned(
             top: 10,
-            right:
-                10, // Adjusted to right for better placement with back button
+            right: 10,
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -350,19 +347,19 @@ class _CameraScreenState extends State<CameraScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Line: ${widget.lineName}',
+                    'Line: ${widget.initialRecordWithDetails.lineName}',
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                   ),
                   Text(
-                    'Tower: ${widget.towerNumber}',
+                    'Tower: ${widget.initialRecordWithDetails.towerNumber}',
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                   ),
                   Text(
-                    'Lat: ${widget.latitude.toStringAsFixed(6)}',
+                    'Lat: ${widget.initialRecordWithDetails.latitude.toStringAsFixed(6)}',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                   Text(
-                    'Lon: ${widget.longitude.toStringAsFixed(6)}',
+                    'Lon: ${widget.initialRecordWithDetails.longitude.toStringAsFixed(6)}',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],

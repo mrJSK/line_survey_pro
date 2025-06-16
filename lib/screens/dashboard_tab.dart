@@ -22,6 +22,7 @@ import 'package:line_survey_pro/services/task_service.dart'; // TaskService
 import 'package:line_survey_pro/services/survey_firestore_service.dart'; // SurveyFirestoreService
 import 'package:uuid/uuid.dart'; // For generating unique IDs for dummy tasks
 import 'package:line_survey_pro/screens/home_screen.dart'; // Import HomeScreen and its key
+import 'package:line_survey_pro/screens/manager_worker_detail_screen.dart'; // Import ManagerWorkerDetailScreen
 
 class DashboardTab extends StatefulWidget {
   const DashboardTab({super.key});
@@ -33,18 +34,18 @@ class DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<DashboardTab> {
   UserProfile? _currentUser;
   List<TransmissionLine> _transmissionLines = [];
-  List<Task> _tasksWithProgress =
-      []; // Consolidated list of tasks with calculated progress (worker's assigned tasks or all tasks for manager)
-  List<SurveyRecord> _allFirebaseSurveyRecords =
-      []; // All survey records from Firebase (relevant subset for worker, all for manager)
-  List<SurveyRecord> _allLocalSurveyRecords =
-      []; // All survey records from local database (for validation/cache)
+  List<Task> _tasksWithProgress = [];
+  List<SurveyRecord> _allFirebaseSurveyRecords = [];
+  List<SurveyRecord> _allLocalSurveyRecords = [];
+
+  // Data for Manager's per-worker progress view
+  List<UserProfile> _allWorkers = [];
+  Map<String, WorkerProgressSummary> _workerProgressSummaries = {};
 
   bool _isLoadingData = true;
 
   final FirestoreService _firestoreService = FirestoreService();
-  final LocalDatabaseService _localDatabaseService =
-      LocalDatabaseService(); // Still used for local record operations (e.g., photoPath)
+  final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
   final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
   final SurveyFirestoreService _surveyFirestoreService =
@@ -53,15 +54,14 @@ class _DashboardTabState extends State<DashboardTab> {
 
   StreamSubscription? _linesSubscription;
   StreamSubscription? _tasksSubscription;
-  StreamSubscription?
-      _allSurveyRecordsSubscription; // For managers to listen to all records
-  StreamSubscription?
-      _userSurveyRecordsSubscription; // For workers to listen to their own records
+  StreamSubscription? _allSurveyRecordsSubscription;
+  StreamSubscription? _userSurveyRecordsSubscription;
+  StreamSubscription? _allUserProfilesSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadDashboardData(); // Load all necessary data
+    _loadDashboardData();
   }
 
   @override
@@ -71,6 +71,7 @@ class _DashboardTabState extends State<DashboardTab> {
     _tasksSubscription?.cancel();
     _allSurveyRecordsSubscription?.cancel();
     _userSurveyRecordsSubscription?.cancel();
+    _allUserProfilesSubscription?.cancel();
     super.dispose();
   }
 
@@ -97,6 +98,7 @@ class _DashboardTabState extends State<DashboardTab> {
       _tasksSubscription?.cancel();
       _allSurveyRecordsSubscription?.cancel();
       _userSurveyRecordsSubscription?.cancel();
+      _allUserProfilesSubscription?.cancel();
 
       // Fetch all local records once (needed for photoPath in ExportScreen and local count in Task model)
       _allLocalSurveyRecords =
@@ -110,7 +112,7 @@ class _DashboardTabState extends State<DashboardTab> {
               setState(() {
                 _transmissionLines = lines;
               });
-              _updateManagerDashboardData(); // Re-calculate when lines change
+              _updateManagerDashboardData();
             }
           },
           onError: (error) {
@@ -122,12 +124,10 @@ class _DashboardTabState extends State<DashboardTab> {
         );
 
         _tasksSubscription = _taskService.streamAllTasks().listen(
-          // Manager sees all tasks
           (tasks) {
             if (mounted) {
-              _tasksWithProgress =
-                  tasks; // Managers tasks are just all tasks here
-              _updateManagerDashboardData(); // Re-calculate when tasks change
+              _tasksWithProgress = tasks;
+              _updateManagerDashboardData();
             }
           },
           onError: (error) {
@@ -143,7 +143,7 @@ class _DashboardTabState extends State<DashboardTab> {
           (records) {
             if (mounted) {
               _allFirebaseSurveyRecords = records;
-              _updateManagerDashboardData(); // Re-calculate when records change
+              _updateManagerDashboardData();
             }
           },
           onError: (error) {
@@ -153,19 +153,36 @@ class _DashboardTabState extends State<DashboardTab> {
                   isError: true);
           },
         );
+
+        _allUserProfilesSubscription =
+            _authService.streamAllUserProfiles().listen(
+          (userProfiles) {
+            if (mounted) {
+              _allWorkers =
+                  userProfiles.where((user) => user.role == 'Worker').toList();
+              _updateManagerDashboardData();
+            }
+          },
+          onError: (error) {
+            if (mounted)
+              SnackBarUtils.showSnackBar(context,
+                  'Error streaming all user profiles: ${error.toString()}',
+                  isError: true);
+          },
+        );
       } else if (_currentUser!.role == 'Worker') {
         _tasksSubscription =
             _taskService.streamTasksForUser(_currentUser!.id).listen(
           (tasks) async {
             if (mounted) {
-              _tasksWithProgress = tasks; // Worker sees their assigned tasks
+              _tasksWithProgress = tasks;
               final Set<String> assignedLineNames =
                   _tasksWithProgress.map((task) => task.lineName).toSet();
-              _transmissionLines = (await _firestoreService
-                      .getTransmissionLinesOnce()) // Fetch once for names
-                  .where((line) => assignedLineNames.contains(line.name))
-                  .toList();
-              _updateWorkerDashboardData(); // Re-calculate when tasks change
+              _transmissionLines =
+                  (await _firestoreService.getTransmissionLinesOnce())
+                      .where((line) => assignedLineNames.contains(line.name))
+                      .toList();
+              _updateWorkerDashboardData();
             }
           },
           onError: (error) {
@@ -181,9 +198,8 @@ class _DashboardTabState extends State<DashboardTab> {
             .listen(
           (records) {
             if (mounted) {
-              _allFirebaseSurveyRecords =
-                  records; // All records by this user from Firebase
-              _updateWorkerDashboardData(); // Re-calculate when worker's records change
+              _allFirebaseSurveyRecords = records;
+              _updateWorkerDashboardData();
             }
           },
           onError: (error) {
@@ -198,7 +214,6 @@ class _DashboardTabState extends State<DashboardTab> {
         _tasksWithProgress = [];
         _allFirebaseSurveyRecords = [];
         _allLocalSurveyRecords = [];
-        // No SnackBar for unassigned roles as RealTimeTasksScreen handles this
       }
     } catch (e) {
       if (mounted) {
@@ -216,13 +231,54 @@ class _DashboardTabState extends State<DashboardTab> {
     }
   }
 
-  // Centralized progress calculation for Manager
+  // Manager Dashboard Data Aggregation
   void _updateManagerDashboardData() {
     if (!mounted) return;
-    // For managers, we are now just linking the _tasksWithProgress to all tasks.
-    // Progress calculation for overall completed/total occurs in the build method.
+    final Map<String, WorkerProgressSummary> summaries = {};
+
+    for (var worker in _allWorkers) {
+      int linesAssigned = 0;
+      int linesCompleted = 0;
+      int linesWorkingPending = 0;
+      Set<String> completedLines = {};
+      Set<String> workingLines = {};
+
+      final workerTasks = _tasksWithProgress
+          .where((task) => task.assignedToUserId == worker.id)
+          .toList();
+      linesAssigned = workerTasks.map((t) => t.lineName).toSet().length;
+
+      for (var task in workerTasks) {
+        final completedTowersForTask = _allFirebaseSurveyRecords
+            .where((record) =>
+                record.lineName == task.lineName &&
+                record.taskId == task.id &&
+                record.status == 'uploaded')
+            .length;
+
+        final tempTask =
+            task.copyWith(uploadedCompletedCount: completedTowersForTask);
+
+        if (tempTask.derivedStatus == 'Completed') {
+          completedLines.add(task.lineName);
+        } else if (tempTask.derivedStatus != 'Pending' ||
+            completedTowersForTask > 0) {
+          workingLines.add(task.lineName);
+        }
+      }
+      linesCompleted = completedLines.length;
+      linesWorkingPending = workingLines.length;
+
+      summaries[worker.id] = WorkerProgressSummary(
+        worker: worker,
+        linesAssigned: linesAssigned,
+        linesCompleted: linesCompleted,
+        linesWorkingPending: linesWorkingPending,
+      );
+    }
+
     setState(() {
-      // Trigger rebuild to update progress display
+      _workerProgressSummaries = summaries;
     });
   }
 
@@ -232,32 +288,46 @@ class _DashboardTabState extends State<DashboardTab> {
     final List<Task> enrichedTasks = [];
 
     for (var task in _tasksWithProgress) {
-      // Iterate through the worker's assigned tasks
       int localCount = 0;
       int uploadedCount = 0;
 
-      // Count local and uploaded surveys specifically for *this task*
+      Map<String, SurveyRecord> combinedRecordsMap = {};
       for (var record in _allLocalSurveyRecords
           .where((r) => r.taskId == task.id && r.userId == _currentUser!.id)) {
-        localCount++; // Count all local records for this task
+        combinedRecordsMap[record.id] = record;
       }
-      for (var record in _allFirebaseSurveyRecords.where((r) =>
+      for (var fRecord in _allFirebaseSurveyRecords.where((r) =>
           r.taskId == task.id &&
           r.userId == _currentUser!.id &&
           r.status == 'uploaded')) {
-        uploadedCount++; // Count all uploaded records for this task
+        final localMatch = combinedRecordsMap[fRecord.id];
+        if (localMatch != null) {
+          combinedRecordsMap[fRecord.id] =
+              localMatch.copyWith(status: fRecord.status);
+        } else {
+          combinedRecordsMap[fRecord.id] = fRecord;
+        }
+      }
+      Set<int> uniqueLocalTowers = {};
+      Set<int> uniqueUploadedTowers = {};
+
+      for (var record in combinedRecordsMap.values) {
+        if (record.taskId == task.id) {
+          uniqueLocalTowers.add(record.towerNumber);
+          if (record.status == 'uploaded') {
+            uniqueUploadedTowers.add(record.towerNumber);
+          }
+        }
       }
 
-      // Create a new Task object with the updated counts
       enrichedTasks.add(task.copyWith(
-        localCompletedCount: localCount,
-        uploadedCompletedCount: uploadedCount,
+        localCompletedCount: uniqueLocalTowers.length,
+        uploadedCompletedCount: uniqueUploadedTowers.length,
       ));
     }
 
     setState(() {
-      _tasksWithProgress =
-          enrichedTasks; // Update the tasks list with enriched data
+      _tasksWithProgress = enrichedTasks;
     });
   }
 
@@ -269,26 +339,35 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
+  // Navigate to Worker details screen for managers
+  void _navigateToWorkerDetails(UserProfile worker) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ManagerWorkerDetailScreen(
+          workerId: worker.id,
+          workerDisplayName: worker.displayName ?? worker.email,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    int totalCompletedTowers = 0; // Total uploaded towers across relevant scope
-    int totalOverallTowers = 0; // Total assigned towers across relevant scope
+    int totalCompletedTowers = 0;
+    int totalOverallTowers = 0;
 
     if (_currentUser?.role == 'Worker') {
       for (var task in _tasksWithProgress) {
-        totalCompletedTowers += task
-            .uploadedCompletedCount; // Use uploaded count for overall progress
+        totalCompletedTowers += task.uploadedCompletedCount;
         totalOverallTowers += task.numberOfTowersToPatrol;
       }
     } else {
       // Manager or unassigned
-      // For manager, calculate overall from all lines and all uploaded survey records
       final Map<String, int> managerOverallProgress = {};
       for (var record in _allFirebaseSurveyRecords) {
         if (record.status == 'uploaded') {
-          // Only count uploaded records for manager's progress
           managerOverallProgress[record.lineName] =
               (managerOverallProgress[record.lineName] ?? 0) + 1;
         }
@@ -345,163 +424,259 @@ class _DashboardTabState extends State<DashboardTab> {
                         ),
                       ),
                     )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _currentUser?.role == 'Worker'
-                          ? _tasksWithProgress.length
-                          : _transmissionLines.length,
-                      itemBuilder: (context, index) {
-                        if (_currentUser?.role == 'Worker') {
-                          final task = _tasksWithProgress[index];
+                  // Manager's Per-Worker Progress View
+                  : (_currentUser?.role == 'Manager')
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(
+                                height: 10), // Space above section heading
+                            Text('Progress by Worker:',
+                                style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(
+                                height: 10), // Space below section heading
+                            _allWorkers.isEmpty
+                                ? Card(
+                                    // Wrap "No workers found" in a Card for consistent spacing and visual presence
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 0, vertical: 8),
+                                    elevation: 2, // Lighter elevation
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Center(
+                                        child: Text(
+                                          'No worker profiles found. Assign roles in Firebase console to see progress.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                  fontStyle: FontStyle.italic,
+                                                  color: colorScheme.onSurface
+                                                      .withOpacity(0.7)),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: _allWorkers.length,
+                                    itemBuilder: (context, index) {
+                                      final worker = _allWorkers[index];
+                                      final summary =
+                                          _workerProgressSummaries[worker.id];
 
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            elevation: 4,
-                            child: InkWell(
-                              onTap: () {
-                                _navigateToLineDetailForTask(task);
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Task: ${task.lineName} - Towers: ${task.targetTowerRange}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium,
+                                      if (summary == null) {
+                                        return const SizedBox.shrink();
+                                      }
+
+                                      return Card(
+                                        margin: const EdgeInsets.symmetric(
+                                            vertical: 8, horizontal: 0),
+                                        elevation: 4,
+                                        child: ListTile(
+                                          title: Text(
+                                              worker.displayName ??
+                                                  worker.email,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                  'Lines Assigned: ${summary.linesAssigned}'),
+                                              Text(
+                                                  'Lines Completed: ${summary.linesCompleted}'),
+                                              Text(
+                                                  'Lines Working/Pending: ${summary.linesWorkingPending}'),
+                                            ],
+                                          ),
+                                          trailing: TextButton(
+                                            onPressed: () =>
+                                                _navigateToWorkerDetails(
+                                                    worker),
+                                            child: Text('View >',
+                                                style: TextStyle(
+                                                    color:
+                                                        colorScheme.primary)),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                            const SizedBox(
+                                height:
+                                    30), // Consistent spacing after this section
+                          ],
+                        )
+                      // Worker's Task Progress List (or general line list for other roles)
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _currentUser?.role == 'Worker'
+                              ? _tasksWithProgress.length
+                              : _transmissionLines.length,
+                          itemBuilder: (context, index) {
+                            if (_currentUser?.role == 'Worker') {
+                              final task = _tasksWithProgress[index];
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                elevation: 4,
+                                child: InkWell(
+                                  onTap: () {
+                                    _navigateToLineDetailForTask(task);
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Task: ${task.lineName} - Towers: ${task.targetTowerRange}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Completed: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge,
+                                        ),
+                                        Text(
+                                          'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge,
+                                        ),
+                                        Text(
+                                            'Due: ${task.dueDate.toLocal().toString().split(' ')[0]} | Status: ${task.derivedStatus}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                    fontStyle:
+                                                        FontStyle.italic)),
+                                        const SizedBox(height: 12),
+                                        LinearProgressIndicator(
+                                          value: task.uploadedCompletedCount /
+                                              (task.numberOfTowersToPatrol > 0
+                                                  ? task.numberOfTowersToPatrol
+                                                  : 1),
+                                          backgroundColor: colorScheme.secondary
+                                              .withOpacity(0.2),
+                                          color: colorScheme.secondary,
+                                          minHeight: 8,
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Align(
+                                          alignment: Alignment.bottomRight,
+                                          child: Text(
+                                            '${(task.uploadedCompletedCount / (task.numberOfTowersToPatrol > 0 ? task.numberOfTowersToPatrol : 1) * 100).toStringAsFixed(1)}%',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color:
+                                                        colorScheme.secondary),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Completed: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}', // Show total completed (local)
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
-                                    ),
-                                    Text(
-                                      'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}', // Show uploaded count
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
-                                    ),
-                                    Text(
-                                        'Due: ${task.dueDate.toLocal().toString().split(' ')[0]} | Status: ${task.derivedStatus}', // Use DERIVED status
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                                fontStyle: FontStyle.italic)),
-                                    const SizedBox(height: 12),
-                                    LinearProgressIndicator(
-                                      value: task.uploadedCompletedCount /
-                                          (task.numberOfTowersToPatrol > 0
-                                              ? task.numberOfTowersToPatrol
-                                              : 1), // Progress based on uploaded
-                                      backgroundColor: colorScheme.secondary
-                                          .withOpacity(0.2),
-                                      color: colorScheme.secondary,
-                                      minHeight: 8,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Align(
-                                      alignment: Alignment.bottomRight,
-                                      child: Text(
-                                        '${(task.uploadedCompletedCount / (task.numberOfTowersToPatrol > 0 ? task.numberOfTowersToPatrol : 1) * 100).toStringAsFixed(1)}%',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: colorScheme.secondary),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        } else {
-                          // Manager view: Show all lines
-                          final line = _transmissionLines[index];
-                          // Progress calculation for managers
-                          final int completedTowers = _allFirebaseSurveyRecords
-                              .where((record) =>
-                                  record.lineName == line.name &&
-                                  record.status == 'uploaded')
-                              .length;
-                          final totalTowers = line.totalTowers;
-                          final progress = totalTowers > 0
-                              ? completedTowers / totalTowers
-                              : 0.0;
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            elevation: 4,
-                            child: InkWell(
-                              onTap: () => _navigateToLineDetailForTask(
-                                Task(
-                                  id: _uuid.v4(),
-                                  assignedToUserId: _currentUser!.id,
-                                  assignedByUserId: _currentUser!.id,
-                                  lineName: line.name,
-                                  targetTowerRange: 'All',
-                                  numberOfTowersToPatrol: line.totalTowers,
-                                  dueDate: DateTime.now()
-                                      .add(const Duration(days: 365)),
-                                  createdAt: DateTime.now(),
-                                  status: 'Manager_AdHoc_Survey',
+                              );
+                            } else {
+                              final line = _transmissionLines[index];
+                              final completedTowers = _allFirebaseSurveyRecords
+                                  .where((record) =>
+                                      record.lineName == line.name &&
+                                      record.status == 'uploaded')
+                                  .length;
+                              final totalTowers = line.totalTowers;
+                              final progress = totalTowers > 0
+                                  ? completedTowers / totalTowers
+                                  : 0.0;
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                elevation: 4,
+                                child: InkWell(
+                                  onTap: () => _navigateToLineDetailForTask(
+                                    Task(
+                                      id: _uuid.v4(),
+                                      assignedToUserId: _currentUser!.id,
+                                      assignedByUserId: _currentUser!.id,
+                                      lineName: line.name,
+                                      targetTowerRange: 'All',
+                                      numberOfTowersToPatrol: line.totalTowers,
+                                      dueDate: DateTime.now()
+                                          .add(const Duration(days: 365)),
+                                      createdAt: DateTime.now(),
+                                      status: 'Manager_AdHoc_Survey',
+                                    ),
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(line.name,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                            'Towers Completed: $completedTowers / $totalTowers',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge),
+                                        const SizedBox(height: 12),
+                                        LinearProgressIndicator(
+                                            value: progress,
+                                            backgroundColor: colorScheme
+                                                .secondary
+                                                .withOpacity(0.2),
+                                            color: colorScheme.secondary,
+                                            minHeight: 8,
+                                            borderRadius:
+                                                BorderRadius.circular(4)),
+                                        const SizedBox(height: 8),
+                                        Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: Text(
+                                                '${(progress * 100).toStringAsFixed(1)}%',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: colorScheme
+                                                            .secondary))),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      line.name,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Towers Completed: $completedTowers / $totalTowers',
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    LinearProgressIndicator(
-                                      value: progress,
-                                      backgroundColor: colorScheme.secondary
-                                          .withOpacity(0.2),
-                                      color: colorScheme.secondary,
-                                      minHeight: 8,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Align(
-                                      alignment: Alignment.bottomRight,
-                                      child: Text(
-                                        '${(progress * 100).toStringAsFixed(1)}%',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: colorScheme.secondary),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                              );
+                            }
+                          },
+                        ),
           const SizedBox(height: 30),
+
+          // Overall Survey Progress Graph (always at the bottom)
           Text(
             'Overall Survey Progress',
             style: Theme.of(context).textTheme.headlineSmall,
@@ -547,9 +722,8 @@ class _DashboardTabState extends State<DashboardTab> {
                                       .textTheme
                                       .headlineSmall
                                       ?.copyWith(
-                                        color: colorScheme.primary,
-                                        fontSize: indicatorSize * 0.25,
-                                      ),
+                                          color: colorScheme.primary,
+                                          fontSize: indicatorSize * 0.25),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
@@ -561,10 +735,9 @@ class _DashboardTabState extends State<DashboardTab> {
                                   .textTheme
                                   .bodyLarge
                                   ?.copyWith(
-                                    color:
-                                        colorScheme.onSurface.withOpacity(0.7),
-                                    fontSize: 16,
-                                  ),
+                                      color: colorScheme.onSurface
+                                          .withOpacity(0.7),
+                                      fontSize: 16),
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -580,6 +753,21 @@ class _DashboardTabState extends State<DashboardTab> {
       ),
     );
   }
+}
+
+// Helper class for worker progress summary (remains the same)
+class WorkerProgressSummary {
+  final UserProfile worker;
+  final int linesAssigned;
+  final int linesCompleted;
+  final int linesWorkingPending;
+
+  WorkerProgressSummary({
+    required this.worker,
+    required this.linesAssigned,
+    required this.linesCompleted,
+    required this.linesWorkingPending,
+  });
 }
 
 extension IterableExtension<T> on Iterable<T> {

@@ -433,7 +433,6 @@ class _ExportScreenState extends State<ExportScreen>
                               final List<XFile> imageFilesToShare = [];
                               final StringBuffer shareMessage = StringBuffer();
 
-                              // Get the line name from the first selected record (assuming all are from the same line, or handle multiple)
                               String commonLineName = '';
                               if (_selectedImageRecordIds.isNotEmpty) {
                                 commonLineName = _allRecords
@@ -444,19 +443,16 @@ class _ExportScreenState extends State<ExportScreen>
 
                               // Add a main heading for the shared data
                               shareMessage.writeln(
-                                  '*--- Line Survey Photos for $commonLineName ---*'); // Bold line name
-                              shareMessage
-                                  .writeln(''); // Blank line for spacing
+                                  '*--- Line Survey Photos for $commonLineName ---*');
+                              shareMessage.writeln('');
 
-                              int photoCount = 0; // Counter for photos
+                              int photoCount = 0;
                               for (String recordId in _selectedImageRecordIds) {
                                 final record = recordsWithLocalImages
                                     .firstWhere((r) => r.id == recordId);
-                                // Ensure photoPath is not null/empty before proceeding
                                 if (record.photoPath != null &&
                                     record.photoPath!.isNotEmpty) {
                                   final File file = File(record.photoPath!);
-                                  // Re-generate overlaid image for sharing
                                   final File? overlaidFile = await FileService()
                                       .addTextOverlayToImage(record);
 
@@ -466,21 +462,19 @@ class _ExportScreenState extends State<ExportScreen>
                                     imageFilesToShare
                                         .add(XFile(overlaidFile.path));
 
-                                    // Append details to the message for EACH image (using original record data)
-                                    // shareMessage.writeln(
-                                    //     '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}'); // Bold Photo X with original filename
                                     shareMessage.writeln(
-                                        '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}'); // Bold Tower
+                                        '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}');
                                     shareMessage.writeln(
-                                        '  *Lat/Lon:* ${record.latitude.toStringAsFixed(6)}, ${record.longitude.toStringAsFixed(6)}'); // Bold Lat/Lon
+                                        '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}');
                                     shareMessage.writeln(
-                                        '  *Time:* ${record.timestamp.toLocal().toString().split('.')[0]}'); // Bold Time
+                                        '  *Lat/Lon:* ${record.latitude.toStringAsFixed(6)}, ${record.longitude.toStringAsFixed(6)}');
                                     shareMessage.writeln(
-                                        '  *Status:* ${record.status.toUpperCase()}'); // Bold Status
+                                        '  *Time:* ${record.timestamp.toLocal().toString().split('.')[0]}');
                                     shareMessage.writeln(
-                                        '-----------------------------------'); // Separator
-                                    shareMessage
-                                        .writeln(''); // Blank line for spacing
+                                        '  *Status:* ${record.status.toUpperCase()}');
+                                    shareMessage.writeln(
+                                        '-----------------------------------');
+                                    shareMessage.writeln('');
                                   } else {
                                     print(
                                         'Warning: Could not create overlay for image file for record ID: $recordId at ${record.photoPath}. Skipping this image from share.');

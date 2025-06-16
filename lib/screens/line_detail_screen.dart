@@ -9,9 +9,11 @@ import 'package:line_survey_pro/screens/camera_screen.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/services/permission_service.dart';
 import 'package:line_survey_pro/services/location_service.dart';
-import 'package:line_survey_pro/services/local_database_service.dart'; // For validation
+import 'package:line_survey_pro/services/local_database_service.dart'; // For local database records
 import 'package:line_survey_pro/services/auth_service.dart'; // For current user ID
 import 'package:line_survey_pro/services/survey_firestore_service.dart'; // For fetching cloud records for validation
+import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord for validation
+import 'package:line_survey_pro/screens/patrolling_detail_screen.dart'; // Import PatrollingDetailScreen
 
 class LineDetailScreen extends StatefulWidget {
   final Task task;
@@ -41,14 +43,13 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       LocalDatabaseService(); // Used for local survey record saving
   final AuthService _authService = AuthService();
   final SurveyFirestoreService _surveyFirestoreService =
-      SurveyFirestoreService(); // Used for fetching cloud records for validation
+      SurveyFirestoreService();
 
   static const double _minDistanceMeters =
       200.0; // Min distance between different towers
   static const double _sameTowerToleranceMeters =
       20.0; // Tolerance for re-surveying same tower number
 
-  // Add properties to parse the targetTowerRange for validation
   int? _minTower;
   int? _maxTower;
   bool _isAllTowers = false;
@@ -72,7 +73,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     range = range.trim().toLowerCase();
     if (range == 'all') {
       _isAllTowers = true;
-      _minTower = null; // No specific min/max for "all"
+      _minTower = null;
       _maxTower = null;
     } else if (range.contains('-')) {
       final parts = range.split('-');
@@ -92,7 +93,6 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         _isAllTowers = false;
       }
     } else {
-      // Single tower case
       _minTower = int.tryParse(range);
       _maxTower = _minTower;
       if (_minTower == null) {
@@ -238,14 +238,37 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       }
     }
 
-    // CRITICAL CHANGE: Validate against ALL *uploaded* survey records from Firestore.
-    // This ensures cross-device validation for previously surveyed points.
+    // Get all *uploaded* survey records for this line from Firestore.
     final allUploadedRecordsForLine =
         (await _surveyFirestoreService.streamAllSurveyRecords().first)
             .where((record) =>
                 record.lineName == widget.task.lineName &&
                 record.status == 'uploaded')
             .toList();
+
+    // Get all *local* survey records for this line from SQLite.
+    final allLocalRecordsForLine = await _localDatabaseService
+        .getSurveyRecordsByLine(widget.task.lineName);
+
+    // Combine these two lists into a single list for validation.
+    // Ensure that records are unique by ID, preferring the Firestore version for status if an ID matches.
+    Map<String, SurveyRecord> allRecordsForValidation = {};
+    for (var record in allLocalRecordsForLine) {
+      allRecordsForValidation[record.id] = record;
+    }
+    for (var record in allUploadedRecordsForLine) {
+      allRecordsForValidation[record.id] = record;
+    }
+    final List<SurveyRecord> recordsToValidateAgainst =
+        allRecordsForValidation.values.toList();
+
+    // Debugging: Print records being validated against to confirm lineName filtering
+    print(
+        'DEBUG: Validating against ${recordsToValidateAgainst.length} records for line: ${widget.task.lineName}');
+    for (var record in recordsToValidateAgainst) {
+      print(
+          'DEBUG: Record being validated: ID: ${record.id}, Line: ${record.lineName}, Tower: ${record.towerNumber}, Status: ${record.status}, Lat: ${record.latitude}, Lon: ${record.longitude}');
+    }
 
     final newPosition = Position(
       latitude: _currentPosition!.latitude,
@@ -260,7 +283,15 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       headingAccuracy: 0.0,
     );
 
-    for (var record in allUploadedRecordsForLine) {
+    for (var record in recordsToValidateAgainst) {
+      // Ensure we are ONLY comparing records that actually belong to the current task's line.
+      // This explicit check ensures no rogue records slip through if initial filtering failed (which it shouldn't).
+      if (record.lineName != widget.task.lineName) {
+        print(
+            'DEBUG WARNING: Record with ID ${record.id} and line ${record.lineName} found in validation list for task line ${widget.task.lineName}. This should not happen.');
+        continue; // Skip this record, it's not for the current line
+      }
+
       final existingPosition = Position(
         latitude: record.latitude,
         longitude: record.longitude,
@@ -281,8 +312,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         newPosition.longitude,
       );
 
-      // Rule 1: Cannot re-survey the SAME tower number too close to its previous (uploaded) record.
-      // This prevents multiple surveys of the *same* tower number at essentially the same spot.
+      // Rule 1: Cannot re-survey the SAME tower number too close to its previous (any status) record.
       if (record.towerNumber == towerNumber &&
           distance < _sameTowerToleranceMeters) {
         if (mounted) {
@@ -295,8 +325,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         return false;
       }
 
-      // Rule 2: Cannot survey a DIFFERENT tower that is too close to an existing surveyed (uploaded) tower on the same line.
-      // This prevents surveying adjacent towers if they are too close together, ensuring distinct survey points.
+      // Rule 2: Cannot survey a DIFFERENT tower that is too close to an existing (any status) tower on the same line.
       if (record.towerNumber != towerNumber && distance < _minDistanceMeters) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
@@ -311,7 +340,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     return true; // All validations passed
   }
 
-  void _navigateToCameraScreen() async {
+  void _navigateToPatrollingDetailScreen() async {
     if (_formKey.currentState!.validate()) {
       if (_currentPosition == null || !_isLocationAccurateEnough) {
         SnackBarUtils.showSnackBar(context,
@@ -341,26 +370,30 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         return;
       }
 
-      // Navigate to CameraScreen, passing task details
-      final String? newSurveyRecordId = await Navigator.of(context).push(
+      // Navigate to PatrollingDetailScreen, passing all initial survey data
+      await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => CameraScreen(
-            lineName: widget.task.lineName,
-            towerNumber: towerNumber,
-            latitude: _currentPosition!.latitude,
-            longitude: _currentPosition!.longitude,
-            taskId: widget.task.id,
-            userId: currentUserId,
+          builder: (context) => PatrollingDetailScreen(
+            initialRecord: SurveyRecord(
+              // Create a partial record here
+              lineName: widget.task.lineName,
+              towerNumber: towerNumber,
+              latitude: _currentPosition!.latitude,
+              longitude: _currentPosition!.longitude,
+              timestamp: DateTime.now(),
+              photoPath: '', // PhotoPath is empty initially
+              status:
+                  'saved_photo_only', // Status indicating photo is yet to be taken
+              taskId: widget.task.id,
+              userId: currentUserId,
+            ),
           ),
         ),
       );
-
-      // After returning from CameraScreen (photo saved locally)
-      if (newSurveyRecordId != null) {
-        if (mounted) {
-          Navigator.of(context)
-              .pop(); // Go back to Real-Time Tasks list (or wherever it came from)
-        }
+      // After PatrollingDetailScreen (and CameraScreen) returns, this screen pops back.
+      if (mounted) {
+        Navigator.of(context)
+            .pop(); // Go back to Real-Time Tasks list (or wherever it came from)
       }
     }
   }
@@ -436,7 +469,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     Text(
-                      'Status: ${widget.task.status}',
+                      'Status: ${widget.task.derivedStatus}',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ],
@@ -636,12 +669,12 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                       ElevatedButton.icon(
                         onPressed: (_currentPosition != null &&
                                 _isLocationAccurateEnough)
-                            ? _navigateToCameraScreen
+                            ? _navigateToPatrollingDetailScreen
                             : null,
-                        icon: const Icon(Icons.camera_alt),
+                        icon: const Icon(Icons.arrow_forward),
                         label: Text((_currentPosition != null &&
                                 _isLocationAccurateEnough)
-                            ? 'Click Photo'
+                            ? 'Continue to Patrolling Details'
                             : (_isFetchingLocation
                                 ? 'Getting Location...'
                                 : 'Required Accuracy Not Met')),

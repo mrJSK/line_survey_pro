@@ -79,6 +79,8 @@ class AuthService {
             'email': email,
             'role': role, // Role is explicitly set here
             'displayName': displayName,
+            // createdAt should typically only be set on initial create, not updated with merge
+            // 'createdAt': FieldValue.serverTimestamp(),
           },
           SetOptions(
               merge: true)); // Use merge: true to update existing document
@@ -88,12 +90,13 @@ class AuthService {
     }
   }
 
-  // NEW METHOD: Get the current Firebase User object.
+  // Method to get the current Firebase User object.
   User? getCurrentUser() {
     return _auth.currentUser;
   }
 
-  // Fetches all user profiles from Firestore.
+  // Fetches all user profiles from Firestore (one-time get).
+  // Used for manager to select workers for task assignment.
   Future<List<UserProfile>> getAllUserProfiles() async {
     try {
       final querySnapshot = await _firestore.collection('userProfiles').get();
@@ -104,6 +107,24 @@ class AuthService {
       print('Error fetching all user profiles: $e');
       rethrow;
     }
+  }
+
+  // NEW METHOD: Streams all user profiles from Firestore in real-time.
+  // Used by DashboardTab for manager's per-worker progress view.
+  Stream<List<UserProfile>> streamAllUserProfiles() {
+    return _firestore
+        .collection('userProfiles')
+        .orderBy('email',
+            descending:
+                false) // Order by email or display name for consistent list
+        .snapshots() // Provides real-time updates
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UserProfile.fromMap(doc.data()))
+            .toList())
+        .handleError((e) {
+      print('Error streaming all user profiles: $e');
+      // Error handling for the stream. The stream itself might not terminate on error.
+    });
   }
 
   // Method for user logout
