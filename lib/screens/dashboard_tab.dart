@@ -24,18 +24,21 @@ import 'package:line_survey_pro/services/survey_firestore_service.dart'; // Surv
 import 'package:uuid/uuid.dart'; // For generating unique IDs for dummy tasks
 import 'package:line_survey_pro/screens/home_screen.dart'; // Import HomeScreen and its key
 import 'package:line_survey_pro/screens/manager_worker_detail_screen.dart'; // Import ManagerWorkerDetailScreen
-import 'package:collection/collection.dart'; // Import the collection package for its extension
+import 'package:collection/collection.dart'
+    as collection; // Import the collection package for its extension
 import 'package:line_survey_pro/screens/line_patrolling_details_screen.dart'; // Import LinePatrollingDetailsScreen
 
 class DashboardTab extends StatefulWidget {
-  const DashboardTab({super.key});
+  final UserProfile? currentUserProfile; // NEW: Receive UserProfile
+
+  const DashboardTab({super.key, required this.currentUserProfile});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
 }
 
 class _DashboardTabState extends State<DashboardTab> {
-  UserProfile? _currentUser;
+  // Removed _currentUser state variable, use widget.currentUserProfile directly
   List<TransmissionLine> _transmissionLines = []; // Filtered based on role
   List<Task> _tasksWithProgress = []; // Filtered based on role
   List<SurveyRecord> _allFirebaseSurveyRecords =
@@ -71,7 +74,7 @@ class _DashboardTabState extends State<DashboardTab> {
 
   // Data for Manager's per-worker progress view (used by Admin/Manager)
   List<UserProfile> _allUsersInSystem =
-      []; // NEW: All users fetched regardless of role
+      []; // All users fetched regardless of role
   List<UserProfile> _allWorkers = []; // All users with 'Worker' role
   Map<String, WorkerProgressSummary> _workerProgressSummaries = {};
 
@@ -79,7 +82,8 @@ class _DashboardTabState extends State<DashboardTab> {
 
   final FirestoreService _firestoreService = FirestoreService();
   final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
-  final AuthService _authService = AuthService();
+  final AuthService _authService =
+      AuthService(); // Keep AuthService for other streams/methods
   final TaskService _taskService = TaskService();
   final SurveyFirestoreService _surveyFirestoreService =
       SurveyFirestoreService();
@@ -91,12 +95,8 @@ class _DashboardTabState extends State<DashboardTab> {
   StreamSubscription? _linesSubscription;
   StreamSubscription? _tasksSubscription;
   StreamSubscription? _allSurveyRecordsSubscription;
-  StreamSubscription?
-      _localSurveyRecordsSubscription; // NEW: Local records stream
-  StreamSubscription?
-      _userProfileSubscription; // To get the latest UserProfile (including assignedLineIds)
-  StreamSubscription?
-      _allUserProfilesStreamSubscription; // NEW: To get all users for admin dashboard counts
+  StreamSubscription? _localSurveyRecordsSubscription;
+  StreamSubscription? _allUserProfilesStreamSubscription;
 
   @override
   void initState() {
@@ -110,47 +110,36 @@ class _DashboardTabState extends State<DashboardTab> {
     _linesSubscription?.cancel();
     _tasksSubscription?.cancel();
     _allSurveyRecordsSubscription?.cancel();
-    _localSurveyRecordsSubscription?.cancel(); // NEW
-    _userProfileSubscription?.cancel();
-    _allUserProfilesStreamSubscription?.cancel(); // NEW
-    // Local survey records stream is managed by LocalDatabaseService internally,
-    // it will be closed when LocalDatabaseService.close() is called (e.g., on app shutdown).
+    _localSurveyRecordsSubscription?.cancel();
+    _allUserProfilesStreamSubscription?.cancel();
     super.dispose();
   }
 
+  // Use didUpdateWidget to react to currentUserProfile changes
+  @override
+  void didUpdateWidget(covariant DashboardTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentUserProfile != oldWidget.currentUserProfile) {
+      // Reload data if the user profile changes (e.g., role update)
+      _loadDashboardData();
+    }
+  }
+
   Future<void> _loadDashboardData() async {
-    if (!mounted) return;
+    if (!mounted || widget.currentUserProfile == null) return;
     setState(() {
       _isLoadingData = true;
     });
 
     try {
-      // 1. Stream current user's profile for role and assigned lines
-      _userProfileSubscription =
-          _authService.userChanges.listen((firebaseUser) async {
-        if (firebaseUser != null) {
-          _currentUser = await _authService.getCurrentUserProfile();
-          if (mounted) {
-            _updateDashboardBasedOnRole();
-          }
-        } else {
-          // User logged out
-          _currentUser = null;
-          if (mounted) {
-            setState(() {
-              _isLoadingData = false;
-            });
-          }
-        }
-      });
-
-      // 2. Stream all local records for workers' progress calculation
+      // Listen to ALL local records
+      _localSurveyRecordsSubscription?.cancel();
       _localSurveyRecordsSubscription =
           _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
         if (mounted) {
           setState(() {
             _allLocalSurveyRecords = records;
-            _updateDashboardBasedOnRole(); // Re-evaluate dashboard based on new local data
+            _updateDashboardContentBasedOnRole();
           });
         }
       }, onError: (error) {
@@ -160,12 +149,13 @@ class _DashboardTabState extends State<DashboardTab> {
               isError: true);
       });
 
-      // 3. Stream all necessary data from Firestore (will be filtered later)
+      // Stream all lines
+      _linesSubscription?.cancel();
       _linesSubscription =
           _firestoreService.getTransmissionLinesStream().listen((lines) {
         if (mounted) {
-          _transmissionLines = lines; // Initially load all, then filter
-          _updateDashboardBasedOnRole();
+          _transmissionLines = lines;
+          _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
         if (mounted)
@@ -174,10 +164,12 @@ class _DashboardTabState extends State<DashboardTab> {
               isError: true);
       });
 
+      // Stream all tasks
+      _tasksSubscription?.cancel();
       _tasksSubscription = _taskService.streamAllTasks().listen((tasks) {
         if (mounted) {
-          _tasksWithProgress = tasks; // Initially load all, then filter
-          _updateDashboardBasedOnRole();
+          _tasksWithProgress = tasks;
+          _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
         if (mounted)
@@ -186,12 +178,13 @@ class _DashboardTabState extends State<DashboardTab> {
               isError: true);
       });
 
+      // Stream all survey records
+      _allSurveyRecordsSubscription?.cancel();
       _allSurveyRecordsSubscription =
           _surveyFirestoreService.streamAllSurveyRecords().listen((records) {
         if (mounted) {
-          _allFirebaseSurveyRecords =
-              records; // Always get all for comprehensive calculations
-          _updateDashboardBasedOnRole();
+          _allFirebaseSurveyRecords = records;
+          _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
         if (mounted)
@@ -200,17 +193,16 @@ class _DashboardTabState extends State<DashboardTab> {
               isError: true);
       });
 
-      // NEW: Stream all user profiles for Admin dashboard counts (managers, workers, pending)
+      // Stream all user profiles
+      _allUserProfilesStreamSubscription?.cancel();
       _allUserProfilesStreamSubscription =
           _authService.streamAllUserProfiles().listen((users) {
         if (mounted) {
           setState(() {
             _allUsersInSystem = users;
-            _allWorkers = users
-                .where((user) => user.role == 'Worker')
-                .toList(); // Used for worker summaries
+            _allWorkers = users.where((user) => user.role == 'Worker').toList();
           });
-          _updateDashboardBasedOnRole(); // Re-evaluate dashboard based on latest user data
+          _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
         if (mounted)
@@ -234,58 +226,58 @@ class _DashboardTabState extends State<DashboardTab> {
     }
   }
 
-  // Centralized method to update dashboard data based on role and latest streams
-  void _updateDashboardBasedOnRole() {
-    if (!mounted || _currentUser == null || _currentUser!.status != 'approved')
+  // Renamed from _updateDashboardBasedOnRole for clarity
+  void _updateDashboardContentBasedOnRole() {
+    if (!mounted ||
+        widget.currentUserProfile == null ||
+        widget.currentUserProfile!.status != 'approved') {
+      setState(() {
+        _transmissionLines = [];
+        _tasksWithProgress = [];
+        _allUsersInSystem = [];
+        _allWorkers = [];
+        _workerProgressSummaries = {};
+      });
       return;
+    }
 
     List<TransmissionLine> displayedLines = [];
     List<Task> displayedTasks = [];
 
-    // Filter tasks based on current user's role and assigned lines
-    if (_currentUser!.role == 'Admin') {
-      displayedTasks = List.from(_tasksWithProgress); // Admin sees all tasks
-      displayedLines = List.from(_transmissionLines); // Admin sees all lines
-    } else if (_currentUser!.role == 'Manager') {
-      // Manager sees tasks and lines relevant to their assigned lines
+    final UserProfile user = widget.currentUserProfile!;
+
+    if (user.role == 'Admin') {
+      displayedTasks = List.from(_tasksWithProgress);
+      displayedLines = List.from(_transmissionLines);
+    } else if (user.role == 'Manager') {
       displayedLines = _transmissionLines
-          .where((line) => _currentUser!.assignedLineIds.contains(line.id))
+          .where((line) => user.assignedLineIds.contains(line.id))
           .toList();
       displayedTasks = _tasksWithProgress.where((task) {
-        // Find the TransmissionLine object corresponding to the task's lineName
-        final TransmissionLine? taskLine = _transmissionLines.firstWhereOrNull(
-          (l) => l.name == task.lineName,
-        );
-        // Include task only if its line is among the manager's assigned lines
-        return taskLine != null &&
-            _currentUser!.assignedLineIds.contains(taskLine.id);
+        final TransmissionLine? taskLine =
+            _transmissionLines.firstWhereOrNull((l) => l.name == task.lineName);
+        return taskLine != null && user.assignedLineIds.contains(taskLine.id);
       }).toList();
-    } else if (_currentUser!.role == 'Worker') {
-      // Worker sees only tasks assigned to them
+    } else if (user.role == 'Worker') {
       displayedTasks = _tasksWithProgress
-          .where((task) => task.assignedToUserId == _currentUser!.id)
+          .where((task) => task.assignedToUserId == user.id)
           .toList();
 
-      // Populate localCompletedCount and uploadedCompletedCount for worker tasks
       final List<Task> enrichedWorkerTasks = [];
       for (var task in displayedTasks) {
         Set<int> uniqueLocalTowers = {};
         Set<int> uniqueUploadedTowers = {};
 
-        // Use _allLocalSurveyRecords for local count
-        for (var record in _allLocalSurveyRecords.where(
-            (r) => r.taskId == task.id && r.userId == _currentUser!.id)) {
-          // Count a tower as locally completed if there's any record (saved_complete or uploaded) for it
+        for (var record in _allLocalSurveyRecords
+            .where((r) => r.taskId == task.id && r.userId == user.id)) {
           if (record.status == 'saved_complete' ||
               record.status == 'uploaded') {
             uniqueLocalTowers.add(record.towerNumber);
           }
         }
-
-        // Use _allFirebaseSurveyRecords for uploaded count
         for (var record in _allFirebaseSurveyRecords.where((r) =>
             r.taskId == task.id &&
-            r.userId == _currentUser!.id &&
+            r.userId == user.id &&
             r.status == 'uploaded')) {
           uniqueUploadedTowers.add(record.towerNumber);
         }
@@ -295,9 +287,8 @@ class _DashboardTabState extends State<DashboardTab> {
           uploadedCompletedCount: uniqueUploadedTowers.length,
         ));
       }
-      displayedTasks = enrichedWorkerTasks; // Use the enriched tasks
+      displayedTasks = enrichedWorkerTasks;
 
-      // And lines associated with their assigned tasks
       final Set<String> workerAssignedLineNames =
           displayedTasks.map((task) => task.lineName).toSet();
       displayedLines = _transmissionLines
@@ -305,22 +296,18 @@ class _DashboardTabState extends State<DashboardTab> {
           .toList();
     }
 
-    // Update worker summaries (only relevant for Manager/Admin views)
-    if (_currentUser!.role == 'Manager' || _currentUser!.role == 'Admin') {
+    if (user.role == 'Manager' || user.role == 'Admin') {
       _updateManagerWorkerSummaries(displayedTasks);
     }
 
-    // Apply the filtered lists to the state
     setState(() {
       _transmissionLines = displayedLines;
       _tasksWithProgress = displayedTasks;
     });
   }
 
-  // Updates per-worker progress summaries (for Manager/Admin view)
   void _updateManagerWorkerSummaries(List<Task> tasksForDisplay) {
     final Map<String, WorkerProgressSummary> summaries = {};
-    // Use _allUsersInSystem for filtering workers for summaries
     final allApprovedWorkers = _allUsersInSystem
         .where((user) => user.role == 'Worker' && user.status == 'approved')
         .toList();
@@ -332,10 +319,9 @@ class _DashboardTabState extends State<DashboardTab> {
       Set<String> completedLines = {};
       Set<String> workingLines = {};
 
-      final workerTasks =
-          tasksForDisplay // Use tasks already filtered by manager's lines
-              .where((task) => task.assignedToUserId == worker.id)
-              .toList();
+      final workerTasks = tasksForDisplay
+          .where((task) => task.assignedToUserId == worker.id)
+          .toList();
 
       linesAssigned = workerTasks.map((t) => t.lineName).toSet().length;
 
@@ -351,7 +337,6 @@ class _DashboardTabState extends State<DashboardTab> {
             task.copyWith(uploadedCompletedCount: completedTowersForTask);
 
         if (tempTask.derivedStatus == 'Patrolled') {
-          // Changed from 'Completed'
           completedLines.add(task.lineName);
         } else if (tempTask.derivedStatus != 'Pending' ||
             completedTowersForTask > 0) {
@@ -376,17 +361,14 @@ class _DashboardTabState extends State<DashboardTab> {
 
   void _navigateToLineDetailForTask(
       Task task, TransmissionLine transmissionLine) {
-    // NEW: Added TransmissionLine parameter
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => LineDetailScreen(
-            task: task,
-            transmissionLine: transmissionLine), // Pass TransmissionLine
+        builder: (context) =>
+            LineDetailScreen(task: task, transmissionLine: transmissionLine),
       ),
     );
   }
 
-  // NEW: Navigate to Line Patrolling Details screen for Managers/Admins
   void _navigateToLinePatrollingDetails(TransmissionLine line) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -395,46 +377,41 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  // Navigate to Worker details screen for managers
   void _navigateToWorkerDetails(UserProfile userProfile) {
-    // Changed parameter name
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ManagerWorkerDetailScreen(
-          userProfile: userProfile, // Pass the full UserProfile
+          userProfile: userProfile,
         ),
       ),
     );
   }
 
-  // NEW: Getters for Admin Dashboard Overview
   int get _totalManagersCount => _allUsersInSystem
       .where((user) => user.role == 'Manager' && user.status == 'approved')
       .length;
   int get _totalWorkersCount => _allUsersInSystem
       .where((user) => user.role == 'Worker' && user.status == 'approved')
       .length;
-  int get _totalLinesCount => _transmissionLines
-      .length; // _transmissionLines are already filtered by role if not Admin
+  int get _totalLinesCount => _transmissionLines.length;
   int get _totalTowersInSystem => _transmissionLines
       .map((line) => line.computedTotalTowers)
       .fold(0, (sum, count) => sum + count);
-  List<UserProfile> get _latestPendingRequests => _allUsersInSystem
-      .where((user) => user.status == 'pending')
-      .toList()
-    ..sort((a, b) => (b.email).compareTo(
-        a.email)); // Simple sort by email as createdAt not in UserProfile model
+  List<UserProfile> get _latestPendingRequests =>
+      _allUsersInSystem.where((user) => user.status == 'pending').toList()
+        ..sort((a, b) => (b.email).compareTo(a.email));
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    if (_isLoadingData) {
+    if (_isLoadingData || widget.currentUserProfile == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Check for user approval status first
-    if (_currentUser == null || _currentUser!.status != 'approved') {
+    final UserProfile currentUser = widget.currentUserProfile!;
+
+    if (currentUser.status != 'approved') {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -466,11 +443,10 @@ class _DashboardTabState extends State<DashboardTab> {
       );
     }
 
-    // Check for user role
-    if (_currentUser!.role == null ||
-        (_currentUser!.role != 'Worker' &&
-            _currentUser!.role != 'Manager' &&
-            _currentUser!.role != 'Admin')) {
+    if (currentUser.role == null ||
+        (currentUser.role != 'Worker' &&
+            currentUser.role != 'Manager' &&
+            currentUser.role != 'Admin')) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -503,18 +479,15 @@ class _DashboardTabState extends State<DashboardTab> {
       );
     }
 
-    // Calculate overall progress for the displayed data
     int totalCompletedTowers = 0;
     int totalOverallTowers = 0;
 
-    if (_currentUser?.role == 'Worker') {
+    if (currentUser.role == 'Worker') {
       for (var task in _tasksWithProgress) {
-        totalCompletedTowers +=
-            task.uploadedCompletedCount; // Use uploaded for overall progress
+        totalCompletedTowers += task.uploadedCompletedCount;
         totalOverallTowers += task.numberOfTowersToPatrol;
       }
     } else {
-      // Manager or Admin: Use the filtered _transmissionLines
       final Map<String, int> surveyCountsByLineName = {};
       for (var record in _allFirebaseSurveyRecords) {
         if (record.status == 'uploaded') {
@@ -523,7 +496,6 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       }
       for (var line in _transmissionLines) {
-        // _transmissionLines is already filtered based on manager's assigned lines or all for admin
         totalCompletedTowers += surveyCountsByLineName[line.name] ?? 0;
         totalOverallTowers += line.computedTotalTowers;
       }
@@ -543,9 +515,7 @@ class _DashboardTabState extends State<DashboardTab> {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 15),
-
-          // NEW: Admin-specific Overview Section
-          if (_currentUser!.role == 'Admin')
+          if (currentUser.role == 'Admin')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -588,8 +558,6 @@ class _DashboardTabState extends State<DashboardTab> {
                   ),
                 ),
                 const SizedBox(height: 30),
-
-                // NEW: Latest Pending Requests Section (Admin only)
                 Text('Latest Pending Requests',
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
@@ -607,14 +575,11 @@ class _DashboardTabState extends State<DashboardTab> {
                                   child: ListTile(
                                     title: Text(user.email),
                                     subtitle: Text('Status: ${user.status}'),
-                                    // Actions for Admin to approve/reject from here would be ideal
                                   ),
                                 ))
                             .toList(),
                       ),
                 const SizedBox(height: 30),
-
-                // NEW: Manager-wise List (Admin only)
                 Text('Managers & Their Assignments',
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
@@ -665,8 +630,8 @@ class _DashboardTabState extends State<DashboardTab> {
                                 ],
                               ),
                               trailing: TextButton(
-                                onPressed: () => _navigateToWorkerDetails(
-                                    manager), // Pass manager profile
+                                onPressed: () =>
+                                    _navigateToWorkerDetails(manager),
                                 child: Text('View >',
                                     style:
                                         TextStyle(color: colorScheme.primary)),
@@ -678,9 +643,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 const SizedBox(height: 30),
               ],
             ),
-
-          // Display relevant sections based on role (Progress by Worker / Lines under supervision)
-          if (_currentUser!.role == 'Manager' || _currentUser!.role == 'Admin')
+          if (currentUser.role == 'Manager' || currentUser.role == 'Admin')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -736,14 +699,14 @@ class _DashboardTabState extends State<DashboardTab> {
                                   Text(
                                       'Lines Assigned: ${summary.linesAssigned}'),
                                   Text(
-                                      'Lines Patrolled: ${summary.linesCompleted}'), // Changed from Completed
+                                      'Lines Patrolled: ${summary.linesCompleted}'),
                                   Text(
                                       'Lines Working/Pending: ${summary.linesWorkingPending}'),
                                 ],
                               ),
                               trailing: TextButton(
-                                onPressed: () => _navigateToWorkerDetails(
-                                    worker), // Pass worker profile
+                                onPressed: () =>
+                                    _navigateToWorkerDetails(worker),
                                 child: Text('View >',
                                     style:
                                         TextStyle(color: colorScheme.primary)),
@@ -755,12 +718,10 @@ class _DashboardTabState extends State<DashboardTab> {
                 const SizedBox(height: 30),
               ],
             ),
-
-          // Worker's Task Progress List or Manager/Admin's Line Progress List
           Text(
-            _currentUser!.role == 'Worker'
+            currentUser.role == 'Worker'
                 ? 'Your Assigned Tasks:'
-                : 'Lines under your supervision:', // Changed for Manager/Admin
+                : 'Lines under your supervision:',
             style: Theme.of(context)
                 .textTheme
                 .headlineSmall
@@ -770,7 +731,7 @@ class _DashboardTabState extends State<DashboardTab> {
           _tasksWithProgress.isEmpty && _transmissionLines.isEmpty
               ? Center(
                   child: Text(
-                    _currentUser!.role == 'Worker'
+                    currentUser.role == 'Worker'
                         ? 'No tasks assigned to you yet.'
                         : 'No lines or tasks available for your role within your assigned areas.',
                     style: Theme.of(context)
@@ -782,14 +743,12 @@ class _DashboardTabState extends State<DashboardTab> {
               : ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _currentUser?.role == 'Worker'
+                  itemCount: currentUser.role == 'Worker'
                       ? _tasksWithProgress.length
-                      : _transmissionLines
-                          .length, // Display lines for Manager/Admin
+                      : _transmissionLines.length,
                   itemBuilder: (context, index) {
-                    if (_currentUser?.role == 'Worker') {
+                    if (currentUser.role == 'Worker') {
                       final task = _tasksWithProgress[index];
-                      // Find the associated TransmissionLine for current task
                       final TransmissionLine? taskLine =
                           _transmissionLines.firstWhereOrNull(
                               (line) => line.name == task.lineName);
@@ -800,9 +759,7 @@ class _DashboardTabState extends State<DashboardTab> {
                         child: InkWell(
                           onTap: () {
                             if (taskLine != null) {
-                              // Ensure line data exists before navigating
-                              _navigateToLineDetailForTask(
-                                  task, taskLine); // Pass TransmissionLine
+                              _navigateToLineDetailForTask(task, taskLine);
                             } else {
                               SnackBarUtils.showSnackBar(
                                   context, 'Line data not found for this task.',
@@ -822,7 +779,7 @@ class _DashboardTabState extends State<DashboardTab> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}', // Changed from Completed
+                                  'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
                                 Text(
@@ -867,7 +824,6 @@ class _DashboardTabState extends State<DashboardTab> {
                         ),
                       );
                     } else {
-                      // Manager or Admin
                       final line = _transmissionLines[index];
                       final completedTowers = _allFirebaseSurveyRecords
                           .where((record) =>
@@ -881,7 +837,6 @@ class _DashboardTabState extends State<DashboardTab> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         elevation: 4,
                         child: InkWell(
-                          // Updated navigation for Manager/Admin to LinePatrollingDetailsScreen
                           onTap: () => _navigateToLinePatrollingDetails(line),
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
@@ -929,8 +884,6 @@ class _DashboardTabState extends State<DashboardTab> {
                   },
                 ),
           const SizedBox(height: 30),
-
-          // Overall Survey Progress Graph (always at the bottom)
           Text(
             'Overall Survey Progress',
             style: Theme.of(context).textTheme.headlineSmall,
@@ -1009,7 +962,6 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 }
 
-// Simple data class to hold worker progress summary for dashboard
 class WorkerProgressSummary {
   final UserProfile worker;
   final int linesAssigned;

@@ -17,10 +17,13 @@ import 'dart:async'; // For StreamSubscription
 import 'package:path/path.dart' as p; // For path.basename
 import 'package:line_survey_pro/services/firestore_service.dart'; // NEW: Import FirestoreService to get real TransmissionLine objects
 import 'package:collection/collection.dart'
-    as collection; // For firstWhereOrNull
+    as collection; // Corrected import for collection
+import 'package:line_survey_pro/models/user_profile.dart'; // NEW: Import UserProfile
 
 class ExportScreen extends StatefulWidget {
-  const ExportScreen({super.key});
+  final UserProfile? currentUserProfile; // NEW: Receive UserProfile
+
+  const ExportScreen({super.key, required this.currentUserProfile});
 
   @override
   State<ExportScreen> createState() => _ExportScreenState();
@@ -34,6 +37,9 @@ class _ExportScreenState extends State<ExportScreen>
       {}; // Records grouped by line name
   List<TransmissionLine> _transmissionLines =
       []; // List of transmission lines for dropdown
+
+  // Stores selected filter options for each filter field
+  final Map<String, List<String>> _selectedFilters = {};
 
   // State for multi-action FAB
   bool _isFabOpen = false;
@@ -130,22 +136,40 @@ class _ExportScreenState extends State<ExportScreen>
     ],
     'opgwJointBox': ['Damaged', 'Open', 'Leaking', 'Corroded', 'OK'],
     // New fields from Line Survey Screen
-    'building': ['Yes', 'No'],
-    'tree': ['Yes', 'No'],
+    'building': ['OK', 'NOT OKAY'],
+    'tree': ['OK', 'NOT OKAY'],
     'conditionOfOpgw': ['OK', 'Damaged'],
     'conditionOfEarthWire': ['OK', 'Damaged'],
     'conditionOfConductor': ['OK', 'Damaged'],
     'midSpanJoint': ['OK', 'Damaged'],
-    'newConstruction': ['Yes', 'No'],
-    'objectOnConductor': ['Yes', 'No'],
-    'objectOnEarthwire': ['Yes', 'No'],
+    'newConstruction': ['OK', 'NOT OKAY'],
+    'objectOnConductor': ['OK', 'NOT OKAY'],
+    'objectOnEarthwire': ['OK', 'NOT OKAY'],
     'spacers': ['OK', 'Damaged'],
     'vibrationDamper': ['OK', 'Damaged'],
-    'roadCrossing': ['NH', 'SH', 'Chakk road', 'Over Bridge', 'Underpass'],
-    'riverCrossing': ['Yes', 'No'],
-    'electricalLine': ['400kV', '220kV', '132kV', '33kV', '11kV', 'PTW'],
-    'railwayCrossing': ['Yes', 'No'],
-    // General Notes is text, not suitable for direct filter dropdown
+    'roadCrossing': [
+      'NH',
+      'SH',
+      'Chakk road',
+      'Over Bridge',
+      'Underpass',
+      'OK',
+      'NOT OKAY'
+    ], // Adding OK/NOT OK for general status
+    'riverCrossing': ['OK', 'NOT OKAY'],
+    'electricalLine': [
+      '400kV',
+      '220kV',
+      '132kV',
+      '33kV',
+      '11kV',
+      'PTW',
+      'OK',
+      'NOT OKAY'
+    ], // Adding OK/NOT OK for general status
+    'railwayCrossing': ['OK', 'NOT OKAY'],
+    'generalNotes':
+        [], // General notes is a text field, not a dropdown for filtering. Add as empty for _filterOptions map completeness.
   };
 
   @override
@@ -183,27 +207,37 @@ class _ExportScreenState extends State<ExportScreen>
     });
   }
 
+  // Use didUpdateWidget to react to currentUserProfile changes
+  @override
+  void didUpdateWidget(covariant ExportScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data if the user profile changes (e.g., needed for manager's assigned lines filter)
+    if (widget.currentUserProfile != oldWidget.currentUserProfile) {
+      _fetchAndCombineRecords();
+    }
+  }
+
   // Fetches records from Firestore and Local DB, then combines them.
   Future<void> _fetchAndCombineRecords() async {
+    if (!mounted) return; // Prevent async operation if widget is disposed
     setState(() {
       _isLoading = true;
       _selectedImageRecordIds.clear();
     });
 
     _firestoreRecordsSubscription?.cancel();
-    _transmissionLinesSubscription?.cancel(); // Cancel existing subscription
+    _transmissionLinesSubscription?.cancel();
 
-    // NEW: Listen to transmission lines
     _transmissionLinesSubscription =
         _firestoreService.getTransmissionLinesStream().listen((lines) {
       if (mounted) {
         setState(() {
           _transmissionLines = lines;
-          // Set default selected line if it's the first load
           if (_selectedLineForShare == null && _transmissionLines.isNotEmpty) {
             _selectedLineForShare = _transmissionLines.first;
           }
         });
+        _applyFiltersToRecords(); // Re-apply filter if lines data updates
       }
     }, onError: (error) {
       if (mounted)
@@ -217,47 +251,49 @@ class _ExportScreenState extends State<ExportScreen>
       (firestoreRecords) async {
         if (!mounted) return;
 
-        // Fetch all local records to get photoPaths and 'saved' statuses
         final allLocalRecords =
             await _localDatabaseService.getAllSurveyRecords();
 
-        // Combine logic: Create a map to hold the final combined records.
-        // Prioritize local records for photoPath, and Firestore for 'uploaded' status.
         Map<String, SurveyRecord> combinedMap = {};
-
-        // 1. Add all local records to the map. These will have photoPaths.
         for (var record in allLocalRecords) {
           combinedMap[record.id] = record;
         }
-
-        // 2. Iterate through Firestore records.
         for (var fRecord in firestoreRecords) {
           final localRecord = combinedMap[fRecord.id];
           if (localRecord != null) {
-            // Record exists both locally and in Firestore.
-            // Take Firestore's status, but preserve local photoPath.
-            combinedMap[fRecord.id] = localRecord.copyWith(
-              status: fRecord.status, // Always take status from Firestore
-            );
+            combinedMap[fRecord.id] =
+                localRecord.copyWith(status: fRecord.status);
           } else {
-            // If the record is in Firestore but NOT locally, add it.
-            // Its photoPath will be empty, indicating no local image.
             combinedMap[fRecord.id] = fRecord;
           }
         }
 
         List<SurveyRecord> finalCombinedList = combinedMap.values.toList();
-        // Sort by timestamp for consistent display (most recent first)
         finalCombinedList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
+        // Filter based on manager's assigned lines if current user is a manager
+        List<SurveyRecord> recordsToDisplay = [];
+        if (widget.currentUserProfile?.role == 'Manager') {
+          final Set<String> assignedLineNames = _transmissionLines
+              .where((line) =>
+                  widget.currentUserProfile!.assignedLineIds.contains(line.id))
+              .map((line) => line.name)
+              .toSet();
+          recordsToDisplay = finalCombinedList
+              .where((record) => assignedLineNames.contains(record.lineName))
+              .toList();
+        } else {
+          recordsToDisplay =
+              finalCombinedList; // Admins and Workers see all/their own
+        }
+
         setState(() {
-          _allRecords = finalCombinedList; // Display the combined list
-          _groupedRecords = _groupRecordsByLineName(finalCombinedList);
+          _allRecords = recordsToDisplay; // Display the filtered list
+          _groupedRecords = _groupRecordsByLineName(recordsToDisplay);
           _isLoading = false;
         });
 
-        // Update the SnackBar message based on actual data
-        if (finalCombinedList.isEmpty && mounted) {
+        if (_allRecords.isEmpty && mounted) {
           SnackBarUtils.showSnackBar(context,
               'No survey records found. Conduct a survey first and save/upload it!',
               isError: false);
@@ -280,9 +316,136 @@ class _ExportScreenState extends State<ExportScreen>
         }
         print('ExportScreen error fetching records: $error');
       },
-      cancelOnError:
-          false, // Keep listening even on errors (e.g., permission issues for some queries)
+      cancelOnError: false,
     );
+  }
+
+  // Refactor applyFilters to be called when relevant data changes
+  void _applyFiltersToRecords() {
+    // This is called internally when _allRecords or _transmissionLines update.
+    // It filters _allRecords based on role if needed (already done in _fetchAndCombineRecords)
+    // and then applies the UI filters.
+    if (!mounted) return;
+    List<SurveyRecord> tempRecords = List.from(_allRecords);
+
+    // Apply main text search filter (if any)
+    if (_searchQuery.isNotEmpty) {
+      final String lowerCaseQuery = _searchQuery.toLowerCase();
+      tempRecords = tempRecords.where((record) {
+        return record.towerNumber.toString().contains(lowerCaseQuery) ||
+            record.lineName.toLowerCase().contains(lowerCaseQuery) ||
+            (record.generalNotes?.toLowerCase().contains(lowerCaseQuery) ??
+                false) || // Search in general notes too
+            (record.missingTowerParts?.toLowerCase().contains(lowerCaseQuery) ??
+                false);
+        // Add other fields you want to be searchable in the main search bar
+      }).toList();
+    }
+
+    // Apply filter options from the drawer
+    _selectedFilters.forEach((fieldName, selectedOptions) {
+      if (selectedOptions.isEmpty) return;
+
+      tempRecords = tempRecords.where((record) {
+        if (fieldName == 'overallIssueStatus') {
+          final bool isNotOkay = _isNotOkay(record);
+          if (selectedOptions.contains('NOT OKAY') &&
+              !selectedOptions.contains('OK')) {
+            return isNotOkay;
+          } else if (selectedOptions.contains('OK') &&
+              !selectedOptions.contains('NOT OKAY')) {
+            return !isNotOkay;
+          }
+          return true; // If both or neither 'OK'/'NOT OKAY' selected, don't filter by issue status
+        } else {
+          String? fieldValue;
+          // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
+          if (fieldName == 'building')
+            fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'tree')
+            fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'newConstruction')
+            fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'objectOnConductor')
+            fieldValue = (record.objectOnConductor == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'objectOnEarthwire')
+            fieldValue = (record.objectOnEarthwire == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'riverCrossing')
+            fieldValue = (record.riverCrossing == true ? 'NOT OKAY' : 'OK');
+          else if (fieldName == 'railwayCrossing')
+            fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
+          else
+            fieldValue = record
+                .toMap()[fieldName]
+                ?.toString(); // Get string value for other fields
+
+          return fieldValue != null && selectedOptions.contains(fieldValue);
+        }
+      }).toList();
+    });
+
+    setState(() {
+      _allRecords = tempRecords; // Update displayed records
+      _groupedRecords =
+          _groupRecordsByLineName(tempRecords); // Re-group filtered records
+    });
+  }
+
+  // Returns true if any of the main issue fields are not 'OK' or indicate a problem.
+  bool _isNotOkay(SurveyRecord record) {
+    // List of fields that indicate an issue if not 'OK'
+    final List<String?> issueFields = [
+      record.missingTowerParts,
+      record.soilCondition,
+      record.stubCopingLeg,
+      record.earthing,
+      record.conditionOfTowerParts,
+      record.statusOfInsulator,
+      record.jumperStatus,
+      record.hotSpots,
+      record.numberPlate,
+      record.dangerBoard,
+      record.phasePlate,
+      record.nutAndBoltCondition,
+      record.antiClimbingDevice,
+      record.wildGrowth,
+      record.birdGuard,
+      record.birdNest,
+      record.archingHorn,
+      record.coronaRing,
+      record.insulatorType,
+      record.opgwJointBox,
+      record.conditionOfOpgw,
+      record.conditionOfEarthWire,
+      record.conditionOfConductor,
+      record.midSpanJoint,
+      record.spacers,
+      record.vibrationDamper,
+      record.roadCrossing,
+      record.electricalLine,
+      // Removed record.riverCrossing and record.railwayCrossing (bool fields)
+    ];
+
+    // Check for boolean fields that indicate NOT OKAY if true
+    final bool hasNotOkayBool = (record.building == true) ||
+        (record.tree == true) ||
+        (record.newConstruction == true) ||
+        (record.objectOnConductor == true) ||
+        (record.objectOnEarthwire == true) ||
+        (record.riverCrossing == true) ||
+        (record.railwayCrossing == true);
+
+    // If any issue field is not 'OK', 'Intact', or null/empty, consider it NOT OKAY
+    for (final field in issueFields) {
+      if (field != null &&
+          field.isNotEmpty &&
+          field != 'OK' &&
+          field != 'Intact') {
+        return true;
+      }
+    }
+
+    return hasNotOkayBool;
   }
 
   // Helper function to check if any local images are available for sharing
@@ -554,8 +717,9 @@ class _ExportScreenState extends State<ExportScreen>
                                             r.id ==
                                             _selectedImageRecordIds.first);
                                 if (selectedRecord != null) {
-                                  final line =
-                                      _transmissionLines.firstWhereOrNull((l) =>
+                                  final line = collection.IterableExtension<
+                                          TransmissionLine>(_transmissionLines)
+                                      .firstWhereOrNull((l) =>
                                           l.name == selectedRecord.lineName);
                                   commonLineName =
                                       line?.name ?? selectedRecord.lineName;
@@ -583,8 +747,8 @@ class _ExportScreenState extends State<ExportScreen>
                                     imageFilesToShare
                                         .add(XFile(overlaidFile.path));
 
-                                    // shareMessage.writeln(
-                                    //     '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}');
+                                    shareMessage.writeln(
+                                        '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}');
                                     shareMessage.writeln(
                                         '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}');
                                     shareMessage.writeln(
@@ -944,5 +1108,16 @@ class _ExportScreenState extends State<ExportScreen>
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
+  }
+}
+
+extension IterableExtension<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T element) test) {
+    for (final element in this) {
+      if (test(element)) {
+        return element;
+      }
+    }
+    return null;
   }
 }

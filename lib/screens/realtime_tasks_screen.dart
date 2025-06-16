@@ -23,21 +23,25 @@ import 'package:collection/collection.dart'
     as collection; // For firstWhereOrNull
 
 class RealTimeTasksScreen extends StatefulWidget {
-  const RealTimeTasksScreen({super.key});
+  final UserProfile? currentUserProfile; // NEW: Accept currentUserProfile
+
+  const RealTimeTasksScreen(
+      {super.key, required this.currentUserProfile}); // UPDATED Constructor
 
   @override
   State<RealTimeTasksScreen> createState() => _RealTimeTasksScreenState();
 }
 
 class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
-  UserProfile? _currentUser;
+  // Removed _currentUser state variable, use widget.currentUserProfile directly
   List<Task> _tasks = [];
   bool _isLoading = true;
   Map<String, List<SurveyRecord>> _surveyRecordsByTask =
       {}; // Grouped survey records for display
   List<TransmissionLine> _allTransmissionLines = []; // NEW: Store all lines
 
-  final AuthService _authService = AuthService();
+  final AuthService _authService =
+      AuthService(); // Keep for other methods like streamAllUsers
   final TaskService _taskService = TaskService();
   final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
   final SurveyFirestoreService _surveyFirestoreService =
@@ -47,8 +51,6 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   StreamSubscription? _tasksSubscription;
   StreamSubscription? _firestoreSurveyRecordsSubscription;
   StreamSubscription? _localSurveyRecordsSubscription;
-  StreamSubscription?
-      _userProfileSubscription; // NEW: For assignedLineIds updates
   StreamSubscription? _transmissionLinesSubscription; // NEW: For all lines
 
   @override
@@ -62,61 +64,36 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     _tasksSubscription?.cancel();
     _firestoreSurveyRecordsSubscription?.cancel();
     _localSurveyRecordsSubscription?.cancel();
-    _userProfileSubscription?.cancel(); // NEW
     _transmissionLinesSubscription?.cancel(); // NEW
     super.dispose();
   }
 
+  // Use didUpdateWidget to react to currentUserProfile changes
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Only reload if _currentUser is null, or if we need to force reload after a state change
-    // Avoids redundant calls if the widget rebuilds but data hasn't changed.
-    if (_currentUser == null) {
+  void didUpdateWidget(covariant RealTimeTasksScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentUserProfile != oldWidget.currentUserProfile) {
+      // Reload data if the user profile changes (e.g., role update)
       _loadAllData();
     }
   }
 
   Future<void> _loadAllData() async {
-    if (!mounted) return;
+    if (!mounted || widget.currentUserProfile == null)
+      return; // Use widget.currentUserProfile
     setState(() {
       _isLoading = true;
     });
     try {
-      // Stream user profile to get the latest role and assignedLineIds
-      _userProfileSubscription =
-          _authService.userChanges.listen((firebaseUser) async {
-        if (firebaseUser != null) {
-          _currentUser = await _authService.getCurrentUserProfile();
-          if (mounted) {
-            _setupDataStreamsBasedOnRole();
-          }
-        } else {
-          _currentUser = null;
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
-        }
-      });
-
-      // Stream all transmission lines once
-      _transmissionLinesSubscription =
-          _firestoreService.getTransmissionLinesStream().listen((lines) {
-        if (mounted) {
-          _allTransmissionLines = lines;
-          _setupDataStreamsBasedOnRole(); // Re-evaluate streams if lines change
-        }
-      });
+      // No longer listening to authChanges here directly for currentUserProfile,
+      // as it's passed from HomeScreen.
+      _setupDataStreamsBasedOnRole();
 
       // Listen to ALL local survey records (for instant UI update on local saves)
+      _localSurveyRecordsSubscription?.cancel();
       _localSurveyRecordsSubscription =
           _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
         if (mounted) {
-          // This will be handled by _updateSurveyRecordsForWorkerTasks or _updateSurveyRecordsForManagerTasks
-          // after _setupDataStreamsBasedOnRole filters the main record stream.
-          // For now, it updates the internal _allLocalSurveyRecords, which is good.
           _updateSurveyRecordsForWorkerTasks(
               localRecords: records); // Trigger update with new local records
         }
@@ -150,7 +127,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     _tasksSubscription?.cancel();
     _firestoreSurveyRecordsSubscription?.cancel();
 
-    if (_currentUser == null || _currentUser!.status != 'approved') {
+    if (widget.currentUserProfile == null ||
+        widget.currentUserProfile!.status != 'approved') {
+      // Use widget.currentUserProfile
       _tasks = [];
       _surveyRecordsByTask = {};
       if (mounted) {
@@ -159,9 +138,25 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       return;
     }
 
-    if (_currentUser!.role == 'Worker') {
+    // Stream all transmission lines once (needed for both worker and manager/admin)
+    _transmissionLinesSubscription?.cancel();
+    _transmissionLinesSubscription =
+        _firestoreService.getTransmissionLinesStream().listen((lines) {
+      if (mounted) {
+        _allTransmissionLines = lines;
+        _setupDataStreamsBasedOnRoleInner(); // Re-evaluate streams if lines change
+      }
+    });
+  }
+
+  // Helper to separate initial line fetch from role-based stream setup
+  void _setupDataStreamsBasedOnRoleInner() {
+    final UserProfile user =
+        widget.currentUserProfile!; // Use widget.currentUserProfile
+
+    if (user.role == 'Worker') {
       _tasksSubscription = _taskService
-          .streamTasksForUser(_currentUser!.id)
+          .streamTasksForUser(user.id) // Use user.id
           .listen((tasks) async {
         if (mounted) {
           _tasks = tasks;
@@ -177,7 +172,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       });
 
       _firestoreSurveyRecordsSubscription = _surveyFirestoreService
-          .streamSurveyRecordsForUser(_currentUser!.id)
+          .streamSurveyRecordsForUser(user.id) // Use user.id
           .listen((records) {
         if (mounted) {
           _updateSurveyRecordsForWorkerTasks(
@@ -192,13 +187,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         }
         print('RealTimeTasksScreen Worker survey records stream error: $e');
       });
-    } else if (_currentUser!.role == 'Manager' ||
-        _currentUser!.role == 'Admin') {
-      // Admin also uses manager's view
+    } else if (user.role == 'Manager' || user.role == 'Admin') {
       _tasksSubscription = _taskService.streamAllTasks().listen((tasks) {
         if (mounted) {
-          // Filter tasks based on assigned lines if manager
-          if (_currentUser!.role == 'Manager') {
+          if (user.role == 'Manager') {
             _tasks = tasks.where((task) {
               final TransmissionLine? taskLine =
                   collection.IterableExtension<TransmissionLine>(
@@ -207,10 +199,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                 (l) => l.name == task.lineName,
               );
               return taskLine != null &&
-                  _currentUser!.assignedLineIds.contains(taskLine.id);
+                  user.assignedLineIds
+                      .contains(taskLine.id); // Use user.assignedLineIds
             }).toList();
           } else {
-            // Admin sees all tasks
             _tasks = tasks;
           }
           _updateSurveyRecordsForManagerTasks();
@@ -227,11 +219,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       _firestoreSurveyRecordsSubscription =
           _surveyFirestoreService.streamAllSurveyRecords().listen((records) {
         if (mounted) {
-          // Filter records based on assigned lines if manager
-          if (_currentUser!.role == 'Manager') {
+          if (user.role == 'Manager') {
             final Set<String> assignedLineNames = _allTransmissionLines
-                .where(
-                    (line) => _currentUser!.assignedLineIds.contains(line.id))
+                .where((line) => user.assignedLineIds
+                    .contains(line.id)) // Use user.assignedLineIds
                 .map((line) => line.name)
                 .toSet();
             _updateSurveyRecordsForManagerTasks(
@@ -240,7 +231,6 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                         (record) => assignedLineNames.contains(record.lineName))
                     .toList());
           } else {
-            // Admin sees all records
             _updateSurveyRecordsForManagerTasks(firestoreRecords: records);
           }
         }
@@ -269,6 +259,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       {List<SurveyRecord>? firestoreRecords,
       List<SurveyRecord>? localRecords}) async {
     if (!mounted) return;
+
+    final UserProfile user =
+        widget.currentUserProfile!; // Use widget.currentUserProfile
 
     // Use latest streamed data, or current state if argument is null
     final currentFirestoreRecords = firestoreRecords ??
@@ -302,8 +295,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
 
     final List<SurveyRecord> combinedAndFilteredRecords = combinedRecordsMap
         .values
-        .where((record) =>
-            record.userId == _currentUser!.id) // Filter by current user
+        .where(
+            (record) => record.userId == user.id) // Filter by current user.id
         .toList();
 
     final List<Task> enrichedTasks = [];
@@ -313,11 +306,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
 
       for (var record
           in combinedAndFilteredRecords.where((r) => r.taskId == task.id)) {
-        // Only count towers if their status indicates actual completion (e.g., saved_complete or uploaded)
-        if (record.status == 'saved_complete' || record.status == 'uploaded') {
-          //
-          uniqueLocalTowers.add(record.towerNumber);
-        }
+        uniqueLocalTowers.add(record.towerNumber);
         if (record.status == 'uploaded') {
           uniqueUploadedTowers.add(record.towerNumber);
         }
@@ -485,11 +474,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     );
   }
 
-  // This method is no longer callable by workers directly from UI buttons.
-  // It's kept here for potential internal use or future re-introduction by admin.
   void _updateTaskStatus(Task task, String newStatus) async {
-    // This method is called by admins/managers or by the app internally.
-    // Workers cannot trigger this via a button anymore.
     setState(() {
       _isLoading = true;
     });
@@ -515,13 +500,11 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   void _navigateToSurveyForTask(Task task, TransmissionLine transmissionLine) {
-    // NEW: Added TransmissionLine
     if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => LineDetailScreen(
-              task: task,
-              transmissionLine: transmissionLine), // Pass TransmissionLine
+          builder: (context) =>
+              LineDetailScreen(task: task, transmissionLine: transmissionLine),
         ),
       );
     }
@@ -579,11 +562,15 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    if (_isLoading) {
+    if (_isLoading || widget.currentUserProfile == null) {
+      // Use widget.currentUserProfile
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_currentUser == null || _currentUser!.status != 'approved') {
+    final UserProfile currentUser =
+        widget.currentUserProfile!; // Use widget.currentUserProfile
+
+    if (currentUser.status != 'approved') {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -615,10 +602,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       );
     }
 
-    if (_currentUser!.role == null ||
-        (_currentUser!.role != 'Worker' &&
-            _currentUser!.role != 'Manager' &&
-            _currentUser!.role != 'Admin')) {
+    if (currentUser.role == null ||
+        (currentUser.role != 'Worker' &&
+            currentUser.role != 'Manager' &&
+            currentUser.role != 'Admin')) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -638,7 +625,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Please ensure your role (Worker, Manager, or Admin) is correctly assigned by an administrator in the Firebase Console.',
+                'Please ensure your role is correctly assigned by an administrator in the Firebase Console.',
                 style: Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -656,7 +643,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'Welcome, ${_currentUser!.displayName ?? _currentUser!.email} (${_currentUser!.role})!', // Removed span tags
+            'Welcome, ${currentUser.displayName ?? currentUser.email} (${currentUser.role})!', // Removed span tags
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -664,8 +651,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
             textAlign: TextAlign.center,
           ),
         ),
-        if (_currentUser!.role == 'Manager' ||
-            _currentUser!.role == 'Admin') // Admin can also assign tasks
+        if (currentUser.role == 'Manager' ||
+            currentUser.role == 'Admin') // Admin can also assign tasks
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -680,7 +667,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
             ),
           ),
-        if (_currentUser!.role == 'Worker')
+        if (currentUser.role == 'Worker')
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -697,9 +684,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           ),
         const SizedBox(height: 20),
         Text(
-          _currentUser!.role == 'Worker'
-              ? 'Your Assigned Tasks:'
-              : 'All Tasks:',
+          currentUser.role == 'Worker' ? 'Your Assigned Tasks:' : 'All Tasks:',
           style: Theme.of(context)
               .textTheme
               .headlineSmall
@@ -710,7 +695,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           child: _tasks.isEmpty
               ? Center(
                   child: Text(
-                    _currentUser!.role == 'Worker'
+                    currentUser.role == 'Worker'
                         ? 'No tasks assigned to you yet.'
                         : 'No tasks available.',
                     style: Theme.of(context)
@@ -725,25 +710,21 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                     final task = _tasks[index];
                     final recordsForTask = _surveyRecordsByTask[task.id] ?? [];
 
-                    // Determine icon and color based on derivedStatus
                     IconData statusIconData;
                     Color iconColor;
 
                     if (task.derivedStatus == 'Patrolled') {
                       statusIconData = Icons.check_circle;
-                      iconColor = Colors
-                          .green; // Green for fully patrolled and uploaded
+                      iconColor = Colors.green;
                     } else if (task.derivedStatus == 'In Progress (Uploaded)' ||
                         task.derivedStatus == 'In Progress (Local)') {
                       statusIconData = Icons.hourglass_empty;
-                      iconColor =
-                          colorScheme.tertiary; // Mustard for in progress
+                      iconColor = colorScheme.tertiary;
                     } else if (task.derivedStatus == 'Pending') {
                       statusIconData = Icons.error;
-                      iconColor = colorScheme.error; // Red for pending
+                      iconColor = colorScheme.error;
                     } else {
-                      statusIconData = Icons
-                          .help_outline; // Fallback for unrecognized status
+                      statusIconData = Icons.help_outline;
                       iconColor = Colors.grey;
                     }
 
@@ -753,36 +734,31 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                       elevation: 3,
                       child: ExpansionTile(
                         title: Text(
-                            'Task: ${task.lineName} - Towers: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} to patrol)'), // Removed span tags
+                            'Task: ${task.lineName} - Towers: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} to patrol)'),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                                 'Due: ${task.dueDate.toLocal().toString().split(' ')[0]}'),
                             Text('Status: ${task.derivedStatus}'),
-                            if (_currentUser!.role == 'Manager' ||
-                                _currentUser!.role ==
-                                    'Admin') // Admin also sees assigned to
+                            if (currentUser.role == 'Manager' ||
+                                currentUser.role == 'Admin')
                               Text(
                                   'Assigned to: ${task.assignedToUserName ?? 'N/A'}'),
                           ],
                         ),
-                        trailing: (_currentUser!.role == 'Manager' ||
-                                _currentUser!.role ==
-                                    'Admin') // Admin can also manage tasks
+                        trailing: (currentUser.role == 'Manager' ||
+                                currentUser.role == 'Admin')
                             ? IconButton(
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () => _showManagerTaskOptions(task),
                                 tooltip: 'Task Options',
                               )
-                            : (_currentUser!.role == 'Worker'
-                                ? // Worker's status indicator only (no button for status update)
-                                Icon(statusIconData,
-                                    color:
-                                        iconColor) // Display the determined icon and color
+                            : (currentUser.role == 'Worker'
+                                ? Icon(statusIconData, color: iconColor)
                                 : null),
                         children: [
-                          if (_currentUser!.role == 'Worker')
+                          if (currentUser.role == 'Worker')
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16.0, vertical: 8.0),
@@ -790,12 +766,12 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}', // Changed from Completed
+                                    'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   Text(
-                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol} (Cloud)',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
@@ -833,14 +809,13 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
                                     onPressed: () {
-                                      // Find the associated TransmissionLine for current task
                                       final TransmissionLine? taskLine =
                                           _allTransmissionLines
                                               .firstWhereOrNull((line) =>
                                                   line.name == task.lineName);
                                       if (taskLine != null) {
-                                        _navigateToSurveyForTask(task,
-                                            taskLine); // Pass TransmissionLine
+                                        _navigateToSurveyForTask(
+                                            task, taskLine);
                                       } else {
                                         SnackBarUtils.showSnackBar(context,
                                             'Line data not found for this task. Cannot continue survey.',
@@ -872,4 +847,18 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       ],
     );
   }
+}
+
+class WorkerProgressSummary {
+  final UserProfile worker;
+  final int linesAssigned;
+  final int linesCompleted;
+  final int linesWorkingPending;
+
+  WorkerProgressSummary({
+    required this.worker,
+    required this.linesAssigned,
+    required this.linesCompleted,
+    required this.linesWorkingPending,
+  });
 }

@@ -31,6 +31,9 @@ class ManagerWorkerDetailScreen extends StatefulWidget {
 class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
   // Common state variables
   bool _isLoading = true;
+  // NEW: Flags to track loading status of manager-specific data streams
+  bool _linesLoaded = false;
+  bool _tasksLoaded = false;
 
   // Data specific to Worker view
   List<SurveyRecord> _allWorkerRecords =
@@ -179,6 +182,8 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
   Future<void> _loadDataBasedOnRole() async {
     setState(() {
       _isLoading = true;
+      _linesLoaded = false; // Reset flags
+      _tasksLoaded = false;
     });
 
     try {
@@ -192,7 +197,7 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
               setState(() {
                 _allWorkerRecords = records;
                 _applyFilters(); // Apply filters whenever new data comes in
-                _isLoading = false;
+                _isLoading = false; // Worker loading finished here
               });
             }
           },
@@ -202,7 +207,7 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                   context, 'Error loading worker records: ${error.toString()}',
                   isError: true);
               setState(() {
-                _isLoading = false;
+                _isLoading = false; // Worker loading finished on error
               });
             }
             print('ManagerWorkerDetailScreen error streaming records: $error');
@@ -218,6 +223,8 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                   .where((line) =>
                       widget.userProfile.assignedLineIds.contains(line.id))
                   .toList();
+              _linesLoaded = true; // Lines data delivered
+              _checkAllManagerDataLoaded();
             });
           }
         }, onError: (error) {
@@ -225,9 +232,8 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
             SnackBarUtils.showSnackBar(
                 context, 'Error loading manager lines: ${error.toString()}',
                 isError: true);
-            setState(() {
-              _isLoading = false;
-            });
+            _linesLoaded = true; // Treat error as delivered
+            _checkAllManagerDataLoaded();
           }
           print('ManagerWorkerDetailScreen error streaming lines: $error');
         });
@@ -240,6 +246,8 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                   .where(
                       (task) => task.assignedByUserId == widget.userProfile.id)
                   .toList();
+              _tasksLoaded = true; // Tasks data delivered
+              _checkAllManagerDataLoaded();
             });
           }
         }, onError: (error) {
@@ -247,46 +255,19 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
             SnackBarUtils.showSnackBar(
                 context, 'Error loading manager tasks: ${error.toString()}',
                 isError: true);
-            setState(() {
-              _isLoading = false;
-            });
+            _tasksLoaded = true; // Treat error as delivered
+            _checkAllManagerDataLoaded();
           }
           print('ManagerWorkerDetailScreen error streaming tasks: $error');
         });
-
-        // Set isLoading to false only after all manager-specific streams have delivered initial data,
-        // or if there are no lines/tasks to wait for.
-        Future.wait([
-          _linesSubscription != null
-              ? _linesSubscription!.asFuture()
-              : Future.value(),
-          _tasksSubscription != null
-              ? _tasksSubscription!.asFuture()
-              : Future.value(),
-        ]).whenComplete(() {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-          }
-        });
-
-        // Edge case: if a manager has no assigned lines or tasks AND no streams are active (e.g. fresh manager account)
-        if (widget.userProfile.assignedLineIds.isEmpty &&
-            _linesSubscription == null &&
-            _tasksSubscription == null) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       } else {
-        // Handle other roles (e.g., Admin clicking on another Admin) or unassigned roles gracefully
+        // Handle other roles gracefully (e.g., Admin clicking on another Admin)
         if (mounted) {
           SnackBarUtils.showSnackBar(
               context, 'No specific details to display for this role.',
               isError: false);
           setState(() {
-            _isLoading = false;
+            _isLoading = false; // Loading finished for other roles immediately
           });
         }
       }
@@ -296,10 +277,19 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
             context, 'Error loading user details: ${e.toString()}',
             isError: true);
         setState(() {
-          _isLoading = false;
+          _isLoading = false; // General error also finishes loading
         });
       }
       print('ManagerWorkerDetailScreen general data load error: $e');
+    }
+  }
+
+  // NEW: Helper to check if all manager-specific data streams have completed
+  void _checkAllManagerDataLoaded() {
+    if (mounted && _linesLoaded && _tasksLoaded) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -336,36 +326,21 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
         return false; // Null, empty, or explicit non-issue
       }
       final lowerCaseValue = value.toLowerCase();
-      // Check for specific problematic keywords
+
+      if (nonIssueTerms.contains(lowerCaseValue)) {
+        return false; // Explicitly a non-issue
+      }
+
+      // Check if the field value contains any specific problem keyword
       for (final keyword in problemKeywords) {
         if (lowerCaseValue.contains(keyword)) {
           return true;
         }
       }
-      // Specific checks for values that are issues but might not be caught by generic keywords
-      // based on the provided lists for filtering
-      if (lowerCaseValue == 'yes' &&
-          (record.building == true ||
-              record.tree == true ||
-              record.newConstruction == true ||
-              record.objectOnConductor == true ||
-              record.objectOnEarthwire == true ||
-              record.riverCrossing == true ||
-              record.railwayCrossing == true)) {
-        return true;
-      }
-      if (lowerCaseValue == 'no' &&
-          (record.building == false ||
-              record.tree == false ||
-              record.newConstruction == false ||
-              record.objectOnConductor == false ||
-              record.objectOnEarthwire == false ||
-              record.riverCrossing == false ||
-              record.railwayCrossing == false)) {
-        return false;
-      }
 
-      // Special case for 'insulatorType' when it implies a problem
+      // Specific checks for values that are issues but might not be caught by generic keywords
+      // e.g., for Insulator Type, certain types might be 'Broken' which is covered by problemKeywords
+      // but 'OK' is also in the list. So, if it's not 'OK' and it's one of the problematic types, it's an issue.
       if (record.insulatorType != null &&
           ['broken', 'flashover', 'damaged', 'dirty', 'cracked']
               .contains(record.insulatorType!.toLowerCase())) {
@@ -470,8 +445,9 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
           else if (fieldName == 'railwayCrossing')
             fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
           else
-            fieldValue = record.toMap()[fieldName]
-                as String?; // For string/dropdown fields
+            fieldValue = record
+                .toMap()[fieldName]
+                ?.toString(); // Get string value for other fields
 
           if (fieldValue == null)
             return false; // If record has no value for this field, it doesn't match a selection
