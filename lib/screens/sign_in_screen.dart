@@ -1,193 +1,14 @@
-// // // lib/screens/sign_in_screen.dart
-// // // Updated for consistent UI theming.
-
-// import 'package:flutter/material.dart';
-// import 'package:firebase_auth/firebase_auth.dart'; // For Firebase Authentication
-// import 'package:google_sign_in/google_sign_in.dart'; // For Google Sign-In
-// import 'package:line_survey_pro/screens/home_screen.dart'; // Your home screen
-
-// class SignInScreen extends StatefulWidget {
-//   const SignInScreen({super.key});
-
-//   @override
-//   State<SignInScreen> createState() => _SignInScreenState();
-// }
-
-// class _SignInScreenState extends State<SignInScreen> {
-//   bool _isSigningIn = false; // To manage the loading state
-
-//   // Function to handle Google Sign-In
-//   Future<void> _signInWithGoogle() async {
-//     setState(() {
-//       _isSigningIn = true; // Set loading state to true
-//     });
-
-//     try {
-//       // 1. Create a GoogleSignIn instance
-//       final GoogleSignIn googleSignIn = GoogleSignIn();
-
-//       // 2. Start the interactive sign-in process
-//       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
-//       if (googleUser == null) {
-//         // The user canceled the sign-in flow
-//         if (mounted) {
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             const SnackBar(content: Text('Google Sign-In cancelled.')),
-//           );
-//         }
-//         return;
-//       }
-
-//       // 3. Obtain the auth details from the Google request
-//       final GoogleSignInAuthentication googleAuth =
-//           await googleUser.authentication;
-
-//       // 4. Create a new credential with Google ID token and access token
-//       final OAuthCredential credential = GoogleAuthProvider.credential(
-//         accessToken: googleAuth.accessToken,
-//         idToken: googleAuth.idToken,
-//       );
-
-//       // 5. Sign in to Firebase with the Google credential
-//       await FirebaseAuth.instance.signInWithCredential(credential);
-
-//       // If sign-in is successful, navigate to the HomeScreen
-//       if (mounted) {
-//         Navigator.of(context).pushReplacement(
-//           MaterialPageRoute(builder: (context) => const HomeScreen()),
-//         );
-//       }
-//     } on FirebaseAuthException catch (e) {
-//       // Handle Firebase specific authentication errors
-//       String message;
-//       switch (e.code) {
-//         case 'account-exists-with-different-credential':
-//           message = 'An account already exists with different credentials.';
-//           break;
-//         case 'invalid-credential':
-//           message = 'The credential provided is invalid.';
-//           break;
-//         case 'user-disabled':
-//           message =
-//               'The user associated with the given credential has been disabled.';
-//           break;
-//         case 'operation-not-allowed':
-//           message = 'Google Sign-In is not enabled for this Firebase project.';
-//           break;
-//         case 'network-request-failed':
-//           message =
-//               'A network error occurred. Please check your internet connection.';
-//           break;
-//         default:
-//           message = 'Sign-in failed: ${e.message}';
-//           break;
-//       }
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(content: Text(message)),
-//         );
-//       }
-//       print('Firebase Auth Error: ${e.code} - ${e.message}');
-//     } catch (e) {
-//       // Catch any other general errors
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(content: Text('An unexpected error occurred: $e')),
-//         );
-//       }
-//       print('General Sign-In Error: $e');
-//     } finally {
-//       setState(() {
-//         _isSigningIn = false; // Reset loading state
-//       });
-//     }
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     // Access the color scheme from the theme
-//     final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Sign In'),
-//         // AppBar style is inherited from main.dart ThemeData
-//       ),
-//       body: Center(
-//         child: Padding(
-//           padding: const EdgeInsets.all(
-//               32.0), // Increased padding for better spacing
-//           child: Column(
-//             mainAxisAlignment: MainAxisAlignment.center,
-//             children: [
-//               // Your app's logo or a welcoming message
-//               Text(
-//                 'Welcome to Line Survey Pro!',
-//                 style: Theme.of(context)
-//                     .textTheme
-//                     .headlineSmall
-//                     ?.copyWith(color: colorScheme.primary),
-//                 textAlign: TextAlign.center,
-//               ),
-//               const SizedBox(height: 50), // More vertical spacing
-//               _isSigningIn
-//                   ? CircularProgressIndicator(
-//                       valueColor: AlwaysStoppedAnimation<Color>(
-//                           colorScheme.tertiary), // Use tertiary color (orange)
-//                     )
-//                   : ElevatedButton.icon(
-//                       onPressed: _signInWithGoogle,
-//                       icon: Image.network(
-//                         'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/2048px-Google_%22G%22_logo.svg.png',
-//                         height: 28.0, // Slightly larger icon
-//                         width: 28.0,
-//                       ),
-//                       label: const Text('Sign in with Google'),
-//                       style: ElevatedButton.styleFrom(
-//                         minimumSize:
-//                             const Size(double.infinity, 55), // Taller button
-//                         shape: RoundedRectangleBorder(
-//                           borderRadius: BorderRadius.circular(
-//                               30), // More rounded corners (Pill shape)
-//                         ),
-//                         backgroundColor:
-//                             Colors.white, // White background for Google button
-//                         foregroundColor:
-//                             Colors.black87, // Dark text for Google button
-//                         elevation: 5, // More prominent shadow
-//                         textStyle: Theme.of(context)
-//                             .textTheme
-//                             .labelLarge
-//                             ?.copyWith(
-//                                 color: Colors.black87), // Use themed text style
-//                       ),
-//                     ),
-//               const SizedBox(height: 30), // More spacing
-//               Text(
-//                 'Please sign in to continue using the app.',
-//                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-//                     fontStyle: FontStyle.italic,
-//                     color: colorScheme.onSurface.withOpacity(0.7)),
-//                 textAlign: TextAlign.center,
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 // lib/screens/sign_in_screen.dart
-// Updated for consistent UI theming.
+// Updated for consistent UI theming and account approval workflow, with enhanced error handling.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // For Firebase Authentication
 import 'package:google_sign_in/google_sign_in.dart'; // For Google Sign-In
+import 'package:flutter/services.dart'; // NEW: For PlatformException
 import 'package:line_survey_pro/screens/home_screen.dart'; // Your home screen
 import 'package:line_survey_pro/services/auth_service.dart'; // Import AuthService
-import 'package:line_survey_pro/screens/waiting_for_role_screen.dart'; // NEW: Import WaitingForRoleScreen
+import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart'; // Import WaitingForApprovalScreen
+import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Import SnackBarUtils
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -198,8 +19,7 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   bool _isSigningIn = false; // To manage the loading state
-  final AuthService _authService =
-      AuthService(); // Corrected: Instantiate AuthService
+  final AuthService _authService = AuthService();
 
   // Function to handle Google Sign-In
   Future<void> _signInWithGoogle() async {
@@ -217,9 +37,7 @@ class _SignInScreenState extends State<SignInScreen> {
       if (googleUser == null) {
         // The user canceled the sign-in flow
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Google Sign-In cancelled.')),
-          );
+          SnackBarUtils.showSnackBar(context, 'Google Sign-In cancelled.');
         }
         return;
       }
@@ -237,50 +55,84 @@ class _SignInScreenState extends State<SignInScreen> {
       // 5. Sign in to Firebase with the Google credential
       await FirebaseAuth.instance.signInWithCredential(credential);
 
-      // --- NEW LOGIC FOR ROLE CHECK AND NAVIGATION ---
       // Get the current Firebase user after successful authentication
       final User? firebaseUser = FirebaseAuth.instance.currentUser;
 
       if (firebaseUser != null) {
         // Ensure user profile exists in Firestore.
-        // This will create it if it doesn't exist, without a role field initially.
         await _authService.ensureUserProfileExists(
           firebaseUser.uid,
           firebaseUser.email!,
           firebaseUser.displayName,
         );
 
-        // Fetch the user's profile from Firestore to get their assigned role
         final userProfile = await _authService.getCurrentUserProfile();
 
         if (mounted) {
-          // Check if userProfile exists AND has an assigned role ('Worker' or 'Manager')
-          if (userProfile != null &&
-              (userProfile.role == 'Worker' || userProfile.role == 'Manager')) {
-            // User has an assigned, recognized role, navigate to HomeScreen
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-            );
-          } else {
-            // User signed in, but no role assigned yet by admin, or role is unrecognized.
-            // Navigate to the WaitingForRoleScreen.
+          if (userProfile == null) {
+            SnackBarUtils.showSnackBar(context,
+                'User profile not found after sign-in. Please try again.',
+                isError: true);
+            await _authService.signOut();
+            return;
+          }
+
+          if (userProfile.status == 'approved') {
+            if (userProfile.role == 'Worker' ||
+                userProfile.role == 'Manager' ||
+                userProfile.role == 'Admin') {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            } else {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                    builder: (context) =>
+                        WaitingForApprovalScreen(userProfile: userProfile)),
+              );
+            }
+          } else if (userProfile.status == 'pending' ||
+              userProfile.status == 'rejected') {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                  builder: (context) => const WaitingForRoleScreen()),
+                  builder: (context) =>
+                      WaitingForApprovalScreen(userProfile: userProfile)),
             );
+          } else {
+            SnackBarUtils.showSnackBar(context,
+                'Account status unknown. Please contact administrator.',
+                isError: true);
+            await _authService.signOut();
           }
         }
       } else {
-        // Should not happen if signInWithCredential was successful, but as a fallback
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('User not found after sign-in.')),
-          );
+          SnackBarUtils.showSnackBar(context, 'User not found after sign-in.',
+              isError: true);
         }
       }
-      // --- END NEW LOGIC ---
+    } on PlatformException catch (e) {
+      // NEW: Catch PlatformException specifically
+      if (e.code == 'network_error' ||
+          e.message!.contains('network_error') ||
+          e.message!.contains('ApiException: 7')) {
+        // Check for common network error codes/messages
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'No internet connection. Please connect and try again.',
+              isError: true);
+        }
+        print('PlatformException (Network): ${e.code} - ${e.message}');
+      } else {
+        // Handle other PlatformExceptions
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'Sign-in failed due to platform error: ${e.message}',
+              isError: true);
+        }
+        print('PlatformException: ${e.code} - ${e.message}');
+      }
     } on FirebaseAuthException catch (e) {
-      // Handle Firebase specific authentication errors
       String message;
       switch (e.code) {
         case 'account-exists-with-different-credential':
@@ -305,44 +157,36 @@ class _SignInScreenState extends State<SignInScreen> {
           break;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        SnackBarUtils.showSnackBar(context, message, isError: true);
       }
       print('Auth Error: ${e.code} - ${e.message}');
     } catch (e) {
-      // Catch any other general errors
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An unexpected error occurred: $e')),
-        );
+        SnackBarUtils.showSnackBar(context, 'An unexpected error occurred: $e',
+            isError: true);
       }
       print('General Sign-In Error: $e');
     } finally {
       setState(() {
-        _isSigningIn = false; // Reset loading state
+        _isSigningIn = false;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Access the color scheme from the theme
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign In'),
-        // AppBar style is inherited from main.dart ThemeData
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(
-              32.0), // Increased padding for better spacing
+          padding: const EdgeInsets.all(32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Your app's logo or a welcoming message
               Text(
                 'Welcome to Line Survey Pro!',
                 style: Theme.of(context)
@@ -351,40 +195,36 @@ class _SignInScreenState extends State<SignInScreen> {
                     ?.copyWith(color: colorScheme.primary),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 50), // More vertical spacing
+              const SizedBox(height: 50),
               _isSigningIn
                   ? CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          colorScheme.tertiary), // Use tertiary color (orange)
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(colorScheme.tertiary),
                     )
                   : ElevatedButton.icon(
                       onPressed: _signInWithGoogle,
-                      icon: Image.network(
-                        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/2048px-Google_%22G%22_logo.svg.png',
-                        height: 28.0, // Slightly larger icon
+                      // Use a local asset for the Google logo
+                      icon: Image.asset(
+                        'assets/google_logo.webp', // Assuming you downloaded and placed it here
+                        height: 28.0,
                         width: 28.0,
                       ),
                       label: const Text('Sign in with Google'),
                       style: ElevatedButton.styleFrom(
-                        minimumSize:
-                            const Size(double.infinity, 55), // Taller button
+                        minimumSize: const Size(double.infinity, 55),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              30), // More rounded corners (Pill shape)
+                          borderRadius: BorderRadius.circular(30),
                         ),
-                        backgroundColor:
-                            Colors.white, // White background for Google button
-                        foregroundColor:
-                            Colors.black87, // Dark text for Google button
-                        elevation: 5, // More prominent shadow
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        elevation: 5,
                         textStyle: Theme.of(context)
                             .textTheme
                             .labelLarge
-                            ?.copyWith(
-                                color: Colors.black87), // Use themed text style
+                            ?.copyWith(color: Colors.black87),
                       ),
                     ),
-              const SizedBox(height: 30), // More spacing
+              const SizedBox(height: 30),
               Text(
                 'Please sign in to continue using the app.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(

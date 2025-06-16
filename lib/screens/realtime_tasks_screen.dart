@@ -7,18 +7,20 @@ import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Utility for showi
 import 'package:line_survey_pro/models/task.dart'; // Import the Task model
 import 'package:line_survey_pro/models/user_profile.dart'; // Import the UserProfile model
 import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord model
+import 'package:line_survey_pro/models/transmission_line.dart'; // NEW: For filtering lines
 
 import 'package:line_survey_pro/services/auth_service.dart'; // Service for authentication and user profiles
 import 'package:line_survey_pro/services/task_service.dart'; // Service for task management
 import 'package:line_survey_pro/services/local_database_service.dart'; // Local database service (for deleting local records)
 import 'package:line_survey_pro/services/survey_firestore_service.dart'; // Service for survey records in Firestore
+import 'package:line_survey_pro/services/firestore_service.dart'; // NEW: For fetching transmission lines
+
 import 'package:line_survey_pro/screens/assign_task_screen.dart'; // AssignTaskScreen
 import 'package:line_survey_pro/screens/line_detail_screen.dart'; // LineDetailScreen (for survey entry)
 
 import 'dart:async'; // For StreamSubscription
-
-// lib/screens/realtime_tasks_screen.dart
-// ... (imports)
+import 'package:collection/collection.dart'
+    as collection; // For firstWhereOrNull
 
 class RealTimeTasksScreen extends StatefulWidget {
   const RealTimeTasksScreen({super.key});
@@ -33,18 +35,21 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   bool _isLoading = true;
   Map<String, List<SurveyRecord>> _surveyRecordsByTask =
       {}; // Grouped survey records for display
+  List<TransmissionLine> _allTransmissionLines = []; // NEW: Store all lines
 
   final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
   final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
   final SurveyFirestoreService _surveyFirestoreService =
       SurveyFirestoreService();
+  final FirestoreService _firestoreService = FirestoreService(); // NEW
 
   StreamSubscription? _tasksSubscription;
+  StreamSubscription? _firestoreSurveyRecordsSubscription;
+  StreamSubscription? _localSurveyRecordsSubscription;
   StreamSubscription?
-      _firestoreSurveyRecordsSubscription; // Renamed for clarity
-  StreamSubscription?
-      _localSurveyRecordsSubscription; // NEW: Subscription for local DB changes
+      _userProfileSubscription; // NEW: For assignedLineIds updates
+  StreamSubscription? _transmissionLinesSubscription; // NEW: For all lines
 
   @override
   void initState() {
@@ -56,15 +61,20 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   void dispose() {
     _tasksSubscription?.cancel();
     _firestoreSurveyRecordsSubscription?.cancel();
-    _localSurveyRecordsSubscription
-        ?.cancel(); // NEW: Cancel local DB subscription
+    _localSurveyRecordsSubscription?.cancel();
+    _userProfileSubscription?.cancel(); // NEW
+    _transmissionLinesSubscription?.cancel(); // NEW
     super.dispose();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadAllData();
+    // Only reload if _currentUser is null, or if we need to force reload after a state change
+    // Avoids redundant calls if the widget rebuilds but data hasn't changed.
+    if (_currentUser == null) {
+      _loadAllData();
+    }
   }
 
   Future<void> _loadAllData() async {
@@ -73,111 +83,52 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       _isLoading = true;
     });
     try {
-      _currentUser = await _authService.getCurrentUserProfile();
+      // Stream user profile to get the latest role and assignedLineIds
+      _userProfileSubscription =
+          _authService.userChanges.listen((firebaseUser) async {
+        if (firebaseUser != null) {
+          _currentUser = await _authService.getCurrentUserProfile();
+          if (mounted) {
+            _setupDataStreamsBasedOnRole();
+          }
+        } else {
+          _currentUser = null;
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        }
+      });
 
-      if (_currentUser == null) {
-        _tasks = [];
-        _surveyRecordsByTask = {};
+      // Stream all transmission lines once
+      _transmissionLinesSubscription =
+          _firestoreService.getTransmissionLinesStream().listen((lines) {
+        if (mounted) {
+          _allTransmissionLines = lines;
+          _setupDataStreamsBasedOnRole(); // Re-evaluate streams if lines change
+        }
+      });
+
+      // Listen to ALL local survey records (for instant UI update on local saves)
+      _localSurveyRecordsSubscription =
+          _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
+        if (mounted) {
+          // This will be handled by _updateSurveyRecordsForWorkerTasks or _updateSurveyRecordsForManagerTasks
+          // after _setupDataStreamsBasedOnRole filters the main record stream.
+          // For now, it updates the internal _allLocalSurveyRecords, which is good.
+          _updateSurveyRecordsForWorkerTasks(
+              localRecords: records); // Trigger update with new local records
+        }
+      }, onError: (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'User profile not found. Please log in again.',
+              context, 'Error streaming local survey records: ${e.toString()}',
               isError: true);
         }
-        return;
-      }
-
-      _tasksSubscription?.cancel();
-      _firestoreSurveyRecordsSubscription?.cancel();
-      _localSurveyRecordsSubscription?.cancel(); // Cancel local DB stream
-
-      if (_currentUser!.role == 'Worker') {
-        _tasksSubscription = _taskService
-            .streamTasksForUser(_currentUser!.id)
-            .listen((tasks) async {
-          if (mounted) {
-            _tasks = tasks;
-            _updateSurveyRecordsForWorkerTasks(); // Re-process survey records based on new tasks
-          }
-        }, onError: (e) {
-          if (mounted) {
-            SnackBarUtils.showSnackBar(
-                context, 'Error streaming your tasks: ${e.toString()}',
-                isError: true);
-          }
-          print('RealTimeTasksScreen Worker tasks stream error: $e');
-        });
-
-        // Listen to YOUR OWN survey records from Firestore
-        _firestoreSurveyRecordsSubscription = _surveyFirestoreService
-            .streamSurveyRecordsForUser(_currentUser!.id)
-            .listen((records) {
-          if (mounted) {
-            _updateSurveyRecordsForWorkerTasks(
-                firestoreRecords:
-                    records); // Trigger update with new Firestore records
-          }
-        }, onError: (e) {
-          if (mounted) {
-            SnackBarUtils.showSnackBar(
-                context, 'Error streaming your survey records: ${e.toString()}',
-                isError: true);
-          }
-          print('RealTimeTasksScreen Worker survey records stream error: $e');
-        });
-
-        // Listen to ALL local survey records (for instant UI update on local saves)
-        _localSurveyRecordsSubscription =
-            _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
-          if (mounted) {
-            _updateSurveyRecordsForWorkerTasks(
-                localRecords: records); // Trigger update with new local records
-          }
-        }, onError: (e) {
-          if (mounted) {
-            SnackBarUtils.showSnackBar(context,
-                'Error streaming local survey records: ${e.toString()}',
-                isError: true);
-          }
-          print(
-              'RealTimeTasksScreen Worker local survey records stream error: $e');
-        });
-      } else if (_currentUser!.role == 'Manager') {
-        _tasksSubscription = _taskService.streamAllTasks().listen((tasks) {
-          if (mounted) {
-            _tasks = tasks;
-            _updateSurveyRecordsForManagerTasks();
-          }
-        }, onError: (e) {
-          if (mounted) {
-            SnackBarUtils.showSnackBar(
-                context, 'Error streaming all tasks: ${e.toString()}',
-                isError: true);
-          }
-          print('RealTimeTasksScreen Manager tasks stream error: $e');
-        });
-
-        _firestoreSurveyRecordsSubscription =
-            _surveyFirestoreService.streamAllSurveyRecords().listen((records) {
-          if (mounted) {
-            _updateSurveyRecordsForManagerTasks(firestoreRecords: records);
-          }
-        }, onError: (e) {
-          if (mounted) {
-            SnackBarUtils.showSnackBar(
-                context, 'Error streaming all survey records: ${e.toString()}',
-                isError: true);
-          }
-          print('RealTimeTasksScreen Manager survey records stream error: $e');
-        });
-      } else {
-        _tasks = [];
-        _surveyRecordsByTask = {};
-        if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, 'User role not recognized or assigned.',
-              isError: true);
-        }
-      }
+        print(
+            'RealTimeTasksScreen Worker local survey records stream error: $e');
+      });
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
@@ -190,6 +141,125 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  // NEW: Centralized method to set up tasks and Firestore survey record streams based on current user's role
+  void _setupDataStreamsBasedOnRole() {
+    _tasksSubscription?.cancel();
+    _firestoreSurveyRecordsSubscription?.cancel();
+
+    if (_currentUser == null || _currentUser!.status != 'approved') {
+      _tasks = [];
+      _surveyRecordsByTask = {};
+      if (mounted) {
+        setState(() {}); // Update UI to show no tasks
+      }
+      return;
+    }
+
+    if (_currentUser!.role == 'Worker') {
+      _tasksSubscription = _taskService
+          .streamTasksForUser(_currentUser!.id)
+          .listen((tasks) async {
+        if (mounted) {
+          _tasks = tasks;
+          _updateSurveyRecordsForWorkerTasks(); // Re-process survey records based on new tasks
+        }
+      }, onError: (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'Error streaming your tasks: ${e.toString()}',
+              isError: true);
+        }
+        print('RealTimeTasksScreen Worker tasks stream error: $e');
+      });
+
+      _firestoreSurveyRecordsSubscription = _surveyFirestoreService
+          .streamSurveyRecordsForUser(_currentUser!.id)
+          .listen((records) {
+        if (mounted) {
+          _updateSurveyRecordsForWorkerTasks(
+              firestoreRecords:
+                  records); // Trigger update with new Firestore records
+        }
+      }, onError: (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'Error streaming your survey records: ${e.toString()}',
+              isError: true);
+        }
+        print('RealTimeTasksScreen Worker survey records stream error: $e');
+      });
+    } else if (_currentUser!.role == 'Manager' ||
+        _currentUser!.role == 'Admin') {
+      // Admin also uses manager's view
+      _tasksSubscription = _taskService.streamAllTasks().listen((tasks) {
+        if (mounted) {
+          // Filter tasks based on assigned lines if manager
+          if (_currentUser!.role == 'Manager') {
+            _tasks = tasks.where((task) {
+              final TransmissionLine? taskLine =
+                  collection.IterableExtension<TransmissionLine>(
+                          _allTransmissionLines)
+                      .firstWhereOrNull(
+                (l) => l.name == task.lineName,
+              );
+              return taskLine != null &&
+                  _currentUser!.assignedLineIds.contains(taskLine.id);
+            }).toList();
+          } else {
+            // Admin sees all tasks
+            _tasks = tasks;
+          }
+          _updateSurveyRecordsForManagerTasks();
+        }
+      }, onError: (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'Error streaming all tasks: ${e.toString()}',
+              isError: true);
+        }
+        print('RealTimeTasksScreen Manager/Admin tasks stream error: $e');
+      });
+
+      _firestoreSurveyRecordsSubscription =
+          _surveyFirestoreService.streamAllSurveyRecords().listen((records) {
+        if (mounted) {
+          // Filter records based on assigned lines if manager
+          if (_currentUser!.role == 'Manager') {
+            final Set<String> assignedLineNames = _allTransmissionLines
+                .where(
+                    (line) => _currentUser!.assignedLineIds.contains(line.id))
+                .map((line) => line.name)
+                .toSet();
+            _updateSurveyRecordsForManagerTasks(
+                firestoreRecords: records
+                    .where(
+                        (record) => assignedLineNames.contains(record.lineName))
+                    .toList());
+          } else {
+            // Admin sees all records
+            _updateSurveyRecordsForManagerTasks(firestoreRecords: records);
+          }
+        }
+      }, onError: (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, 'Error streaming all survey records: ${e.toString()}',
+              isError: true);
+        }
+        print(
+            'RealTimeTasksScreen Manager/Admin survey records stream error: $e');
+      });
+    } else {
+      _tasks = [];
+      _surveyRecordsByTask = {};
+      if (mounted) {
+        SnackBarUtils.showSnackBar(
+            context, 'User role not recognized or assigned.',
+            isError: true);
       }
     }
   }
@@ -502,17 +572,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_currentUser == null) {
-      return Center(
-        child: Text(
-          'Please log in to view tasks.',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-      );
-    }
-
-    if (_currentUser!.role == null ||
-        (_currentUser!.role != 'Worker' && _currentUser!.role != 'Manager')) {
+    if (_currentUser == null || _currentUser!.status != 'approved') {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -520,6 +580,42 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.person_off, size: 80, color: colorScheme.error),
+              const SizedBox(height: 20),
+              Text(
+                'Your account is not approved.',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(color: colorScheme.onSurface),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Please wait for administrator approval or contact support.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_currentUser!.role == null ||
+        (_currentUser!.role != 'Worker' &&
+            _currentUser!.role != 'Manager' &&
+            _currentUser!.role != 'Admin')) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.assignment_ind_outlined,
+                  size: 80, color: colorScheme.error),
               const SizedBox(height: 20),
               Text(
                 'Your account role is not assigned or recognized.',
@@ -557,7 +653,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
             textAlign: TextAlign.center,
           ),
         ),
-        if (_currentUser!.role == 'Manager')
+        if (_currentUser!.role == 'Manager' ||
+            _currentUser!.role == 'Admin') // Admin can also assign tasks
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -630,12 +727,16 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                             Text(
                                 'Due: ${task.dueDate.toLocal().toString().split(' ')[0]}'),
                             Text('Status: ${task.derivedStatus}'),
-                            if (_currentUser!.role == 'Manager')
+                            if (_currentUser!.role == 'Manager' ||
+                                _currentUser!.role ==
+                                    'Admin') // Admin also sees assigned to
                               Text(
                                   'Assigned to: ${task.assignedToUserName ?? 'N/A'}'),
                           ],
                         ),
-                        trailing: _currentUser!.role == 'Manager'
+                        trailing: (_currentUser!.role == 'Manager' ||
+                                _currentUser!.role ==
+                                    'Admin') // Admin can also manage tasks
                             ? IconButton(
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () => _showManagerTaskOptions(task),

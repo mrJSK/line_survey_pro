@@ -3,8 +3,9 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:line_survey_pro/models/survey_record.dart';
-import 'package:line_survey_pro/models/task.dart';
+import 'package:line_survey_pro/models/task.dart'; // [cite: mrjsk/line_survey_pro/line_survey_pro-231c3e0bb69b85dc974dde4f067aa68d9ac159c7/lib/services/local_database_service.dart]
 import 'dart:async'; // For StreamController
+import 'package:collection/collection.dart'; // Ensure collection is imported for firstWhereOrNull
 
 class LocalDatabaseService {
   static Database? _database;
@@ -279,7 +280,8 @@ class LocalDatabaseService {
     if (userTasks.isEmpty) return {};
 
     final db = await database;
-    final List<String> taskIds = userTasks.map((task) => task.id).toList();
+    final List<String> taskIds =
+        userTasks.where((task) => task != null).map((task) => task.id).toList();
     final String inClause = List.filled(taskIds.length, '?').join(',');
 
     final List<Map<String, dynamic>> result = await db.rawQuery('''
@@ -362,13 +364,14 @@ class LocalDatabaseService {
   }
 }
 
-extension IterableExtension<T> on Iterable<T> {
-  T? firstWhereOrNull(bool Function(T element) test) {
-    for (final element in this) {
-      if (test(element)) {
-        return element;
-      }
-    }
-    return null;
-  }
-}
+// REMOVED: The conflicting IterableExtension
+// extension IterableExtension<T> on Iterable<T> {
+//   T? firstWhereOrNull(bool Function(T element) test) {
+//     for (final element in this) {
+//       if (test(element)) {
+//         return element;
+//       }
+//     }
+//     return null;
+//   }
+// }

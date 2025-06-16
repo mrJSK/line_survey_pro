@@ -34,7 +34,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
   List<UserProfile> _workers = [];
   List<TransmissionLine> _transmissionLines = [];
-  UserProfile? _currentManager;
+  UserProfile?
+      _currentManager; // Will also hold Admin profile if Admin is logged in
 
   bool _isLoading = true;
   bool _isAssigning = false;
@@ -48,7 +49,6 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
   void initState() {
     super.initState();
     _loadInitialData();
-
     if (widget.taskToEdit != null) {
       _selectedDueDate = widget.taskToEdit!.dueDate;
 
@@ -83,7 +83,18 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       final allUsers = await _authService.getAllUserProfiles();
       _workers = allUsers.where((user) => user.role == 'Worker').toList();
 
-      _transmissionLines = await _firestoreService.getTransmissionLinesOnce();
+      List<TransmissionLine> allAvailableLines =
+          await _firestoreService.getTransmissionLinesOnce();
+
+      // NEW: Filter lines based on manager's assigned lines, unless it's an Admin
+      if (_currentManager!.role == 'Manager') {
+        _transmissionLines = allAvailableLines
+            .where((line) => _currentManager!.assignedLineIds.contains(line.id))
+            .toList();
+      } else {
+        // Admin can see and assign all lines
+        _transmissionLines = allAvailableLines;
+      }
 
       if (widget.taskToEdit != null) {
         _selectedWorker = _workers.firstWhereOrNull(
@@ -214,7 +225,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
       if (fromText.toLowerCase() == 'all' && toText.isEmpty) {
         targetRangeString = 'All';
-        numberOfTowers = _selectedLine?.totalTowers ?? 0;
+        // Use computedTotalTowers from selectedLine
+        numberOfTowers = _selectedLine?.computedTotalTowers ?? 0;
       } else {
         final int? fromTower = int.tryParse(fromText);
         final int? toTower = int.tryParse(toText.isEmpty ? fromText : toText);
@@ -237,6 +249,51 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             isError: true);
         return;
       }
+
+      // --- NEW VALIDATION: Check that sum of assigned towers doesn't exceed total towers in line ---
+      // This applies to the *selected line*, not just this specific task.
+      // We need to sum up all currently assigned towers for this line, then add the current task's towers.
+      // This is a complex check because 'All' implies the line's total towers.
+      int currentlyAssignedTowersForThisLine = 0;
+      final List<Task> allTasksForSelectedLine =
+          (await _taskService.getAllTasks())
+              .where((task) =>
+                  task.lineName == _selectedLine!.name &&
+                  task.id !=
+                      widget.taskToEdit?.id) // Exclude current task if editing
+              .toList();
+
+      for (var task in allTasksForSelectedLine) {
+        if (task.targetTowerRange.toLowerCase() == 'all') {
+          currentlyAssignedTowersForThisLine +=
+              _selectedLine!.computedTotalTowers;
+        } else {
+          final List<int> towersInTask =
+              _parseRangeToTowers(task.targetTowerRange);
+          if (towersInTask.isNotEmpty) {
+            currentlyAssignedTowersForThisLine += towersInTask.length;
+          }
+        }
+      }
+
+      final int totalTowersToBeAssignedIncludingThis =
+          currentlyAssignedTowersForThisLine + numberOfTowers;
+      final int lineTotalTowers = _selectedLine!.computedTotalTowers;
+
+      if (totalTowersToBeAssignedIncludingThis > lineTotalTowers) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+            context,
+            'The total number of towers assigned to this line (${totalTowersToBeAssignedIncludingThis}) exceeds the line\'s total towers (${lineTotalTowers}). Please adjust the range.',
+            isError: true,
+          );
+        }
+        setState(() {
+          _isAssigning = false;
+        });
+        return;
+      }
+      // --- END NEW VALIDATION ---
 
       // --- NEW VALIDATION: Check for conflicting incomplete tasks ---
       if (widget.taskToEdit == null) {
@@ -337,6 +394,9 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     }
 
     if (_currentManager == null ||
+        // _currentManager!.status != 'approved' || // Ensure manager is approved (removed, as 'status' is not defined)
+        (_currentManager!.role != 'Manager' &&
+            _currentManager!.role != 'Admin') || // Must be manager or admin
         _workers.isEmpty ||
         _transmissionLines.isEmpty) {
       return Scaffold(
@@ -362,7 +422,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Possible reasons: \n- Your manager profile is incomplete. \n- No worker accounts found. \n- No transmission lines loaded.',
+                  'Possible reasons: \n- Your account is not approved or you lack Manager/Admin role. \n- No worker accounts found. \n- No transmission lines loaded (or assigned to you if you are a Manager). (Add/Manage lines from "Manage Lines" in drawer)',
                   textAlign: TextAlign.center,
                   style: Theme.of(context)
                       .textTheme
@@ -453,7 +513,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                   return DropdownMenuItem(
                     value: line,
                     child: Text(
-                      line.name,
+                      line.name, // Display consolidated name
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
@@ -462,6 +522,16 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                 onChanged: (TransmissionLine? newValue) {
                   setState(() {
                     _selectedLine = newValue;
+                    // If a line is selected, pre-fill tower range if available
+                    if (newValue != null) {
+                      _fromTowerController.text =
+                          newValue.towerRangeStart?.toString() ?? '';
+                      _toTowerController.text =
+                          newValue.towerRangeEnd?.toString() ?? '';
+                    } else {
+                      _fromTowerController.clear();
+                      _toTowerController.clear();
+                    }
                   });
                 },
                 validator: (value) =>
@@ -484,12 +554,26 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter a "From" tower number or "All"';
                   }
-                  if (value.trim().toLowerCase() == 'all')
-                    return null; // "All" is valid
+                  if (value.trim().toLowerCase() == 'all') {
+                    if (_selectedLine == null ||
+                        _selectedLine!.computedTotalTowers <= 0) {
+                      return '"All" requires a selected line with defined towers.';
+                    }
+                    return null; // "All" is valid if line selected
+                  }
 
                   final int? num = int.tryParse(value.trim());
                   if (num == null || num <= 0) {
                     return 'Must be a positive number or "All"';
+                  }
+                  // Validate against selected line's range
+                  if (_selectedLine != null &&
+                      (_selectedLine!.towerRangeStart != null &&
+                          _selectedLine!.towerRangeEnd != null)) {
+                    if (num < _selectedLine!.towerRangeStart! ||
+                        num > _selectedLine!.towerRangeEnd!) {
+                      return 'Must be within line\'s range (${_selectedLine!.towerRangeStart}-${_selectedLine!.towerRangeEnd})';
+                    }
                   }
                   return null;
                 },
@@ -510,7 +594,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   final String fromText = _fromTowerController.text.trim();
-                  if (fromText.toLowerCase() == 'all') return null;
+                  if (fromText.toLowerCase() == 'all')
+                    return null; // If From is 'All', To is irrelevant
 
                   final int? fromNum = int.tryParse(fromText);
                   if (fromNum == null)
@@ -527,6 +612,15 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
                   if (fromNum > toNum) {
                     return '"From" tower cannot be greater than "To" tower';
+                  }
+                  // Validate against selected line's range
+                  if (_selectedLine != null &&
+                      (_selectedLine!.towerRangeStart != null &&
+                          _selectedLine!.towerRangeEnd != null)) {
+                    if (toNum < _selectedLine!.towerRangeStart! ||
+                        toNum > _selectedLine!.towerRangeEnd!) {
+                      return 'Must be within line\'s range (${_selectedLine!.towerRangeStart}-${_selectedLine!.towerRangeEnd})';
+                    }
                   }
                   return null;
                 },

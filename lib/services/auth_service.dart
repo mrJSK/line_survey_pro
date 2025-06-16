@@ -21,7 +21,7 @@ class AuthService {
     return null;
   }
 
-  // Ensures a user profile exists in Firestore. If it doesn't, creates a basic one without a role.
+  // Ensures a user profile exists in Firestore. If it doesn't, creates a basic one with 'pending' status and no role.
   Future<void> ensureUserProfileExists(
       String uid, String email, String? displayName) async {
     final docRef = _firestore.collection('userProfiles').doc(uid);
@@ -32,21 +32,15 @@ class AuthService {
         'id': uid,
         'email': email,
         'displayName': displayName,
-        // Role is deliberately NOT set here. It will be assigned by an admin.
+        'role': null, // Role is deliberately NOT set here initially
+        'status': 'pending', // NEW: Account is pending approval by default
         'createdAt': FieldValue.serverTimestamp(),
+        'assignedLineIds': [], // NEW: Initialize assigned lines for managers
       });
-      print('Created initial user profile for $email without a role.');
+      print('Created initial user profile for $email with pending status.');
     } else {
       print('User profile for $email already exists.');
     }
-  }
-
-  // Placeholder method for user login (you'll implement actual login logic here)
-  Future<UserCredential> signInWithEmailAndPassword(
-      String email, String password) async {
-    // This is where you'd add try-catch for Firebase errors, etc.
-    return await _auth.signInWithEmailAndPassword(
-        email: email, password: password);
   }
 
   // Method for traditional email/password registration.
@@ -56,8 +50,9 @@ class AuthService {
       final userCredential = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
       if (userCredential.user != null) {
-        await createUserProfileInFirestore(userCredential.user!.uid, email,
-            'Worker', userCredential.user!.displayName);
+        // Upon registration, ensure profile exists with 'pending' status
+        await ensureUserProfileExists(
+            userCredential.user!.uid, email, userCredential.user!.displayName);
       }
       return userCredential;
     } on FirebaseAuthException catch (e) {
@@ -65,27 +60,6 @@ class AuthService {
       rethrow;
     } catch (e) {
       print('Error during registration: $e');
-      rethrow;
-    }
-  }
-
-  // Method to create/update a user's profile in Firestore with a specified role.
-  Future<void> createUserProfileInFirestore(
-      String uid, String email, String role, String? displayName) async {
-    try {
-      await _firestore.collection('userProfiles').doc(uid).set(
-          {
-            'id': uid,
-            'email': email,
-            'role': role, // Role is explicitly set here
-            'displayName': displayName,
-            // createdAt should typically only be set on initial create, not updated with merge
-            // 'createdAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(
-              merge: true)); // Use merge: true to update existing document
-    } catch (e) {
-      print('Error creating/updating user profile in Firestore: $e');
       rethrow;
     }
   }
@@ -110,21 +84,85 @@ class AuthService {
   }
 
   // NEW METHOD: Streams all user profiles from Firestore in real-time.
-  // Used by DashboardTab for manager's per-worker progress view.
+  // Used by Admin's User Management Screen.
   Stream<List<UserProfile>> streamAllUserProfiles() {
     return _firestore
         .collection('userProfiles')
-        .orderBy('email',
-            descending:
-                false) // Order by email or display name for consistent list
+        .orderBy('email', descending: false)
         .snapshots() // Provides real-time updates
         .map((snapshot) => snapshot.docs
             .map((doc) => UserProfile.fromMap(doc.data()))
             .toList())
         .handleError((e) {
       print('Error streaming all user profiles: $e');
-      // Error handling for the stream. The stream itself might not terminate on error.
     });
+  }
+
+  // NEW METHOD: Admin can update a user's role.
+  Future<void> updateUserRole(String userId, String? newRole) async {
+    try {
+      await _firestore.collection('userProfiles').doc(userId).update({
+        'role': newRole, // Can be 'Admin', 'Manager', 'Worker', or null
+      });
+      print('User $userId role updated to ${newRole ?? 'None'}.');
+    } catch (e) {
+      print('Error updating user $userId role: $e');
+      rethrow;
+    }
+  }
+
+  // NEW METHOD: Admin can update a user's account status.
+  Future<void> updateUserStatus(String userId, String newStatus) async {
+    try {
+      await _firestore.collection('userProfiles').doc(userId).update({
+        'status': newStatus, // Can be 'pending', 'approved', 'rejected'
+      });
+      print('User $userId status updated to $newStatus.');
+    } catch (e) {
+      print('Error updating user $userId status: $e');
+      rethrow;
+    }
+  }
+
+  // NEW METHOD: Admin can assign lines to a manager.
+  Future<void> assignLinesToManager(
+      String managerId, List<String> lineIds) async {
+    try {
+      await _firestore.collection('userProfiles').doc(managerId).update({
+        'assignedLineIds': FieldValue.arrayUnion(lineIds),
+      });
+      print('Assigned lines to manager $managerId.');
+    } catch (e) {
+      print('Error assigning lines to manager $managerId: $e');
+      rethrow;
+    }
+  }
+
+  // NEW METHOD: Admin can unassign lines from a manager.
+  Future<void> unassignLinesFromManager(
+      String managerId, List<String> lineIds) async {
+    try {
+      await _firestore.collection('userProfiles').doc(managerId).update({
+        'assignedLineIds': FieldValue.arrayRemove(lineIds),
+      });
+      print('Unassigned lines from manager $managerId.');
+    } catch (e) {
+      print('Error unassigning lines from manager $managerId: $e');
+      rethrow;
+    }
+  }
+
+  // NEW METHOD: Admin can delete a user's profile document from Firestore.
+  // Note: Deleting the Firebase Authentication user account requires Admin SDK (server-side).
+  // This method only deletes the Firestore profile document.
+  Future<void> deleteUserProfile(String userId) async {
+    try {
+      await _firestore.collection('userProfiles').doc(userId).delete();
+      print('User profile $userId deleted from Firestore.');
+    } catch (e) {
+      print('Error deleting user profile $userId: $e');
+      rethrow;
+    }
   }
 
   // Method for user logout

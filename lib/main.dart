@@ -1,14 +1,15 @@
 // lib/main.dart
 // Entry point of the Flutter application.
 // Now includes Firebase initialization and routes to SignInScreen initially.
-// Updated for a more modern UI theme.
+// Updated for a more modern UI theme, and wrapped with ConnectivityWrapper.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // Required for Firebase initialization
 import 'package:firebase_auth/firebase_auth.dart'; // Required to check auth state
 import 'package:line_survey_pro/screens/home_screen.dart';
-import 'package:line_survey_pro/screens/sign_in_screen.dart'; // Your new sign-in screen
+import 'package:line_survey_pro/screens/sign_in_screen.dart'; // Your sign-in screen
 import 'package:line_survey_pro/services/local_database_service.dart'; // Service for local database initialization
+// import 'package:line_survey_pro/widgets/connectivity_wrapper.dart'; // NEW: Import ConnectivityWrapper
 
 // IMPORTANT: You need to generate this file using FlutterFire CLI.
 // Run: `flutterfire configure` in your project root after adding Firebase to the project.
@@ -31,6 +32,7 @@ class MyApp extends StatelessWidget {
     // Define the primary blue color based on your request
     const Color primaryBlue = Color(0xFF0D6EFD);
 
+    // If ConnectivityWrapper is not defined, use MaterialApp directly
     return MaterialApp(
       title: 'Line Survey Pro',
       debugShowCheckedModeBanner: false, // Hide the debug banner
@@ -197,6 +199,8 @@ class MyApp extends StatelessWidget {
             );
           }
 
+          // The ConnectivityWrapper handles initial redirection to NoInternetScreen
+          // so here we directly check auth state.
           return StreamBuilder<User?>(
             stream: FirebaseAuth.instance.authStateChanges(),
             builder: (context, authSnapshot) {
@@ -216,8 +220,13 @@ class MyApp extends StatelessWidget {
         },
       ),
       routes: {
-        '/home': (context) => const HomeScreen(),
-        '/signIn': (context) => const SignInScreen(),
+        '/home': (BuildContext context) => const HomeScreen(),
+        '/signIn': (BuildContext context) => const SignInScreen(),
+        // If you have a NoInternetScreen, ensure it's imported and defined.
+        // Otherwise, comment out or remove this route.
+        // '/noInternet': (context) => NoInternetScreen(onRetry: () {
+        //       Navigator.of(context).pop();
+        //     }),
       },
     );
   }

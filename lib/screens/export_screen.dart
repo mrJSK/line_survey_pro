@@ -15,6 +15,7 @@ import 'package:line_survey_pro/screens/view_photo_screen.dart'; // Screen to vi
 import 'package:line_survey_pro/models/transmission_line.dart'; // Needed for dropdown in modal
 import 'dart:async'; // For StreamSubscription
 import 'package:path/path.dart' as p; // For path.basename
+import 'package:line_survey_pro/services/firestore_service.dart'; // NEW: Import FirestoreService to get real TransmissionLine objects
 
 class ExportScreen extends StatefulWidget {
   const ExportScreen({super.key});
@@ -30,7 +31,7 @@ class _ExportScreenState extends State<ExportScreen>
   Map<String, List<SurveyRecord>> _groupedRecords =
       {}; // Records grouped by line name
   List<TransmissionLine> _transmissionLines =
-      []; // List of transmission lines for dropdown (based on record lines)
+      []; // List of transmission lines for dropdown
 
   // State for multi-action FAB
   bool _isFabOpen = false;
@@ -49,8 +50,12 @@ class _ExportScreenState extends State<ExportScreen>
       SurveyFirestoreService();
   final LocalDatabaseService _localDatabaseService =
       LocalDatabaseService(); // For local file check and deletion
+  final FirestoreService _firestoreService =
+      FirestoreService(); // NEW: Instance for TransmissionLine fetching
   StreamSubscription?
       _firestoreRecordsSubscription; // Stream for Firestore records
+  StreamSubscription?
+      _transmissionLinesSubscription; // NEW: Stream for transmission lines
 
   @override
   void initState() {
@@ -72,6 +77,7 @@ class _ExportScreenState extends State<ExportScreen>
     _animationController.dispose();
     _searchController.dispose();
     _firestoreRecordsSubscription?.cancel();
+    _transmissionLinesSubscription?.cancel(); // NEW: Cancel subscription
     super.dispose();
   }
 
@@ -94,6 +100,26 @@ class _ExportScreenState extends State<ExportScreen>
     });
 
     _firestoreRecordsSubscription?.cancel();
+    _transmissionLinesSubscription?.cancel(); // Cancel existing subscription
+
+    // NEW: Listen to transmission lines
+    _transmissionLinesSubscription =
+        _firestoreService.getTransmissionLinesStream().listen((lines) {
+      if (mounted) {
+        setState(() {
+          _transmissionLines = lines;
+          // Set default selected line if it's the first load
+          if (_selectedLineForShare == null && _transmissionLines.isNotEmpty) {
+            _selectedLineForShare = _transmissionLines.first;
+          }
+        });
+      }
+    }, onError: (error) {
+      if (mounted)
+        SnackBarUtils.showSnackBar(
+            context, 'Error streaming transmission lines: ${error.toString()}',
+            isError: true);
+    });
 
     _firestoreRecordsSubscription =
         _surveyFirestoreService.streamAllSurveyRecords().listen(
@@ -133,20 +159,10 @@ class _ExportScreenState extends State<ExportScreen>
         // Sort by timestamp for consistent display (most recent first)
         finalCombinedList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-        final uniqueLineNames =
-            finalCombinedList.map((r) => r.lineName).toSet();
-        _transmissionLines = uniqueLineNames
-            .map((name) =>
-                TransmissionLine(id: name, name: name, totalTowers: 0))
-            .toList();
-        _transmissionLines.sort((a, b) => a.name.compareTo(b.name));
-
         setState(() {
           _allRecords = finalCombinedList; // Display the combined list
           _groupedRecords = _groupRecordsByLineName(finalCombinedList);
           _isLoading = false;
-          _selectedLineForShare =
-              _transmissionLines.isNotEmpty ? _transmissionLines.first : null;
         });
 
         // Update the SnackBar message based on actual data
@@ -264,8 +280,10 @@ class _ExportScreenState extends State<ExportScreen>
     _selectedImageRecordIds.clear();
     _searchController.clear();
     setState(() {
-      _selectedLineForShare =
-          _transmissionLines.isNotEmpty ? _transmissionLines.first : null;
+      // Keep existing _selectedLineForShare if it's still in _transmissionLines
+      _selectedLineForShare = _transmissionLines.contains(_selectedLineForShare)
+          ? _selectedLineForShare
+          : (_transmissionLines.isNotEmpty ? _transmissionLines.first : null);
       _searchQuery = '';
     });
 
@@ -335,7 +353,7 @@ class _ExportScreenState extends State<ExportScreen>
                         return DropdownMenuItem(
                           value: line,
                           child: Text(
-                            line.name,
+                            line.name, // Display consolidated name
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                           ),
@@ -435,10 +453,20 @@ class _ExportScreenState extends State<ExportScreen>
 
                               String commonLineName = '';
                               if (_selectedImageRecordIds.isNotEmpty) {
-                                commonLineName = _allRecords
-                                    .firstWhere((r) =>
-                                        r.id == _selectedImageRecordIds.first)
-                                    .lineName;
+                                // Find the actual TransmissionLine object
+                                final selectedRecord =
+                                    IterableExtension<SurveyRecord>(_allRecords)
+                                        .firstWhereOrNull((r) =>
+                                            r.id ==
+                                            _selectedImageRecordIds.first);
+                                if (selectedRecord != null) {
+                                  final line = IterableExtension<
+                                          TransmissionLine>(_transmissionLines)
+                                      .firstWhereOrNull((l) =>
+                                          l.name == selectedRecord.lineName);
+                                  commonLineName =
+                                      line?.name ?? selectedRecord.lineName;
+                                }
                               }
 
                               // Add a main heading for the shared data
