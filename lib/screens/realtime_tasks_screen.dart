@@ -499,12 +499,18 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     }
   }
 
-  void _navigateToSurveyForTask(Task task, TransmissionLine transmissionLine) {
+  void _navigateToSurveyForTask(Task task) {
     if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) =>
-              LineDetailScreen(task: task, transmissionLine: transmissionLine),
+          builder: (context) => LineDetailScreen(
+            task: task,
+            transmissionLine: _allTransmissionLines.firstWhere(
+              (line) => line.name == task.lineName,
+              orElse: () => throw Exception(
+                  'TransmissionLine not found for task ${task.lineName}'),
+            ),
+          ),
         ),
       );
     }
@@ -562,15 +568,12 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    if (_isLoading || widget.currentUserProfile == null) {
-      // Use widget.currentUserProfile
+    if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final UserProfile currentUser =
-        widget.currentUserProfile!; // Use widget.currentUserProfile
-
-    if (currentUser.status != 'approved') {
+    if (widget.currentUserProfile == null ||
+        widget.currentUserProfile!.status != 'approved') {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -602,10 +605,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       );
     }
 
-    if (currentUser.role == null ||
-        (currentUser.role != 'Worker' &&
-            currentUser.role != 'Manager' &&
-            currentUser.role != 'Admin')) {
+    if (widget.currentUserProfile!.role == null ||
+        (widget.currentUserProfile!.role != 'Worker' &&
+            widget.currentUserProfile!.role != 'Manager' &&
+            widget.currentUserProfile!.role != 'Admin')) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -643,7 +646,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'Welcome, ${currentUser.displayName ?? currentUser.email} (${currentUser.role})!', // Removed span tags
+            'Welcome, ${widget.currentUserProfile!.displayName ?? widget.currentUserProfile!.email} (${widget.currentUserProfile!.role})!', // Removed span tags
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -651,8 +654,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
             textAlign: TextAlign.center,
           ),
         ),
-        if (currentUser.role == 'Manager' ||
-            currentUser.role == 'Admin') // Admin can also assign tasks
+        if (widget.currentUserProfile!.role == 'Manager' ||
+            widget.currentUserProfile!.role ==
+                'Admin') // Admin can also assign tasks
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -667,7 +671,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
             ),
           ),
-        if (currentUser.role == 'Worker')
+        if (widget.currentUserProfile!.role == 'Worker')
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -684,7 +688,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           ),
         const SizedBox(height: 20),
         Text(
-          currentUser.role == 'Worker' ? 'Your Assigned Tasks:' : 'All Tasks:',
+          widget.currentUserProfile!.role == 'Worker'
+              ? 'Your Assigned Tasks:'
+              : 'All Tasks:',
           style: Theme.of(context)
               .textTheme
               .headlineSmall
@@ -695,7 +701,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           child: _tasks.isEmpty
               ? Center(
                   child: Text(
-                    currentUser.role == 'Worker'
+                    widget.currentUserProfile!.role == 'Worker'
                         ? 'No tasks assigned to you yet.'
                         : 'No tasks available.',
                     style: Theme.of(context)
@@ -734,31 +740,34 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                       elevation: 3,
                       child: ExpansionTile(
                         title: Text(
-                            'Task: ${task.lineName} - Towers: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} to patrol)'),
+                            'Task: ${task.lineName} - Towers: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} to patrol)'), // Removed span tags
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                                 'Due: ${task.dueDate.toLocal().toString().split(' ')[0]}'),
                             Text('Status: ${task.derivedStatus}'),
-                            if (currentUser.role == 'Manager' ||
-                                currentUser.role == 'Admin')
+                            if (widget.currentUserProfile!.role == 'Manager' ||
+                                widget.currentUserProfile!.role ==
+                                    'Admin') // Admin also sees assigned to
                               Text(
                                   'Assigned to: ${task.assignedToUserName ?? 'N/A'}'),
                           ],
                         ),
-                        trailing: (currentUser.role == 'Manager' ||
-                                currentUser.role == 'Admin')
+                        trailing: (widget.currentUserProfile!.role ==
+                                    'Manager' ||
+                                widget.currentUserProfile!.role ==
+                                    'Admin') // Admin can also manage tasks
                             ? IconButton(
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () => _showManagerTaskOptions(task),
                                 tooltip: 'Task Options',
                               )
-                            : (currentUser.role == 'Worker'
+                            : (widget.currentUserProfile!.role == 'Worker'
                                 ? Icon(statusIconData, color: iconColor)
                                 : null),
                         children: [
-                          if (currentUser.role == 'Worker')
+                          if (widget.currentUserProfile!.role == 'Worker')
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16.0, vertical: 8.0),
@@ -771,7 +780,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   Text(
-                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol} (Cloud)',
+                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
@@ -808,20 +817,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                         ),
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
-                                    onPressed: () {
-                                      final TransmissionLine? taskLine =
-                                          _allTransmissionLines
-                                              .firstWhereOrNull((line) =>
-                                                  line.name == task.lineName);
-                                      if (taskLine != null) {
-                                        _navigateToSurveyForTask(
-                                            task, taskLine);
-                                      } else {
-                                        SnackBarUtils.showSnackBar(context,
-                                            'Line data not found for this task. Cannot continue survey.',
-                                            isError: true);
-                                      }
-                                    },
+                                    onPressed: () =>
+                                        _navigateToSurveyForTask(task),
                                     icon: const Icon(Icons.camera_alt),
                                     label: const Text(
                                         'Continue Survey for this Task'),
@@ -847,18 +844,4 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       ],
     );
   }
-}
-
-class WorkerProgressSummary {
-  final UserProfile worker;
-  final int linesAssigned;
-  final int linesCompleted;
-  final int linesWorkingPending;
-
-  WorkerProgressSummary({
-    required this.worker,
-    required this.linesAssigned,
-    required this.linesCompleted,
-    required this.linesWorkingPending,
-  });
 }

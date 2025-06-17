@@ -4,21 +4,22 @@
 // Updated for a more modern UI theme, and wrapped with ConnectivityWrapper.
 
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // Required for Firebase initialization
-import 'package:firebase_auth/firebase_auth.dart'; // Required to check auth state
+// Removed: import 'package:firebase_core/firebase_core.dart'; // Initialized in SplashScreen
+// Removed: import 'package:firebase_auth/firebase_auth.dart'; // Handled in SplashScreen
 import 'package:line_survey_pro/screens/home_screen.dart';
 import 'package:line_survey_pro/screens/sign_in_screen.dart'; // Your sign-in screen
 import 'package:line_survey_pro/services/local_database_service.dart'; // Service for local database initialization
-// import 'package:line_survey_pro/widgets/connectivity_wrapper.dart'; // NEW: Import ConnectivityWrapper
+// import 'package:line_survey_pro/widgets/connectivity_wrapper.dart'; // Keep if you decide to use it
+import 'package:line_survey_pro/screens/splash_screen.dart'; // NEW: Import SplashScreen
 
 // IMPORTANT: You need to generate this file using FlutterFire CLI.
 // Run: `flutterfire configure` in your project root after adding Firebase to the project.
-import 'firebase_options.dart';
+// Removed: import 'firebase_options.dart'; // No longer needed here as SplashScreen handles it
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize the local SQLite database. This can run independently.
+  // Initialize the local SQLite database early. Firebase initialization is now in SplashScreen.
   await LocalDatabaseService().initializeDatabase();
 
   runApp(const MyApp());
@@ -32,7 +33,6 @@ class MyApp extends StatelessWidget {
     // Define the primary blue color based on your request
     const Color primaryBlue = Color(0xFF0D6EFD);
 
-    // If ConnectivityWrapper is not defined, use MaterialApp directly
     return MaterialApp(
       title: 'Line Survey Pro',
       debugShowCheckedModeBanner: false, // Hide the debug banner
@@ -178,47 +178,7 @@ class MyApp extends StatelessWidget {
           unselectedLabelStyle: const TextStyle(fontFamily: 'Roboto'),
         ),
       ),
-      home: FutureBuilder(
-        future: Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Scaffold(
-              body: Center(
-                child: Text('Error initializing: ${snapshot.error}'),
-              ),
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-
-          // The ConnectivityWrapper handles initial redirection to NoInternetScreen
-          // so here we directly check auth state.
-          return StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, authSnapshot) {
-              if (authSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              } else if (authSnapshot.hasData) {
-                return const HomeScreen();
-              } else {
-                return const SignInScreen();
-              }
-            },
-          );
-        },
-      ),
+      home: const SplashScreen(), // NEW: Set SplashScreen as the home screen
       routes: {
         '/home': (BuildContext context) => const HomeScreen(),
         '/signIn': (BuildContext context) => const SignInScreen(),

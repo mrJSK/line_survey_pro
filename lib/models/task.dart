@@ -100,7 +100,7 @@ class Task {
   String get derivedStatus {
     if (uploadedCompletedCount >= numberOfTowersToPatrol &&
         numberOfTowersToPatrol > 0) {
-      return 'Patrolled'; // Changed from 'Completed'
+      return 'Patrolled';
     } else if (uploadedCompletedCount > 0) {
       return 'In Progress (Uploaded)';
     } else if (localCompletedCount > 0) {
@@ -108,6 +108,11 @@ class Task {
     } else {
       return 'Pending';
     }
+  }
+
+  // NEW: Getter to check if the task is overdue
+  bool get isOverdue {
+    return dueDate.isBefore(DateTime.now()) && derivedStatus != 'Patrolled';
   }
 
   // NEW: copyWith method for immutability and setting calculated fields
