@@ -411,8 +411,9 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
 
     // Apply filters based on selected options
     _selectedFilters.forEach((fieldName, selectedOptions) {
-      if (selectedOptions.isEmpty)
+      if (selectedOptions.isEmpty) {
         return; // Skip if no options selected for this filter
+      }
 
       if (fieldName == 'healthyStatus') {
         if (selectedOptions.contains('NOT OKAY') &&
@@ -430,9 +431,9 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
         tempRecords = tempRecords.where((record) {
           String? fieldValue;
           // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
-          if (fieldName == 'building')
+          if (fieldName == 'building') {
             fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'tree')
+          } else if (fieldName == 'tree')
             fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
           else if (fieldName == 'newConstruction')
             fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
@@ -449,8 +450,9 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                 .toMap()[fieldName]
                 ?.toString(); // Get string value for other fields
 
-          if (fieldValue == null)
+          if (fieldValue == null) {
             return false; // If record has no value for this field, it doesn't match a selection
+          }
 
           // For filter categories where specific values are selected (e.g., 'Damaged' for Condition of OPGW)
           return selectedOptions.contains(fieldValue);
@@ -786,12 +788,11 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                             'General Notes',
                             record
                                 .generalNotes), // NEW: General Notes for display
-                        if (record.photoPath != null &&
-                            record.photoPath!.isNotEmpty &&
-                            File(record.photoPath!).existsSync())
+                        if (record.photoPath.isNotEmpty &&
+                            File(record.photoPath).existsSync())
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Image.file(File(record.photoPath!),
+                            child: Image.file(File(record.photoPath),
                                 height: 150, fit: BoxFit.cover),
                           ),
                       ],

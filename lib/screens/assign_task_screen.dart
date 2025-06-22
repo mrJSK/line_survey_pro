@@ -284,7 +284,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         if (mounted) {
           SnackBarUtils.showSnackBar(
             context,
-            'The total number of towers assigned to this line (${totalTowersToBeAssignedIncludingThis}) exceeds the line\'s total towers (${lineTotalTowers}). Please adjust the range.',
+            'The total number of towers assigned to this line ($totalTowersToBeAssignedIncludingThis) exceeds the line\'s total towers ($lineTotalTowers). Please adjust the range.',
             isError: true,
           );
         }
@@ -352,12 +352,14 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
         if (widget.taskToEdit == null) {
           await _taskService.createTask(task);
-          if (mounted)
+          if (mounted) {
             SnackBarUtils.showSnackBar(context, 'Task assigned successfully!');
+          }
         } else {
           await _taskService.updateTask(task);
-          if (mounted)
+          if (mounted) {
             SnackBarUtils.showSnackBar(context, 'Task updated successfully!');
+          }
         }
 
         if (mounted) {
@@ -594,12 +596,14 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   final String fromText = _fromTowerController.text.trim();
-                  if (fromText.toLowerCase() == 'all')
+                  if (fromText.toLowerCase() == 'all') {
                     return null; // If From is 'All', To is irrelevant
+                  }
 
                   final int? fromNum = int.tryParse(fromText);
-                  if (fromNum == null)
+                  if (fromNum == null) {
                     return null; // If From is invalid, this field is not responsible
+                  }
 
                   if (value == null || value.trim().isEmpty) {
                     return null; // If "To" is empty, it implies a single tower (From)

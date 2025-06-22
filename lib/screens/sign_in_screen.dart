@@ -9,6 +9,7 @@ import 'package:line_survey_pro/screens/home_screen.dart'; // Your home screen
 import 'package:line_survey_pro/services/auth_service.dart'; // Import AuthService
 import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart'; // Import WaitingForApprovalScreen
 import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Import SnackBarUtils
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -37,7 +38,8 @@ class _SignInScreenState extends State<SignInScreen> {
       if (googleUser == null) {
         // The user canceled the sign-in flow
         if (mounted) {
-          SnackBarUtils.showSnackBar(context, 'Google Sign-In cancelled.');
+          SnackBarUtils.showSnackBar(
+              context, AppLocalizations.of(context)!.googleSignInCancelled);
         }
         return;
       }
@@ -70,8 +72,8 @@ class _SignInScreenState extends State<SignInScreen> {
 
         if (mounted) {
           if (userProfile == null) {
-            SnackBarUtils.showSnackBar(context,
-                'User profile not found after sign-in. Please try again.',
+            SnackBarUtils.showSnackBar(
+                context, AppLocalizations.of(context)!.userProfileNotFound,
                 isError: true);
             await _authService.signOut();
             return;
@@ -99,35 +101,35 @@ class _SignInScreenState extends State<SignInScreen> {
                       WaitingForApprovalScreen(userProfile: userProfile)),
             );
           } else {
-            SnackBarUtils.showSnackBar(context,
-                'Account status unknown. Please contact administrator.',
+            SnackBarUtils.showSnackBar(
+                context, AppLocalizations.of(context)!.accountStatusUnknown,
                 isError: true);
             await _authService.signOut();
           }
         }
       } else {
         if (mounted) {
-          SnackBarUtils.showSnackBar(context, 'User not found after sign-in.',
-              isError: true);
+          SnackBarUtils.showSnackBar(
+              context, AppLocalizations.of(context)!.userNotFoundAfterSignIn,
+              isError: true); // Add this string to ARB if not already there
         }
       }
     } on PlatformException catch (e) {
-      // NEW: Catch PlatformException specifically
       if (e.code == 'network_error' ||
           e.message!.contains('network_error') ||
           e.message!.contains('ApiException: 7')) {
-        // Check for common network error codes/messages
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'No internet connection. Please connect and try again.',
+              context, AppLocalizations.of(context)!.noInternetConnection,
               isError: true);
         }
         print('PlatformException (Network): ${e.code} - ${e.message}');
       } else {
-        // Handle other PlatformExceptions
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Sign-in failed due to platform error: ${e.message}',
+              context,
+              AppLocalizations.of(context)!
+                  .signInFailed(e.message ?? 'unknown error'),
               isError: true);
         }
         print('PlatformException: ${e.code} - ${e.message}');
@@ -136,24 +138,24 @@ class _SignInScreenState extends State<SignInScreen> {
       String message;
       switch (e.code) {
         case 'account-exists-with-different-credential':
-          message = 'An account already exists with different credentials.';
+          message = AppLocalizations.of(context)!
+              .accountExistsWithDifferentCredential;
           break;
         case 'invalid-credential':
-          message = 'The credential provided is invalid.';
+          message = AppLocalizations.of(context)!.invalidCredential;
           break;
         case 'user-disabled':
-          message =
-              'The user associated with the given credential has been disabled.';
+          message = AppLocalizations.of(context)!.userDisabled;
           break;
         case 'operation-not-allowed':
-          message = 'Google Sign-In is not enabled for this project.';
+          message = AppLocalizations.of(context)!.operationNotAllowed;
           break;
         case 'network-request-failed':
-          message =
-              'A network error occurred. Please check your internet connection.';
+          message = AppLocalizations.of(context)!.networkRequestFailed;
           break;
         default:
-          message = 'Sign-in failed: ${e.message}';
+          message = AppLocalizations.of(context)!
+              .signInFailed(e.message ?? 'unknown error');
           break;
       }
       if (mounted) {
@@ -162,7 +164,10 @@ class _SignInScreenState extends State<SignInScreen> {
       print('Auth Error: ${e.code} - ${e.message}');
     } catch (e) {
       if (mounted) {
-        SnackBarUtils.showSnackBar(context, 'An unexpected error occurred: $e',
+        SnackBarUtils.showSnackBar(
+            context,
+            AppLocalizations.of(context)!
+                .anUnexpectedErrorOccurred(e.toString()),
             isError: true);
       }
       print('General Sign-In Error: $e');
@@ -176,10 +181,11 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign In'),
+        title: Text(localizations.signIn),
       ),
       body: Center(
         child: Padding(
@@ -188,7 +194,7 @@ class _SignInScreenState extends State<SignInScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Welcome to Line Survey Pro!',
+                localizations.welcomeMessage,
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -203,13 +209,12 @@ class _SignInScreenState extends State<SignInScreen> {
                     )
                   : ElevatedButton.icon(
                       onPressed: _signInWithGoogle,
-                      // Use a local asset for the Google logo
                       icon: Image.asset(
-                        'assets/google_logo.webp', // Assuming you downloaded and placed it here
+                        'assets/google_logo.webp',
                         height: 28.0,
                         width: 28.0,
                       ),
-                      label: const Text('Sign in with Google'),
+                      label: Text(localizations.signInWithGoogle),
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 55),
                         shape: RoundedRectangleBorder(
@@ -226,7 +231,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     ),
               const SizedBox(height: 30),
               Text(
-                'Please sign in to continue using the app.',
+                localizations.signInPrompt,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontStyle: FontStyle.italic,
                     color: colorScheme.onSurface.withOpacity(0.7)),

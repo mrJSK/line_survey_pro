@@ -258,7 +258,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
                           (value == null ||
                               value.isEmpty ||
                               int.tryParse(value) == null ||
-                              int.parse(value)! <= 0)) {
+                              int.parse(value) <= 0)) {
                         return 'Enter number of trees (positive number)';
                       }
                       return null;

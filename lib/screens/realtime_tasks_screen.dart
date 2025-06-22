@@ -21,6 +21,7 @@ import 'package:line_survey_pro/screens/line_detail_screen.dart'; // LineDetailS
 import 'dart:async'; // For StreamSubscription
 import 'package:collection/collection.dart'
     as collection; // For firstWhereOrNull
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class RealTimeTasksScreen extends StatefulWidget {
   final UserProfile? currentUserProfile; // NEW: Accept currentUserProfile
@@ -33,25 +34,30 @@ class RealTimeTasksScreen extends StatefulWidget {
 }
 
 class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
-  // Removed _currentUser state variable, use widget.currentUserProfile directly
   List<Task> _tasks = [];
-  bool _isLoading = true;
-  Map<String, List<SurveyRecord>> _surveyRecordsByTask =
-      {}; // Grouped survey records for display
-  List<TransmissionLine> _allTransmissionLines = []; // NEW: Store all lines
+  bool _isLoading = true; // Overall loading flag
+  Map<String, List<SurveyRecord>> _surveyRecordsByTask = {};
 
-  final AuthService _authService =
-      AuthService(); // Keep for other methods like streamAllUsers
+  List<SurveyRecord> _allLocalSurveyRecords = [];
+  List<TransmissionLine> _allTransmissionLines = [];
+
+  // Individual loading flags for each data source
+  bool _isLoadingTasks = true;
+  bool _isLoadingFirestoreRecords = true;
+  bool _isLoadingLocalRecords = true;
+  bool _isLoadingTransmissionLines = true;
+
+  final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
   final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
   final SurveyFirestoreService _surveyFirestoreService =
       SurveyFirestoreService();
-  final FirestoreService _firestoreService = FirestoreService(); // NEW
+  final FirestoreService _firestoreService = FirestoreService();
 
   StreamSubscription? _tasksSubscription;
   StreamSubscription? _firestoreSurveyRecordsSubscription;
   StreamSubscription? _localSurveyRecordsSubscription;
-  StreamSubscription? _transmissionLinesSubscription; // NEW: For all lines
+  StreamSubscription? _transmissionLinesSubscription;
 
   @override
   void initState() {
@@ -64,132 +70,179 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     _tasksSubscription?.cancel();
     _firestoreSurveyRecordsSubscription?.cancel();
     _localSurveyRecordsSubscription?.cancel();
-    _transmissionLinesSubscription?.cancel(); // NEW
+    _transmissionLinesSubscription?.cancel();
     super.dispose();
   }
 
-  // Use didUpdateWidget to react to currentUserProfile changes
   @override
   void didUpdateWidget(covariant RealTimeTasksScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentUserProfile != oldWidget.currentUserProfile) {
-      // Reload data if the user profile changes (e.g., role update)
       _loadAllData();
     }
   }
 
-  Future<void> _loadAllData() async {
-    if (!mounted || widget.currentUserProfile == null)
-      return; // Use widget.currentUserProfile
-    setState(() {
-      _isLoading = true;
-    });
-    try {
-      // No longer listening to authChanges here directly for currentUserProfile,
-      // as it's passed from HomeScreen.
-      _setupDataStreamsBasedOnRole();
-
-      // Listen to ALL local survey records (for instant UI update on local saves)
-      _localSurveyRecordsSubscription?.cancel();
-      _localSurveyRecordsSubscription =
-          _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
-        if (mounted) {
-          _updateSurveyRecordsForWorkerTasks(
-              localRecords: records); // Trigger update with new local records
-        }
-      }, onError: (e) {
-        if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, 'Error streaming local survey records: ${e.toString()}',
-              isError: true);
-        }
-        print(
-            'RealTimeTasksScreen Worker local survey records stream error: $e');
+  void _checkOverallLoadingStatus() {
+    if (mounted) {
+      setState(() {
+        _isLoading = _isLoadingTasks ||
+            _isLoadingFirestoreRecords ||
+            _isLoadingLocalRecords ||
+            _isLoadingTransmissionLines;
       });
-    } catch (e) {
-      if (mounted) {
-        SnackBarUtils.showSnackBar(
-            context, 'Error loading initial data: ${e.toString()}',
-            isError: true);
-      }
-      print('RealTimeTasksScreen _loadAllData error: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
-  // NEW: Centralized method to set up tasks and Firestore survey record streams based on current user's role
+  Future<void> _loadAllData() async {
+    final localizations = AppLocalizations.of(context)!;
+    if (!mounted || widget.currentUserProfile == null) {
+      return;
+    }
+    setState(() {
+      _isLoading = true; // Start overall loading
+      _isLoadingTasks = true;
+      _isLoadingFirestoreRecords = true;
+      _isLoadingLocalRecords = true;
+      _isLoadingTransmissionLines = true;
+    });
+
+    // Listen to ALL local survey records (for instant UI update on local saves)
+    _localSurveyRecordsSubscription?.cancel();
+    _localSurveyRecordsSubscription =
+        _localDatabaseService.getAllSurveyRecordsStream().listen((records) {
+      if (mounted) {
+        setState(() {
+          _allLocalSurveyRecords = records;
+          _isLoadingLocalRecords = false; // Local records loaded
+        });
+        _updateSurveyRecordsForWorkerTasks(localRecords: records);
+        _checkOverallLoadingStatus();
+      }
+    }, onError: (e) {
+      if (mounted) {
+        SnackBarUtils.showSnackBar(context,
+            localizations.errorStreamingLocalSurveyRecords(e.toString()),
+            isError: true);
+        setState(() {
+          _isLoadingLocalRecords = false; // Mark as loaded even on error
+        });
+        _checkOverallLoadingStatus();
+      }
+      print('RealTimeTasksScreen Worker local survey records stream error: $e');
+    });
+
+    // Setup other streams
+    _setupDataStreamsBasedOnRole();
+  }
+
   void _setupDataStreamsBasedOnRole() {
+    final localizations = AppLocalizations.of(context)!;
+
+    // Stream all transmission lines
+    _transmissionLinesSubscription?.cancel();
+    _transmissionLinesSubscription =
+        _firestoreService.getTransmissionLinesStream().listen((lines) {
+      if (mounted) {
+        setState(() {
+          _allTransmissionLines = lines;
+          _isLoadingTransmissionLines = false; // Transmission lines loaded
+        });
+        _setupDataStreamsBasedOnRoleInner(); // Re-evaluate streams if lines change
+        _checkOverallLoadingStatus();
+      }
+    }, onError: (e) {
+      if (mounted) {
+        SnackBarUtils.showSnackBar(
+            context, localizations.errorStreamingManagerLines(e.toString()),
+            isError: true);
+        setState(() {
+          _isLoadingTransmissionLines = false; // Mark as loaded even on error
+        });
+        _checkOverallLoadingStatus();
+      }
+      print('RealTimeTasksScreen transmission lines stream error: $e');
+    });
+
+    // Clear existing task and firestore survey records subscriptions if any
     _tasksSubscription?.cancel();
     _firestoreSurveyRecordsSubscription?.cancel();
 
     if (widget.currentUserProfile == null ||
         widget.currentUserProfile!.status != 'approved') {
-      // Use widget.currentUserProfile
       _tasks = [];
       _surveyRecordsByTask = {};
       if (mounted) {
-        setState(() {}); // Update UI to show no tasks
+        setState(() {
+          _isLoadingTasks = false;
+          _isLoadingFirestoreRecords = false;
+        });
+        _checkOverallLoadingStatus();
       }
       return;
     }
-
-    // Stream all transmission lines once (needed for both worker and manager/admin)
-    _transmissionLinesSubscription?.cancel();
-    _transmissionLinesSubscription =
-        _firestoreService.getTransmissionLinesStream().listen((lines) {
-      if (mounted) {
-        _allTransmissionLines = lines;
-        _setupDataStreamsBasedOnRoleInner(); // Re-evaluate streams if lines change
-      }
-    });
   }
 
-  // Helper to separate initial line fetch from role-based stream setup
   void _setupDataStreamsBasedOnRoleInner() {
-    final UserProfile user =
-        widget.currentUserProfile!; // Use widget.currentUserProfile
+    final localizations = AppLocalizations.of(context)!;
+    final UserProfile user = widget.currentUserProfile!;
+
+    // Re-setup tasks and firestore survey streams after transmission lines are loaded
+    // Ensure existing subscriptions are cancelled before new ones are created
+    _tasksSubscription?.cancel();
+    _firestoreSurveyRecordsSubscription?.cancel();
 
     if (user.role == 'Worker') {
-      _tasksSubscription = _taskService
-          .streamTasksForUser(user.id) // Use user.id
-          .listen((tasks) async {
+      _tasksSubscription =
+          _taskService.streamTasksForUser(user.id).listen((tasks) async {
         if (mounted) {
-          _tasks = tasks;
-          _updateSurveyRecordsForWorkerTasks(); // Re-process survey records based on new tasks
+          setState(() {
+            _tasks = tasks;
+            _isLoadingTasks = false; // Tasks loaded
+          });
+          _updateSurveyRecordsForWorkerTasks();
+          _checkOverallLoadingStatus();
         }
       }, onError: (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error streaming your tasks: ${e.toString()}',
+              context, localizations.errorStreamingYourTasks(e.toString()),
               isError: true);
+          setState(() {
+            _isLoadingTasks = false; // Mark as loaded even on error
+          });
+          _checkOverallLoadingStatus();
         }
         print('RealTimeTasksScreen Worker tasks stream error: $e');
       });
 
       _firestoreSurveyRecordsSubscription = _surveyFirestoreService
-          .streamSurveyRecordsForUser(user.id) // Use user.id
+          .streamSurveyRecordsForUser(user.id)
           .listen((records) {
         if (mounted) {
-          _updateSurveyRecordsForWorkerTasks(
-              firestoreRecords:
-                  records); // Trigger update with new Firestore records
+          setState(() {
+            _isLoadingFirestoreRecords = false; // Firestore records loaded
+          });
+          _updateSurveyRecordsForWorkerTasks(firestoreRecords: records);
+          _checkOverallLoadingStatus();
         }
       }, onError: (e) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, 'Error streaming your survey records: ${e.toString()}',
+          SnackBarUtils.showSnackBar(context,
+              localizations.errorStreamingYourSurveyRecords(e.toString()),
               isError: true);
+          setState(() {
+            _isLoadingFirestoreRecords = false; // Mark as loaded even on error
+          });
+          _checkOverallLoadingStatus();
         }
         print('RealTimeTasksScreen Worker survey records stream error: $e');
       });
     } else if (user.role == 'Manager' || user.role == 'Admin') {
       _tasksSubscription = _taskService.streamAllTasks().listen((tasks) {
         if (mounted) {
+          setState(() {
+            _isLoadingTasks = false; // Tasks loaded
+          });
           if (user.role == 'Manager') {
             _tasks = tasks.where((task) {
               final TransmissionLine? taskLine =
@@ -199,19 +252,23 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                 (l) => l.name == task.lineName,
               );
               return taskLine != null &&
-                  user.assignedLineIds
-                      .contains(taskLine.id); // Use user.assignedLineIds
+                  user.assignedLineIds.contains(taskLine.id);
             }).toList();
           } else {
             _tasks = tasks;
           }
           _updateSurveyRecordsForManagerTasks();
+          _checkOverallLoadingStatus();
         }
       }, onError: (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error streaming all tasks: ${e.toString()}',
+              context, localizations.errorStreamingAllTasks(e.toString()),
               isError: true);
+          setState(() {
+            _isLoadingTasks = false; // Mark as loaded even on error
+          });
+          _checkOverallLoadingStatus();
         }
         print('RealTimeTasksScreen Manager/Admin tasks stream error: $e');
       });
@@ -219,10 +276,12 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       _firestoreSurveyRecordsSubscription =
           _surveyFirestoreService.streamAllSurveyRecords().listen((records) {
         if (mounted) {
+          setState(() {
+            _isLoadingFirestoreRecords = false; // Firestore records loaded
+          });
           if (user.role == 'Manager') {
             final Set<String> assignedLineNames = _allTransmissionLines
-                .where((line) => user.assignedLineIds
-                    .contains(line.id)) // Use user.assignedLineIds
+                .where((line) => user.assignedLineIds.contains(line.id))
                 .map((line) => line.name)
                 .toSet();
             _updateSurveyRecordsForManagerTasks(
@@ -233,12 +292,17 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           } else {
             _updateSurveyRecordsForManagerTasks(firestoreRecords: records);
           }
+          _checkOverallLoadingStatus();
         }
       }, onError: (e) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, 'Error streaming all survey records: ${e.toString()}',
+          SnackBarUtils.showSnackBar(context,
+              localizations.errorStreamingAllSurveyRecords(e.toString()),
               isError: true);
+          setState(() {
+            _isLoadingFirestoreRecords = false; // Mark as loaded even on error
+          });
+          _checkOverallLoadingStatus();
         }
         print(
             'RealTimeTasksScreen Manager/Admin survey records stream error: $e');
@@ -247,23 +311,24 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       _tasks = [];
       _surveyRecordsByTask = {};
       if (mounted) {
-        SnackBarUtils.showSnackBar(
-            context, 'User role not recognized or assigned.',
+        SnackBarUtils.showSnackBar(context, localizations.unassignedRoleTitle,
             isError: true);
+        setState(() {
+          _isLoadingTasks = false;
+          _isLoadingFirestoreRecords = false;
+        });
+        _checkOverallLoadingStatus();
       }
     }
   }
 
-  // Helper method to update and group worker's survey records
   void _updateSurveyRecordsForWorkerTasks(
       {List<SurveyRecord>? firestoreRecords,
       List<SurveyRecord>? localRecords}) async {
     if (!mounted) return;
 
-    final UserProfile user =
-        widget.currentUserProfile!; // Use widget.currentUserProfile
+    final UserProfile user = widget.currentUserProfile!;
 
-    // Use latest streamed data, or current state if argument is null
     final currentFirestoreRecords = firestoreRecords ??
         _surveyRecordsByTask.values
             .expand((list) => list)
@@ -272,31 +337,25 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     final currentLocalRecords =
         localRecords ?? (await _localDatabaseService.getAllSurveyRecords());
 
-    // Combine local and Firestore records for comprehensive display in logs
     Map<String, SurveyRecord> combinedRecordsMap = {};
 
-    // 1. Add all local records to the map. These will have photoPaths and 'saved' status initially.
     for (var record in currentLocalRecords) {
       combinedRecordsMap[record.id] = record;
     }
 
-    // 2. Overlay with Firestore records. Firestore status takes precedence.
     for (var fRecord in currentFirestoreRecords) {
       final localMatch = combinedRecordsMap[fRecord.id];
       if (localMatch != null) {
-        // Record exists both locally and in Firestore. Prioritize Firestore's status.
         combinedRecordsMap[fRecord.id] =
             localMatch.copyWith(status: fRecord.status);
       } else {
-        // Record is in Firestore but not local. Add it (photoPath will be empty from Firestore).
         combinedRecordsMap[fRecord.id] = fRecord;
       }
     }
 
     final List<SurveyRecord> combinedAndFilteredRecords = combinedRecordsMap
         .values
-        .where(
-            (record) => record.userId == user.id) // Filter by current user.id
+        .where((record) => record.userId == user.id)
         .toList();
 
     final List<Task> enrichedTasks = [];
@@ -325,11 +384,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     });
   }
 
-  // Helper method to update and group manager's survey records
   void _updateSurveyRecordsForManagerTasks(
       {List<SurveyRecord>? firestoreRecords}) {
     if (!mounted) return;
-    // Managers only care about records in Firestore
     final recordsFromFirestore = firestoreRecords ??
         _surveyRecordsByTask.values.expand((list) => list).toList();
 
@@ -393,23 +450,24 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   Future<void> _deleteTask(Task task) async {
+    final localizations = AppLocalizations.of(context)!;
     final bool confirmDelete = await showDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: const Text('Confirm Deletion'),
-              content: Text(
-                  'Are you sure you want to delete the task for Line: ${task.lineName}, Towers: ${task.targetTowerRange}? This will also delete any associated survey progress in the app for this task. This action cannot be undone.'),
+              title: Text(localizations.confirmDeletion),
+              content: Text(localizations.deleteTaskConfirmation(
+                  task.lineName, task.targetTowerRange)),
               actions: <Widget>[
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Cancel'),
+                  child: Text(localizations.cancel),
                 ),
                 ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(true),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.error),
-                  child: const Text('Delete'),
+                  child: Text(localizations.delete),
                 ),
               ],
             );
@@ -426,25 +484,29 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         await _surveyFirestoreService.deleteSurveyRecordsByTaskId(task.id);
         await _localDatabaseService.deleteSurveyRecordsByTaskId(task.id);
 
-        if (mounted)
-          SnackBarUtils.showSnackBar(context,
-              'Task and associated local records deleted successfully!');
-      } catch (e) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error deleting task: ${e.toString()}',
+              context, localizations.taskAndAssociatedRecordsDeleted);
+        }
+      } catch (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, localizations.errorDeletingTask(e.toString()),
               isError: true);
+        }
         print('Error deleting task: $e');
       } finally {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _isLoading = false;
           });
+        }
       }
     }
   }
 
   void _showManagerTaskOptions(Task task) {
+    final localizations = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       builder: (BuildContext bc) {
@@ -453,7 +515,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.edit),
-                title: const Text('Edit Task'),
+                title: Text(localizations.editTask),
                 onTap: () {
                   Navigator.pop(bc);
                   _editTask(task);
@@ -461,7 +523,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.delete_forever, color: Colors.red),
-                title: const Text('Delete Task'),
+                title: Text(localizations.deleteTask),
                 onTap: () {
                   Navigator.pop(bc);
                   _deleteTask(task);
@@ -475,18 +537,19 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   void _updateTaskStatus(Task task, String newStatus) async {
+    final localizations = AppLocalizations.of(context)!;
     setState(() {
       _isLoading = true;
     });
     try {
       await _taskService.updateTaskStatus(task.id, newStatus);
       if (mounted) {
-        SnackBarUtils.showSnackBar(context, 'Task status updated!');
+        SnackBarUtils.showSnackBar(context, localizations.taskStatusUpdated);
       }
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error updating task: ${e.toString()}',
+            context, localizations.errorUpdatingTask(e.toString()),
             isError: true);
       }
       print('RealTimeTasksScreen Task status update error: $e');
@@ -517,6 +580,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   Future<void> _uploadUnsyncedRecords() async {
+    final localizations = AppLocalizations.of(context)!;
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -526,9 +590,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           await _localDatabaseService.getUnsyncedSurveyRecords();
 
       if (unsyncedRecords.isEmpty) {
-        if (mounted)
-          SnackBarUtils.showSnackBar(context, 'No unsynced records to upload.',
+        if (mounted) {
+          SnackBarUtils.showSnackBar(context, localizations.noUnsyncedRecords,
               isError: false);
+        }
         return;
       }
 
@@ -545,13 +610,13 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
 
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, '$uploadedCount record details uploaded successfully!',
+            context, localizations.uploadSuccess(uploadedCount),
             isError: false);
       }
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error uploading unsynced records: ${e.toString()}',
+            context, localizations.errorUploadingUnsyncedRecords(e.toString()),
             isError: true);
       }
       print('Upload unsynced records error: $e');
@@ -567,6 +632,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -583,7 +649,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               Icon(Icons.person_off, size: 80, color: colorScheme.error),
               const SizedBox(height: 20),
               Text(
-                'Your account is not approved.',
+                localizations.accountNotApproved,
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -592,7 +658,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Please wait for administrator approval or contact support.',
+                localizations.accountApprovalMessage,
                 style: Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -619,7 +685,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                   size: 80, color: colorScheme.error),
               const SizedBox(height: 20),
               Text(
-                'Your account role is not assigned or recognized.',
+                localizations.unassignedRoleTitle,
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -628,7 +694,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Please ensure your role is correctly assigned by an administrator in the Firebase Console.',
+                localizations.unassignedRoleMessage,
                 style: Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -646,7 +712,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'Welcome, ${widget.currentUserProfile!.displayName ?? widget.currentUserProfile!.email} (${widget.currentUserProfile!.role})!', // Removed span tags
+            localizations.welcomeUser(
+                widget.currentUserProfile!.displayName ??
+                    widget.currentUserProfile!.email,
+                widget.currentUserProfile!.role!),
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -655,15 +724,14 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
           ),
         ),
         if (widget.currentUserProfile!.role == 'Manager' ||
-            widget.currentUserProfile!.role ==
-                'Admin') // Admin can also assign tasks
+            widget.currentUserProfile!.role == 'Admin')
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: ElevatedButton.icon(
               onPressed: _assignNewTask,
               icon: const Icon(Icons.add_task),
-              label: const Text('Assign New Task'),
+              label: Text(localizations.assignNewTask),
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.secondary,
                 foregroundColor: colorScheme.onSecondary,
@@ -678,7 +746,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
             child: ElevatedButton.icon(
               onPressed: _uploadUnsyncedRecords,
               icon: const Icon(Icons.cloud_upload),
-              label: const Text('Upload Unsynced Details'),
+              label: Text(localizations.uploadUnsyncedDetails),
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.tertiary,
                 foregroundColor: colorScheme.onTertiary,
@@ -689,8 +757,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         const SizedBox(height: 20),
         Text(
           widget.currentUserProfile!.role == 'Worker'
-              ? 'Your Assigned Tasks:'
-              : 'All Tasks:',
+              ? localizations.yourAssignedTasks
+              : localizations.allTasks,
           style: Theme.of(context)
               .textTheme
               .headlineSmall
@@ -702,8 +770,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
               ? Center(
                   child: Text(
                     widget.currentUserProfile!.role == 'Worker'
-                        ? 'No tasks assigned to you yet.'
-                        : 'No tasks available.',
+                        ? localizations.noTasksAssigned
+                        : localizations.noTasksAvailable,
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
@@ -740,28 +808,27 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                       elevation: 3,
                       child: ExpansionTile(
                         title: Text(
-                            'Task: ${task.lineName} - Towers: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} to patrol)'), // Removed span tags
+                            '${localizations.task}: ${task.lineName} - ${localizations.towers}: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} ${localizations.toPatrol})'),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                                'Due: ${task.dueDate.toLocal().toString().split(' ')[0]}'),
-                            Text('Status: ${task.derivedStatus}'),
+                                '${localizations.due}: ${task.dueDate.toLocal().toString().split(' ')[0]}'),
+                            Text(
+                                '${localizations.status}: ${task.derivedStatus}'),
                             if (widget.currentUserProfile!.role == 'Manager' ||
-                                widget.currentUserProfile!.role ==
-                                    'Admin') // Admin also sees assigned to
+                                widget.currentUserProfile!.role == 'Admin')
                               Text(
-                                  'Assigned to: ${task.assignedToUserName ?? 'N/A'}'),
+                                  '${localizations.assignedToUser}: ${task.assignedToUserName ?? 'N/A'}'),
                           ],
                         ),
                         trailing: (widget.currentUserProfile!.role ==
                                     'Manager' ||
-                                widget.currentUserProfile!.role ==
-                                    'Admin') // Admin can also manage tasks
+                                widget.currentUserProfile!.role == 'Admin')
                             ? IconButton(
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () => _showManagerTaskOptions(task),
-                                tooltip: 'Task Options',
+                                tooltip: localizations.taskOptions,
                               )
                             : (widget.currentUserProfile!.role == 'Worker'
                                 ? Icon(statusIconData, color: iconColor)
@@ -775,17 +842,17 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                    '${localizations.patrolledCount}: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   Text(
-                                    'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                    '${localizations.uploadedCount}: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                   ),
                                   const SizedBox(height: 8),
-                                  Text('Your Survey Log for this Task:',
+                                  Text(localizations.yourSurveyLogForThisTask,
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium
@@ -794,7 +861,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                   const SizedBox(height: 8),
                                   recordsForTask.isEmpty
                                       ? Text(
-                                          'No surveys recorded for this task yet.',
+                                          localizations
+                                              .noSurveysRecordedForThisTask,
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodySmall
@@ -807,7 +875,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                                         const EdgeInsets.only(
                                                             bottom: 4.0),
                                                     child: Text(
-                                                      ' • Tower ${record.towerNumber} at ${record.timestamp.toLocal().toString().split('.')[0]} (Status: ${record.status})',
+                                                      ' • ${localizations.tower} ${record.towerNumber} ${localizations.at} ${record.timestamp.toLocal().toString().split('.')[0]} (${localizations.status}: ${record.status})',
                                                       style: Theme.of(context)
                                                           .textTheme
                                                           .bodySmall,
@@ -820,8 +888,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                                     onPressed: () =>
                                         _navigateToSurveyForTask(task),
                                     icon: const Icon(Icons.camera_alt),
-                                    label: const Text(
-                                        'Continue Survey for this Task'),
+                                    label: Text(localizations.continueSurvey),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor:
                                           colorScheme.primary.withOpacity(0.8),

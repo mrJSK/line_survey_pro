@@ -5,6 +5,7 @@
 
 import 'dart:io'; // Required for working with File objects (to load image from path)
 import 'package:flutter/material.dart'; // Core Flutter UI toolkit
+import 'package:line_survey_pro/l10n/app_localizations.dart';
 
 class ViewPhotoScreen extends StatelessWidget {
   final String
@@ -15,46 +16,34 @@ class ViewPhotoScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('View Photo'), // Title displayed in the AppBar
-        // AppBar style is inherited from main.dart ThemeData
+        title: Text(localizations.viewPhoto),
       ),
       body: Center(
-        // The Center widget ensures its child (the image or error message) is centered on the screen.
         child: imagePath.isNotEmpty && File(imagePath).existsSync()
             ? InteractiveViewer(
-                // InteractiveViewer allows its child to be scaled (zoomed) and dragged (panned).
-                panEnabled:
-                    true, // Set to true to allow dragging the image around when zoomed
-                minScale:
-                    0.5, // Minimum zoom level (0.5 means half the original size)
-                maxScale:
-                    4.0, // Maximum zoom level (4.0 means four times the original size)
+                panEnabled: true,
+                minScale: 0.5,
+                maxScale: 4.0,
                 child: Hero(
-                  // Added Hero animation for smooth transition from list
-                  tag: imagePath, // Unique tag for the Hero animation
+                  tag: imagePath,
                   child: Image.file(
-                    File(
-                        imagePath), // Loads the image from the provided local file path
-                    fit: BoxFit.contain, // Ensures the entire image is visible
+                    File(imagePath),
+                    fit: BoxFit.contain,
                   ),
                 ),
               )
             : Column(
-                // If the imagePath is empty or the file does not exist, display an error message.
-                mainAxisAlignment: MainAxisAlignment
-                    .center, // Centers content vertically in the column
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // An icon indicating a broken or missing image
                   Icon(Icons.broken_image, size: 80, color: Colors.grey[400]),
-                  const SizedBox(height: 16), // Vertical spacing
-                  // Text message indicating the image could not be found
+                  const SizedBox(height: 16),
                   Text(
-                    'Image not found or corrupted.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium, // Applies a predefined text style
+                    localizations.imageNotFound,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ],
               ),

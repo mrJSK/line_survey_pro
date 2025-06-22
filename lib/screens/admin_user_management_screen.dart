@@ -327,8 +327,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                           .map((role) => DropdownMenuItem(
                                 value: role,
                                 child: Text(role),
-                              ))
-                          .toList(),
+                              )),
                     ],
                     onChanged: (value) {
                       setModalState(() {

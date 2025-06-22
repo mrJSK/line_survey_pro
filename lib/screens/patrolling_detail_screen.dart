@@ -5,9 +5,9 @@ import 'dart:io';
 import 'package:line_survey_pro/models/survey_record.dart';
 import 'package:line_survey_pro/services/local_database_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
-import 'package:line_survey_pro/screens/camera_screen.dart'; // No longer direct target
-import 'package:line_survey_pro/models/transmission_line.dart'; // NEW: Import TransmissionLine
-import 'package:line_survey_pro/screens/line_survey_screen.dart'; // NEW: Import LineSurveyScreen
+import 'package:line_survey_pro/models/transmission_line.dart';
+import 'package:line_survey_pro/screens/line_survey_screen.dart';
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class PatrollingDetailScreen extends StatefulWidget {
   final SurveyRecord initialRecord;
@@ -109,10 +109,10 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
   }
 
   Future<void> _navigateToLineSurveyScreen() async {
-    // Changed method name
+    final localizations = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) {
       SnackBarUtils.showSnackBar(
-          context, 'Please fill all required fields correctly.',
+          context, localizations.fillAllRequiredFields, // Assumed new string
           isError: true);
       return;
     }
@@ -182,7 +182,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error processing details: ${e.toString()}',
+            context, localizations.errorProcessingDetails(e.toString()),
             isError: true);
       }
       print('Error processing patrolling details for line survey nav: $e');
@@ -198,6 +198,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     // --- Specific Options for Dropdowns ---
     // Modified: Removed 'Other', added 'OK' where applicable, made names more concise
@@ -206,117 +207,121 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
       'Missing',
       'Not Applicable',
     ];
-    const List<String> soilConditionOptions = [
-      'Good',
-      'Backfilling Required',
-      'Revetment Wall Required',
-      'Excavation Of Soil Required',
-      'OK'
+    final List<String> soilConditionOptions = [
+      localizations.good,
+      localizations.backfillingRequired,
+      localizations.revetmentWallRequired,
+      localizations.excavationOfSoilRequired,
+      localizations.okStatus
     ];
-    const List<String> towerPartsConditionOptions = [
-      'Rusted',
-      'Bent',
-      'Hanging',
-      'Damaged',
-      'Cracked',
-      'Broken',
-      'OK'
+    final List<String> towerPartsConditionOptions = [
+      localizations.rusted,
+      localizations.bent,
+      localizations.hanging,
+      localizations.damaged,
+      localizations.cracked,
+      localizations.broken,
+      localizations.okStatus
     ];
-    const List<String> insulatorStatusOptions = [
-      'Broken',
-      'Flashover',
-      'Damaged',
-      'Dirty',
-      'Cracked',
-      'OK'
+    final List<String> insulatorStatusOptions = [
+      localizations.broken,
+      localizations.flashover,
+      localizations.damaged,
+      localizations.dirty,
+      localizations.cracked,
+      localizations.okStatus
     ];
-    const List<String> jumperStatusOptions = [
-      'Damaged',
-      'Bolt Missing',
-      'Loose Bolt',
-      'Spacers Missing',
-      'Corroded',
-      'OK'
+    final List<String> jumperStatusOptions = [
+      localizations.damaged,
+      localizations.boltMissing,
+      localizations.loose,
+      localizations.spacersMissing,
+      localizations.corroded,
+      localizations.okStatus
     ];
-    const List<String> numberPlateOptions = [
-      'Missing',
-      'Loose',
-      'Faded',
-      'Damaged',
-      'OK'
+    final List<String> numberPlateOptions = [
+      localizations.missing,
+      localizations.loose,
+      localizations.faded,
+      localizations.damaged,
+      localizations.okStatus
     ];
-    const List<String> birdGuardOptions = ['Damaged', 'Missing', 'OK'];
-    const List<String> antiClimbingOptions = [
-      'Intact',
-      'Damaged',
-      'Missing',
-      'OK'
+    final List<String> birdGuardOptions = [
+      localizations.damaged,
+      localizations.missing,
+      localizations.okStatus
     ];
-    const List<String> wildGrowthOptions = [
-      'OK',
-      'Trimming Required',
-      'Lopping Required',
-      'Cutting Required'
-    ]; // 'None' changed to 'OK', 'Other' removed
-    const List<String> birdNestOptions = [
-      'OK',
-      'Present',
-    ]; // 'None' changed to 'OK', 'Other' removed
-    const List<String> archingHornOptions = [
-      'Bent',
-      'Broken',
-      'Missing',
-      'Corroded',
-      'OK'
+    final List<String> antiClimbingOptions = [
+      localizations.intact,
+      localizations.damaged,
+      localizations.missing,
+      localizations.okStatus
     ];
-    const List<String> coronaRingOptions = [
-      'Bent',
-      'Broken',
-      'Missing',
-      'Corroded',
-      'OK'
+    final List<String> wildGrowthOptions = [
+      localizations.okStatus,
+      localizations.trimmingRequired,
+      localizations.loppingRequired,
+      localizations.cuttingRequired
     ];
-    const List<String> insulatorTypeOptions = [
-      'Broken',
-      'Flashover',
-      'Damaged',
-      'Dirty',
-      'Cracked',
-      'OK',
-    ]; // Removed 'Other', 'OK' now included as a status option
-    const List<String> opgwJointBoxOptions = [
-      'Damaged',
-      'Open',
-      'Leaking',
-      'Corroded',
-      'OK'
+    final List<String> birdNestOptions = [
+      localizations.okStatus,
+      localizations.present,
     ];
-    const List<String> earthingOptions = [
-      'Loose',
-      'Corroded',
-      'Disconnected',
-      'Missing',
-      'Damaged',
-      'OK'
+    final List<String> archingHornOptions = [
+      localizations.bent,
+      localizations.broken,
+      localizations.missing,
+      localizations.corroded,
+      localizations.okStatus
     ];
-    const List<String> hotSpotsOptions = [
-      'OK',
-      'Minor',
-      'Moderate',
-      'Severe'
-    ]; // 'None' changed to 'OK'
-    const List<String> nutAndBoltOptions = [
-      'Loose',
-      'Missing',
-      'Rusted',
-      'Damaged',
-      'OK'
+    final List<String> coronaRingOptions = [
+      localizations.bent,
+      localizations.broken,
+      localizations.missing,
+      localizations.corroded,
+      localizations.okStatus
+    ];
+    final List<String> insulatorTypeOptions = [
+      localizations.broken,
+      localizations.flashover,
+      localizations.damaged,
+      localizations.dirty,
+      localizations.cracked,
+      localizations.okStatus,
+    ];
+    final List<String> opgwJointBoxOptions = [
+      localizations.damaged,
+      localizations.open,
+      localizations.leaking,
+      localizations.corroded,
+      localizations.okStatus
+    ];
+    final List<String> earthingOptions = [
+      localizations.loose,
+      localizations.corroded,
+      localizations.disconnected,
+      localizations.missing,
+      localizations.damaged,
+      localizations.okStatus
+    ];
+    final List<String> hotSpotsOptions = [
+      localizations.okStatus,
+      localizations.minor,
+      localizations.moderate,
+      localizations.severe
+    ];
+    final List<String> nutAndBoltOptions = [
+      localizations.loose,
+      localizations.missing,
+      localizations.rusted,
+      localizations.damaged,
+      localizations.okStatus
     ];
     // --- END Specific Options ---
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Patrolling Details'),
+        title: Text(localizations.patrollingDetails),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -326,7 +331,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Enter detailed patrolling observations for Tower ${widget.initialRecord.towerNumber} on ${widget.initialRecord.lineName}.',
+                localizations.enterDetailedObservations(
+                    widget.initialRecord.towerNumber,
+                    widget.initialRecord.lineName),
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
@@ -350,7 +357,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _soilCondition,
                 decoration: _inputDecoration(
-                    'Soil Condition', Icons.landscape, colorScheme),
+                    localizations.soilCondition, Icons.landscape, colorScheme),
                 items: soilConditionOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -366,7 +373,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select soil condition' : null,
+                    value == null ? localizations.selectSoilCondition : null,
               ),
               const SizedBox(height: 15),
 
@@ -374,7 +381,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _stubCopingLeg,
                 decoration: _inputDecoration(
-                    'Stub / Coping Leg', Icons.foundation, colorScheme),
+                    localizations.stubCopingLeg, Icons.foundation, colorScheme),
                 items: generalGoodBadOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -389,8 +396,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _stubCopingLeg = newValue;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select stub/coping leg status' : null,
+                validator: (value) => value == null
+                    ? localizations.selectStubCopingLegStatus
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -399,8 +407,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _earthingController.text.isNotEmpty
                     ? _earthingController.text
                     : null,
-                decoration: _inputDecoration(
-                    'Earthing', Icons.electrical_services, colorScheme),
+                decoration: _inputDecoration(localizations.earthing,
+                    Icons.electrical_services, colorScheme),
                 items: earthingOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -416,7 +424,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select earthing status' : null,
+                    value == null ? localizations.selectEarthingStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -424,7 +432,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _conditionOfTowerParts,
                 decoration: _inputDecoration(
-                    'Condition of Tower Parts', Icons.build, colorScheme),
+                    localizations.conditionOfTowerParts,
+                    Icons.build,
+                    colorScheme),
                 items: towerPartsConditionOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -439,8 +449,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _conditionOfTowerParts = newValue;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select condition of tower parts' : null,
+                validator: (value) => value == null
+                    ? localizations.selectConditionOfTowerParts
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -448,7 +459,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _statusOfInsulator,
                 decoration: _inputDecoration(
-                    'Status of Insulator', Icons.power, colorScheme),
+                    localizations.statusOfInsulator, Icons.power, colorScheme),
                 items: insulatorStatusOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -464,15 +475,15 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select insulator status' : null,
+                    value == null ? localizations.selectInsulatorStatus : null,
               ),
               const SizedBox(height: 15),
 
               // Jumper Status (Dropdown)
               DropdownButtonFormField<String>(
                 value: _jumperStatus,
-                decoration:
-                    _inputDecoration('Jumper Status', Icons.cable, colorScheme),
+                decoration: _inputDecoration(
+                    localizations.jumperStatus, Icons.cable, colorScheme),
                 items: jumperStatusOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -488,7 +499,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select jumper status' : null,
+                    value == null ? localizations.selectJumperStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -497,8 +508,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _hotSpotsController.text.isNotEmpty
                     ? _hotSpotsController.text
                     : null,
-                decoration:
-                    _inputDecoration('Hot Spots', Icons.fireplace, colorScheme),
+                decoration: _inputDecoration(
+                    localizations.hotSpots, Icons.fireplace, colorScheme),
                 items: hotSpotsOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -514,7 +525,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select hot spot status' : null,
+                    value == null ? localizations.selectHotSpotStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -522,7 +533,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _numberPlate,
                 decoration: _inputDecoration(
-                    'Number Plate', Icons.looks_one, colorScheme),
+                    localizations.numberPlate, Icons.looks_one, colorScheme),
                 items: numberPlateOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -537,8 +548,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _numberPlate = newValue;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select number plate status' : null,
+                validator: (value) => value == null
+                    ? localizations.selectNumberPlateStatus
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -546,7 +558,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _dangerBoard,
                 decoration: _inputDecoration(
-                    'Danger Board', Icons.warning, colorScheme),
+                    localizations.dangerBoard, Icons.warning, colorScheme),
                 items: numberPlateOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -561,16 +573,17 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _dangerBoard = newValue;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select danger board status' : null,
+                validator: (value) => value == null
+                    ? localizations.selectDangerBoardStatus
+                    : null,
               ),
               const SizedBox(height: 15),
 
               // Phase Plate (Dropdown)
               DropdownButtonFormField<String>(
                 value: _phasePlate,
-                decoration: _inputDecoration(
-                    'Phase Plate', Icons.power_outlined, colorScheme),
+                decoration: _inputDecoration(localizations.phasePlate,
+                    Icons.power_outlined, colorScheme),
                 items: numberPlateOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -586,15 +599,15 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select phase plate status' : null,
+                    value == null ? localizations.selectPhasePlateStatus : null,
               ),
               const SizedBox(height: 15),
 
               // Nut and Bolt Condition (Dropdown)
               DropdownButtonFormField<String>(
                 value: _nutAndBoltCondition,
-                decoration: _inputDecoration(
-                    'Nut and Bolt Condition', Icons.handyman, colorScheme),
+                decoration: _inputDecoration(localizations.nutAndBoltCondition,
+                    Icons.handyman, colorScheme),
                 items: nutAndBoltOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -609,8 +622,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _nutAndBoltCondition = newValue;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select nut and bolt condition' : null,
+                validator: (value) => value == null
+                    ? localizations.selectNutAndBoltCondition
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -618,7 +632,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _antiClimbingDevice,
                 decoration: _inputDecoration(
-                    'Anti Climbing Device', Icons.block, colorScheme),
+                    localizations.antiClimbingDevice, Icons.block, colorScheme),
                 items: antiClimbingOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -633,8 +647,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _antiClimbingDevice = newValue;
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select anti-climbing device status' : null,
+                validator: (value) => value == null
+                    ? localizations.selectAntiClimbingDeviceStatus
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -643,8 +658,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _wildGrowthController.text.isNotEmpty
                     ? _wildGrowthController.text
                     : null,
-                decoration:
-                    _inputDecoration('Wild Growth', Icons.forest, colorScheme),
+                decoration: _inputDecoration(
+                    localizations.wildGrowth, Icons.forest, colorScheme),
                 items: wildGrowthOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -660,7 +675,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select wild growth status' : null,
+                    value == null ? localizations.selectWildGrowthStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -668,7 +683,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               DropdownButtonFormField<String>(
                 value: _birdGuard,
                 decoration: _inputDecoration(
-                    'Bird Guard', Icons.architecture, colorScheme),
+                    localizations.birdGuard, Icons.architecture, colorScheme),
                 items: birdGuardOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
@@ -684,7 +699,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select bird guard status' : null,
+                    value == null ? localizations.selectBirdGuardStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -693,8 +708,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _birdNestController.text.isNotEmpty
                     ? _birdNestController.text
                     : null,
-                decoration:
-                    _inputDecoration('Bird Nest', Icons.grass, colorScheme),
+                decoration: _inputDecoration(
+                    localizations.birdNest, Icons.grass, colorScheme),
                 items: birdNestOptions.map((String option) {
                   return DropdownMenuItem(
                       value: option,
@@ -710,7 +725,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select bird nest status' : null,
+                    value == null ? localizations.selectBirdNestStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -720,7 +735,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     ? _archingHornController.text
                     : null,
                 decoration: _inputDecoration(
-                    'Arching Horn', Icons.flash_on, colorScheme),
+                    localizations.archingHorn, Icons.flash_on, colorScheme),
                 items: archingHornOptions.map((String option) {
                   return DropdownMenuItem(
                       value: option,
@@ -735,8 +750,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _archingHornController.text = newValue ?? '';
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select arching horn status' : null,
+                validator: (value) => value == null
+                    ? localizations.selectArchingHornStatus
+                    : null,
               ),
               const SizedBox(height: 15),
 
@@ -745,8 +761,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _coronaRingController.text.isNotEmpty
                     ? _coronaRingController.text
                     : null,
-                decoration:
-                    _inputDecoration('Corona Ring', Icons.circle, colorScheme),
+                decoration: _inputDecoration(
+                    localizations.coronaRing, Icons.circle, colorScheme),
                 items: coronaRingOptions.map((String option) {
                   return DropdownMenuItem(
                       value: option,
@@ -762,7 +778,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select corona ring status' : null,
+                    value == null ? localizations.selectCoronaRingStatus : null,
               ),
               const SizedBox(height: 15),
 
@@ -771,8 +787,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _insulatorTypeController.text.isNotEmpty
                     ? _insulatorTypeController.text
                     : null,
-                decoration: _inputDecoration(
-                    'Insulator Type', Icons.electric_bolt, colorScheme),
+                decoration: _inputDecoration(localizations.insulatorType,
+                    Icons.electric_bolt, colorScheme),
                 items: insulatorTypeOptions.map((String option) {
                   return DropdownMenuItem(
                       value: option,
@@ -788,7 +804,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                   });
                 },
                 validator: (value) =>
-                    value == null ? 'Select insulator type' : null,
+                    value == null ? localizations.selectInsulatorType : null,
               ),
               const SizedBox(height: 15),
 
@@ -798,7 +814,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     ? _opgwJointBoxController.text
                     : null,
                 decoration: _inputDecoration(
-                    'OPGW Joint Box', Icons.cable, colorScheme),
+                    localizations.opgwJointBox, Icons.cable, colorScheme),
                 items: opgwJointBoxOptions.map((String option) {
                   return DropdownMenuItem(
                       value: option,
@@ -813,18 +829,17 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     _opgwJointBoxController.text = newValue ?? '';
                   });
                 },
-                validator: (value) =>
-                    value == null ? 'Select OPGW Joint Box status' : null,
+                validator: (value) => value == null
+                    ? localizations.selectOpgwJointBoxStatus
+                    : null,
               ),
               const SizedBox(height: 15),
 
               // Missing Tower Parts (TextFormField - Moved to end)
               TextFormField(
                 controller: _missingTowerPartsController,
-                decoration: _inputDecoration(
-                    'Missing Tower Parts', // Shorter label
-                    Icons.precision_manufacturing,
-                    colorScheme),
+                decoration: _inputDecoration(localizations.missingTowerParts,
+                    Icons.precision_manufacturing, colorScheme),
                 maxLines: 3,
                 keyboardType: TextInputType.multiline,
               ),
@@ -834,11 +849,9 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               _isSavingDetails
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton.icon(
-                      onPressed:
-                          _navigateToLineSurveyScreen, // Changed navigation target
-                      icon: const Icon(Icons.arrow_forward), // Changed icon
-                      label: const Text(
-                          'Continue to Line Survey'), // Changed label
+                      onPressed: _navigateToLineSurveyScreen,
+                      icon: const Icon(Icons.arrow_forward),
+                      label: Text(localizations.continueToLineSurvey),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                         foregroundColor: colorScheme.onPrimary,
@@ -862,11 +875,10 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      isDense: true, // Make input fields more compact
+      isDense: true,
       labelStyle: TextStyle(
           color: colorScheme.primary.withOpacity(0.8),
-          overflow:
-              TextOverflow.ellipsis), // Ensure label text overflows gracefully
+          overflow: TextOverflow.ellipsis),
     );
   }
 }

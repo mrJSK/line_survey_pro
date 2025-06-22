@@ -122,9 +122,10 @@ class _AssignLinesToManagerScreenState
         .cast<String>();
 
     if (linesToAdd.isEmpty && linesToRemove.isEmpty) {
-      if (mounted)
+      if (mounted) {
         SnackBarUtils.showSnackBar(context, 'No changes to save.',
             isError: false);
+      }
       Navigator.of(context).pop(); // Just pop if no changes
       return;
     }

@@ -143,10 +143,11 @@ class _DashboardTabState extends State<DashboardTab> {
           });
         }
       }, onError: (error) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(context,
               'Error streaming local survey records: ${error.toString()}',
               isError: true);
+        }
       });
 
       // Stream all lines
@@ -158,10 +159,11 @@ class _DashboardTabState extends State<DashboardTab> {
           _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(context,
               'Error streaming transmission lines: ${error.toString()}',
               isError: true);
+        }
       });
 
       // Stream all tasks
@@ -172,10 +174,11 @@ class _DashboardTabState extends State<DashboardTab> {
           _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(
               context, 'Error streaming all tasks: ${error.toString()}',
               isError: true);
+        }
       });
 
       // Stream all survey records
@@ -187,10 +190,11 @@ class _DashboardTabState extends State<DashboardTab> {
           _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(context,
               'Error streaming all survey records: ${error.toString()}',
               isError: true);
+        }
       });
 
       // Stream all user profiles
@@ -205,10 +209,11 @@ class _DashboardTabState extends State<DashboardTab> {
           _updateDashboardContentBasedOnRole();
         }
       }, onError: (error) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(
               context, 'Error streaming all users: ${error.toString()}',
               isError: true);
+        }
       });
     } catch (e) {
       if (mounted) {
@@ -844,7 +849,7 @@ class _DashboardTabState extends State<DashboardTab> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('${line.name}',
+                                Text(line.name,
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium),
@@ -852,8 +857,7 @@ class _DashboardTabState extends State<DashboardTab> {
                                 Text('Voltage: ${line.voltageLevel ?? 'N/A'}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium),
-                                Text(
-                                    'Towers: ${completedTowers} / ${totalTowers}',
+                                Text('Towers: $completedTowers / $totalTowers',
                                     style:
                                         Theme.of(context).textTheme.bodyLarge),
                                 const SizedBox(height: 12),

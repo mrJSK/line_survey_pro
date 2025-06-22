@@ -5,13 +5,15 @@ import 'package:line_survey_pro/screens/sign_in_screen.dart';
 import 'package:line_survey_pro/screens/dashboard_tab.dart';
 import 'package:line_survey_pro/screens/export_screen.dart';
 import 'package:line_survey_pro/screens/realtime_tasks_screen.dart';
+import 'package:line_survey_pro/screens/splash_screen.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/screens/info_screen.dart';
-import 'package:line_survey_pro/services/auth_service.dart'; // Import AuthService
-import 'package:line_survey_pro/models/user_profile.dart'; // Import UserProfile
-import 'package:line_survey_pro/screens/manage_lines_screen.dart'; // Import ManageLinesScreen
-import 'package:line_survey_pro/screens/admin_user_management_screen.dart'; // Import AdminUserManagementScreen
-import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart'; // Import WaitingForApprovalScreen
+import 'package:line_survey_pro/services/auth_service.dart';
+import 'package:line_survey_pro/models/user_profile.dart';
+import 'package:line_survey_pro/screens/manage_lines_screen.dart';
+import 'package:line_survey_pro/screens/admin_user_management_screen.dart';
+import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart';
+import 'package:line_survey_pro/l10n/app_localizations.dart';
 
 final GlobalKey<HomeScreenState> homeScreenKey = GlobalKey<HomeScreenState>();
 
@@ -23,16 +25,25 @@ class HomeScreen extends StatefulWidget {
 }
 
 class HomeScreenState extends State<HomeScreen> {
-  // Removed _currentUser and _currentUserProfile state variables.
-  // The UserProfile will now be managed by the StreamBuilder.
   int _selectedIndex = 0;
+  final AuthService _authService = AuthService();
 
-  final AuthService _authService = AuthService(); // Instantiate AuthService
+  // State for the language toggle (true for English, false for Hindi)
+  bool _isEnglish = true;
 
   @override
   void initState() {
     super.initState();
-    // No need to fetch profile here directly, StreamBuilder will handle it.
+    // No longer initialize _isEnglish here to avoid dependOnInheritedWidgetOfExactType error.
+    // Initialization moved to didChangeDependencies().
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Initialize the toggle based on the current app locale here,
+    // as BuildContext is fully initialized and can access inherited widgets.
+    _isEnglish = Localizations.localeOf(context).languageCode == 'en';
   }
 
   void changeTab(int index) {
@@ -43,7 +54,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   Future<void> _signOut() async {
     try {
-      await _authService.signOut(); // Use AuthService signOut
+      await _authService.signOut();
       final GoogleSignIn googleSignIn = GoogleSignIn();
       if (await googleSignIn.isSignedIn()) {
         await googleSignIn.signOut();
@@ -74,7 +85,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToInfoScreen() {
-    Navigator.pop(context); // Close the drawer
+    Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const InfoScreen()),
@@ -82,7 +93,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToManageLinesScreen() {
-    Navigator.pop(context); // Close the drawer
+    Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ManageLinesScreen()),
@@ -90,7 +101,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToAdminUserManagementScreen() {
-    Navigator.pop(context); // Close the drawer
+    Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -98,40 +109,70 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _toggleLanguage(bool value) {
+    Locale newLocale = value ? const Locale('en') : const Locale('hi');
+    if (Localizations.localeOf(context).languageCode !=
+        newLocale.languageCode) {
+      setState(() {
+        _isEnglish = value;
+      });
+      // This will trigger a rebuild of the MaterialApp to apply the new locale.
+      // This approach rebuilds the entire app subtree. For frequent changes,
+      // a state management solution affecting MaterialApp's locale property
+      // would be more performant.
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => _buildAppWithNewLocale(newLocale),
+        ),
+        (route) => false,
+      );
+    }
+  }
+
+  // Helper to rebuild MaterialApp with new locale
+  Widget _buildAppWithNewLocale(Locale newLocale) {
+    return MaterialApp(
+      locale: newLocale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      title: AppLocalizations.of(context)?.appTitle ?? '',
+      theme: Theme.of(context).copyWith(),
+      home: const SplashScreen(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
     String appBarTitle;
     switch (_selectedIndex) {
       case 0:
-        appBarTitle = 'Survey Dashboard';
+        appBarTitle = localizations.surveyDashboard;
         break;
       case 1:
-        appBarTitle = 'Export Records';
+        appBarTitle = localizations.exportRecords;
         break;
       case 2:
-        appBarTitle = 'Real-Time Tasks';
+        appBarTitle = localizations.realtimeTasks;
         break;
       default:
-        appBarTitle = 'Line Survey Pro';
+        appBarTitle = localizations.appTitle;
     }
 
     return StreamBuilder<UserProfile?>(
-      stream: _authService
-          .userProfileStream, // Listen to the central user profile stream
+      stream: _authService.userProfileStream,
       builder: (context, snapshot) {
         final UserProfile? currentUserProfile = snapshot.data;
         final bool isLoadingProfile =
             snapshot.connectionState == ConnectionState.waiting;
 
-        // Determine the widget options based on the current profile
         final List<Widget> _widgetOptions = <Widget>[
           DashboardTab(currentUserProfile: currentUserProfile),
-          ExportScreen(currentUserProfile: currentUserProfile), // Pass profile
-          RealTimeTasksScreen(
-              currentUserProfile: currentUserProfile), // Pass profile
+          ExportScreen(currentUserProfile: currentUserProfile),
+          RealTimeTasksScreen(currentUserProfile: currentUserProfile),
         ];
 
-        // Handle loading state or unapproved/missing profile
         if (isLoadingProfile) {
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
@@ -139,9 +180,6 @@ class HomeScreenState extends State<HomeScreen> {
 
         if (currentUserProfile == null ||
             currentUserProfile.status != 'approved') {
-          // If profile is null or not approved, route to WaitingForApprovalScreen or SignInScreen
-          // The main.dart already handles initial routing based on FirebaseUser status.
-          // This specific check in HomeScreen is for when a profile might become unapproved mid-session.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (currentUserProfile == null) {
               Navigator.of(context).pushAndRemoveUntil(
@@ -158,15 +196,34 @@ class HomeScreenState extends State<HomeScreen> {
             }
           });
           return const Scaffold(
-              body: Center(
-                  child:
-                      CircularProgressIndicator())); // Show loading while navigating
+              body: Center(child: CircularProgressIndicator()));
         }
 
         return Scaffold(
           appBar: AppBar(
             title: Text(appBarTitle),
             centerTitle: true,
+            actions: [
+              // NEW: Language Toggle Switch
+              Tooltip(
+                message: _isEnglish
+                    ? localizations.switchToHindi
+                    : localizations.switchToEnglish,
+                child: Switch(
+                  value: _isEnglish,
+                  onChanged: _toggleLanguage,
+                  activeColor: Theme.of(context)
+                      .colorScheme
+                      .tertiary, // Yellow for English
+                  inactiveThumbColor: Theme.of(context)
+                      .colorScheme
+                      .secondary, // Green for Hindi
+                  inactiveTrackColor:
+                      Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           drawer: Drawer(
             child: ListView(
@@ -181,7 +238,7 @@ class HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        'Line Survey Pro',
+                        localizations.appTitle,
                         style: Theme.of(context)
                             .textTheme
                             .headlineSmall
@@ -197,7 +254,7 @@ class HomeScreenState extends State<HomeScreen> {
                       ),
                       if (currentUserProfile.role != null)
                         Text(
-                          'Role: ${currentUserProfile.role}',
+                          '${localizations.roleLabel}: ${currentUserProfile.role}',
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -211,31 +268,29 @@ class HomeScreenState extends State<HomeScreen> {
                 ListTile(
                   leading: Icon(Icons.info_outline,
                       color: Theme.of(context).colorScheme.primary),
-                  title: const Text('Info'),
+                  title: Text(localizations.info),
                   onTap: _navigateToInfoScreen,
                 ),
-                // Admin-specific menu items
                 if (currentUserProfile.role == 'Admin')
                   ListTile(
                     leading: Icon(Icons.people,
                         color: Theme.of(context).colorScheme.primary),
-                    title: const Text('User Management'),
+                    title: Text(localizations.userManagement),
                     onTap: _navigateToAdminUserManagementScreen,
                   ),
-                // Admin and Manager menu item
                 if (currentUserProfile.role == 'Admin' ||
                     currentUserProfile.role == 'Manager')
                   ListTile(
                     leading: Icon(Icons.settings_input_antenna,
                         color: Theme.of(context).colorScheme.primary),
-                    title: const Text('Manage Transmission Lines'),
+                    title: Text(localizations.manageTransmissionLines),
                     onTap: _navigateToManageLinesScreen,
                   ),
-                const Divider(), // A separator before logout
+                const Divider(),
                 ListTile(
                   leading: Icon(Icons.logout,
                       color: Theme.of(context).colorScheme.error),
-                  title: const Text('Logout'),
+                  title: Text(localizations.logout),
                   onTap: () {
                     Navigator.pop(context);
                     _signOut();
@@ -248,18 +303,18 @@ class HomeScreenState extends State<HomeScreen> {
             child: _widgetOptions.elementAt(_selectedIndex),
           ),
           bottomNavigationBar: BottomNavigationBar(
-            items: const <BottomNavigationBarItem>[
+            items: <BottomNavigationBarItem>[
               BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard),
-                label: 'Dashboard',
+                icon: const Icon(Icons.dashboard),
+                label: localizations.surveyDashboard,
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.upload_file),
-                label: 'Export',
+                icon: const Icon(Icons.upload_file),
+                label: localizations.exportRecords,
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.location_on),
-                label: 'Real-Time',
+                icon: const Icon(Icons.location_on),
+                label: localizations.realtimeTasks,
               ),
             ],
             currentIndex: _selectedIndex,

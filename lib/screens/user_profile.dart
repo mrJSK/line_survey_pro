@@ -1,6 +1,6 @@
 // lib/models/user_profile.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart'; // Ensure this is imported for Timestamp if needed, though not directly used in UserProfile itself.
+// Ensure this is imported for Timestamp if needed, though not directly used in UserProfile itself.
 
 class UserProfile {
   final String id;

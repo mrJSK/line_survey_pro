@@ -255,23 +255,17 @@ class FileService {
         font = img.arial14; // Fallback to a smaller font
       }
 
-      if (font == null) {
-        print(
-            "Warning: No suitable font found for overlay. Text might not render.");
-        // Fallback or handle error
-      } else {
-        // Draw each text line
-        for (String line in textLines) {
-          img.drawString(
-            outputImage,
-            line,
-            font: font,
-            x: padding,
-            y: currentY,
-            color: img.ColorRgb8(255, 255, 255), // White text
-          );
-          currentY += textHeightPerLine.toInt();
-        }
+      // Draw each text line
+      for (String line in textLines) {
+        img.drawString(
+          outputImage,
+          line,
+          font: font,
+          x: padding,
+          y: currentY,
+          color: img.ColorRgb8(255, 255, 255), // White text
+        );
+        currentY += textHeightPerLine.toInt();
       }
 
       // Get temporary directory to save the modified image

@@ -5,16 +5,15 @@ import 'dart:async'; // For Timer and StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart'; // For GPS coordinates
 import 'package:line_survey_pro/models/task.dart'; // Import Task model
-import 'package:line_survey_pro/screens/camera_screen.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/services/permission_service.dart';
-import 'package:line_survey_pro/services/location_service.dart';
 import 'package:line_survey_pro/services/local_database_service.dart'; // For local database records
 import 'package:line_survey_pro/services/auth_service.dart'; // For current user ID
 import 'package:line_survey_pro/services/survey_firestore_service.dart'; // For fetching cloud records for validation
 import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord for validation
 import 'package:line_survey_pro/screens/patrolling_detail_screen.dart'; // Import PatrollingDetailScreen
 import 'package:line_survey_pro/models/transmission_line.dart'; // Import TransmissionLine
+import 'package:line_survey_pro/l10n/app_localizations.dart';
 
 class LineDetailScreen extends StatefulWidget {
   final Task task;
@@ -33,7 +32,6 @@ class LineDetailScreen extends StatefulWidget {
 class _LineDetailScreenState extends State<LineDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _towerNumberController = TextEditingController();
-  // final TextEditingController _generalNotesController = TextEditingController(); // REMOVED: Controller for general notes
   Position? _currentPosition;
   bool _isFetchingLocation = false;
   bool _isLocationAccurateEnough = false;
@@ -63,19 +61,15 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     super.initState();
     _parseTowerRange(widget.task.targetTowerRange);
     _getCurrentLocation();
-    // _loadExistingSurveyData(); // REMOVED as general notes moved
   }
 
   @override
   void dispose() {
     _towerNumberController.dispose();
-    // _generalNotesController.dispose(); // REMOVED: Dispose controller
     _positionStreamSubscription?.cancel();
     _accuracyTimeoutTimer?.cancel();
     super.dispose();
   }
-
-  // _loadExistingSurveyData() is no longer needed here as general notes moved.
 
   void _parseTowerRange(String range) {
     range = range.trim().toLowerCase();
@@ -113,6 +107,8 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   }
 
   Future<void> _getCurrentLocation() async {
+    final localizations = AppLocalizations.of(context)!;
+
     if (_isFetchingLocation) return;
 
     setState(() {
@@ -125,7 +121,8 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         await PermissionService().requestLocationPermission(context);
     if (!hasPermission) {
       if (mounted) {
-        SnackBarUtils.showSnackBar(context, 'Location permission denied.',
+        SnackBarUtils.showSnackBar(
+            context, localizations.locationPermissionDenied,
             isError: true);
       }
       setState(() {
@@ -154,7 +151,9 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
               _positionStreamSubscription?.cancel();
               SnackBarUtils.showSnackBar(
                 context,
-                'Required accuracy (${position.accuracy.toStringAsFixed(2)}m) achieved!',
+                localizations.requiredAccuracyAchieved(
+                    position.accuracy.toStringAsFixed(2),
+                    _requiredAccuracyForCapture.toStringAsFixed(1)),
                 isError: false,
               );
             }
@@ -163,7 +162,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       }, onError: (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error getting location stream: ${e.toString()}',
+              context, localizations.errorGettingLocation as String,
               isError: true);
           setState(() {
             _isFetchingLocation = false;
@@ -186,17 +185,24 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
 
           if (!_isLocationAccurateEnough && mounted) {
             String accuracyMessage = _currentPosition != null
-                ? 'Current accuracy is ${_currentPosition!.accuracy.toStringAsFixed(2)}m, which is above the required ${_requiredAccuracyForCapture.toStringAsFixed(1)}m. Move to an open area.'
-                : 'Could not get any location within $_maximumWaitSeconds seconds. Please try again.';
+                ? localizations.currentAccuracy(
+                        _currentPosition!.accuracy.toStringAsFixed(2),
+                        _requiredAccuracyForCapture.toStringAsFixed(1)) +
+                    '. ' +
+                    localizations
+                        .moveToOpenArea // Assuming a new string for "Move to an open area"
+                : localizations.couldNotGetLocationWithinSeconds(
+                    _maximumWaitSeconds); // Assuming new string
             SnackBarUtils.showSnackBar(
               context,
-              'Timeout reached. $accuracyMessage',
+              localizations.timeoutReached(accuracyMessage),
               isError: true,
             );
           } else if (mounted && _currentPosition != null) {
             SnackBarUtils.showSnackBar(
               context,
-              'Location acquired with best available accuracy: ${_currentPosition!.accuracy.toStringAsFixed(2)}m.',
+              localizations.locationAcquired(_currentPosition!.accuracy
+                  .toStringAsFixed(2)), // Assuming new string
               isError: false,
             );
           }
@@ -204,9 +210,9 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       });
     } catch (e) {
       if (mounted) {
-        SnackBarUtils.showSnackBar(
-            context, 'An unexpected error occurred while starting location: $e',
-            isError: true);
+        SnackBarUtils.showSnackBar(context,
+            localizations.unexpectedErrorStartingLocation(e.toString()),
+            isError: true); // Assuming new string
         setState(() {
           _isFetchingLocation = false;
           _isLocationAccurateEnough = false;
@@ -218,6 +224,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   }
 
   Future<bool> _validateSurveyEntry(int towerNumber) async {
+    final localizations = AppLocalizations.of(context)!;
     // Validate against assigned task range from manager
     if (!_isAllTowers) {
       if (_minTower != null && _maxTower != null) {
@@ -225,7 +232,8 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
           if (mounted) {
             SnackBarUtils.showSnackBar(
               context,
-              'Tower number $towerNumber is outside the assigned range (${widget.task.targetTowerRange}).',
+              localizations.towerOutOfRange(
+                  towerNumber, widget.task.targetTowerRange),
               isError: true,
             );
           }
@@ -237,7 +245,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
           if (mounted) {
             SnackBarUtils.showSnackBar(
               context,
-              'You are assigned to survey only Tower ${widget.task.targetTowerRange}.',
+              localizations.towerSpecificRequired(widget.task.targetTowerRange),
               isError: true,
             );
           }
@@ -326,7 +334,8 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         if (mounted) {
           SnackBarUtils.showSnackBar(
             context,
-            'A survey for Tower $towerNumber at this location (${distance.toStringAsFixed(2)}m from previous record) already exists for Line ${widget.task.lineName}. Please ensure you are at a new tower or update the existing record if this is a re-survey.',
+            localizations.towerAlreadyExists(
+                towerNumber, distance.toStringAsFixed(2), widget.task.lineName),
             isError: true,
           );
         }
@@ -338,7 +347,11 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         if (mounted) {
           SnackBarUtils.showSnackBar(
             context,
-            'Another surveyed tower on Line ${widget.task.lineName} is too close (${distance.toStringAsFixed(2)}m from Tower ${record.towerNumber}). All DIFFERENT survey points on the same line must be at least ${_minDistanceMeters.toStringAsFixed(0)} meters apart.',
+            localizations.towerTooClose(
+                widget.task.lineName,
+                distance.toStringAsFixed(2),
+                record.towerNumber,
+                _minDistanceMeters.toStringAsFixed(0)),
             isError: true,
           );
         }
@@ -349,10 +362,14 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   }
 
   void _navigateToPatrollingDetailScreen() async {
+    final localizations = AppLocalizations.of(context)!;
+
     if (_formKey.currentState!.validate()) {
       if (_currentPosition == null || !_isLocationAccurateEnough) {
-        SnackBarUtils.showSnackBar(context,
-            'Accuracy less than ${_requiredAccuracyForCapture.toStringAsFixed(1)}m. Please wait or move to an open area for better GPS signal.',
+        SnackBarUtils.showSnackBar(
+            context,
+            localizations
+                .accuracyLow(_requiredAccuracyForCapture.toStringAsFixed(1)),
             isError: true);
         if (!_isFetchingLocation) {
           _getCurrentLocation();
@@ -371,39 +388,32 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       final String? currentUserId = _authService.getCurrentUser()?.uid;
       if (currentUserId == null) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, 'User not logged in. Cannot save survey.',
+          SnackBarUtils.showSnackBar(context, localizations.userNotLoggedIn,
               isError: true);
         }
         return;
       }
 
-      // Navigate to PatrollingDetailScreen, passing all initial survey data. generalNotes removed from here.
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => PatrollingDetailScreen(
             initialRecord: SurveyRecord(
-              // Create a partial record here
               lineName: widget.task.lineName,
               towerNumber: towerNumber,
               latitude: _currentPosition!.latitude,
               longitude: _currentPosition!.longitude,
               timestamp: DateTime.now(),
-              photoPath: '', // PhotoPath is empty initially
-              status:
-                  'saved_photo_only', // Status indicating photo is yet to be taken
+              photoPath: '',
+              status: 'saved_photo_only',
               taskId: widget.task.id,
               userId: currentUserId,
-              // generalNotes: _generalNotesController.text.trim().isEmpty ? null : _generalNotesController.text.trim(), // REMOVED: Pass general notes from here
             ),
-            transmissionLine: widget.transmissionLine, // Pass TransmissionLine
+            transmissionLine: widget.transmissionLine,
           ),
         ),
       );
-      // After PatrollingDetailScreen (and LineSurveyScreen and CameraScreen) returns, this screen pops back.
       if (mounted) {
-        Navigator.of(context)
-            .pop(); // Go back to Real-Time Tasks list (or wherever it came from)
+        Navigator.of(context).pop();
       }
     }
   }
@@ -411,46 +421,48 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     String accuracyStatusText;
     Color accuracyStatusColor;
     if (_isFetchingLocation) {
       accuracyStatusText =
-          'Fetching... Current: ${_currentPosition?.accuracy.toStringAsFixed(2) ?? 'N/A'}m';
+          '${localizations.fetchingLocation}... ${localizations.current}: ${_currentPosition?.accuracy.toStringAsFixed(2) ?? 'N/A'}m'; // Assuming 'current' string
       accuracyStatusColor = colorScheme.onSurface.withOpacity(0.6);
     } else if (_currentPosition == null) {
-      accuracyStatusText = 'No location obtained.';
+      accuracyStatusText = localizations.noLocationObtained;
       accuracyStatusColor = colorScheme.error;
     } else if (_currentPosition!.accuracy <= _requiredAccuracyForCapture) {
-      accuracyStatusText =
-          'Achieved: ${_currentPosition!.accuracy.toStringAsFixed(2)}m (Required < ${_requiredAccuracyForCapture.toStringAsFixed(1)}m)';
+      accuracyStatusText = localizations.requiredAccuracyAchieved(
+          _currentPosition!.accuracy.toStringAsFixed(2),
+          _requiredAccuracyForCapture.toStringAsFixed(1));
       accuracyStatusColor = colorScheme.secondary;
     } else {
-      accuracyStatusText =
-          'Current: ${_currentPosition!.accuracy.toStringAsFixed(2)}m (Required < ${_requiredAccuracyForCapture.toStringAsFixed(1)}m)';
+      accuracyStatusText = localizations.currentAccuracy(
+          _currentPosition!.accuracy.toStringAsFixed(2),
+          _requiredAccuracyForCapture.toStringAsFixed(1));
       accuracyStatusColor = colorScheme.tertiary;
     }
 
     String towerRangeDisplay = widget.task.targetTowerRange;
     if (_isAllTowers) {
-      towerRangeDisplay = 'All Towers';
+      towerRangeDisplay = localizations.allTowers; // Assuming new string
     } else if (_minTower != null && _maxTower != null) {
-      towerRangeDisplay = 'Towers ${_minTower!}-${_maxTower!}';
+      towerRangeDisplay = '${localizations.towers} ${_minTower!}-${_maxTower!}';
     } else if (_minTower != null) {
-      // Single tower case
-      towerRangeDisplay = 'Tower ${_minTower!}';
+      towerRangeDisplay = '${localizations.tower} ${_minTower!}';
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.task.lineName} - Survey Entry'),
+        title: Text(
+            '${widget.task.lineName} - ${localizations.surveyEntry}'), // Assuming new string
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Task Details Card
             Card(
               margin: EdgeInsets.zero,
               elevation: 4,
@@ -460,26 +472,26 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Assigned Task Details:',
+                      localizations.assignedTaskDetails,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: colorScheme.primary,
                           ),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Line Name: ${widget.task.lineName}',
+                      '${localizations.lineNameField}: ${widget.task.lineName}',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     Text(
-                      'Assigned Towers: $towerRangeDisplay',
+                      '${localizations.assignedTowers}: $towerRangeDisplay',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     Text(
-                      'Due Date: ${widget.task.dueDate.toLocal().toString().split(' ')[0]}',
+                      '${localizations.dueDateField}: ${widget.task.dueDate.toLocal().toString().split(' ')[0]}',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     Text(
-                      'Status: ${widget.task.derivedStatus}',
+                      '${localizations.status}: ${widget.task.derivedStatus}',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ],
@@ -487,10 +499,8 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
               ),
             ),
             const SizedBox(height: 30),
-
-            // New Survey Entry Form
             Text(
-              'Add New Survey Record',
+              localizations.addNewSurveyRecord,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 15),
@@ -506,31 +516,31 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                       TextFormField(
                         controller: _towerNumberController,
                         decoration: InputDecoration(
-                          labelText: 'Tower Number',
+                          labelText: localizations.towerNumberField,
                           prefixIcon:
                               Icon(Icons.numbers, color: colorScheme.primary),
-                          hintText: 'Enter tower number',
+                          hintText: localizations.enterTowerNumber,
                         ),
                         keyboardType: TextInputType.number,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Please enter a tower number';
+                            return localizations.towerNumberInvalid;
                           }
                           final int? towerNum = int.tryParse(value);
                           if (towerNum == null || towerNum <= 0) {
-                            return 'Please enter a valid positive number';
+                            return localizations.towerNumberPositive;
                           }
-                          // Validate against assigned range
                           if (!_isAllTowers) {
                             if (_minTower != null && _maxTower != null) {
                               if (towerNum < _minTower! ||
                                   towerNum > _maxTower!) {
-                                return 'Tower must be within ${widget.task.targetTowerRange}';
+                                return localizations.towerOutOfRange(
+                                    towerNum, widget.task.targetTowerRange);
                               }
                             } else if (_minTower != null) {
-                              // Single tower assigned
                               if (towerNum != _minTower!) {
-                                return 'Tower must be ${widget.task.targetTowerRange}';
+                                return localizations.towerSpecificRequired(
+                                    widget.task.targetTowerRange);
                               }
                             }
                           }
@@ -538,25 +548,6 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      // General Notes Text Area (REMOVED from here, moved to LineSurveyScreen)
-                      // TextFormField(
-                      //   controller: _generalNotesController,
-                      //   decoration: InputDecoration(
-                      //     labelText: 'General Observations/Notes',
-                      //     prefixIcon: Icon(Icons.notes, color: colorScheme.primary),
-                      //     hintText: 'Enter any additional notes here',
-                      //     alignLabelWithHint: true,
-                      //     border: OutlineInputBorder(
-                      //       borderRadius: BorderRadius.circular(12),
-                      //     ),
-                      //     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      //     isDense: true,
-                      //   ),
-                      //   maxLines: 5,
-                      //   keyboardType: TextInputType.multiline,
-                      // ),
-                      // const SizedBox(height: 20),
-                      // GPS Coordinates Display Card
                       Card(
                         elevation: 2,
                         color: colorScheme.surface,
@@ -575,7 +566,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Current GPS Coordinates:',
+                                    localizations.gpsCoordinates,
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleSmall
@@ -593,7 +584,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                           ? Colors.grey
                                           : colorScheme.secondary,
                                     ),
-                                    tooltip: 'Refresh Location',
+                                    tooltip: localizations.refreshLocation,
                                   ),
                                 ],
                               ),
@@ -616,14 +607,13 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                                           colorScheme.primary)),
                                             ),
                                             const SizedBox(width: 15),
-                                            Text('Fetching location...',
+                                            Text(localizations.fetchingLocation,
                                                 style: TextStyle(
                                                     color:
                                                         colorScheme.onSurface)),
                                           ],
                                         ),
                                         const SizedBox(height: 5),
-                                        // Dynamic display of current accuracy while fetching
                                         Text(
                                           accuracyStatusText,
                                           style: Theme.of(context)
@@ -634,11 +624,14 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                                 fontWeight: FontWeight.bold,
                                               ),
                                         ),
-                                        // Show timer countdown if active
                                         if (_accuracyTimeoutTimer != null &&
                                             _accuracyTimeoutTimer!.isActive)
                                           Text(
-                                            'Timeout in ${_maximumWaitSeconds - (_accuracyTimeoutTimer?.tick ?? 0)}s',
+                                            localizations.timeoutInSeconds(
+                                                _maximumWaitSeconds -
+                                                    (_accuracyTimeoutTimer
+                                                            ?.tick ??
+                                                        0)), // Assuming new string
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodySmall
@@ -650,13 +643,12 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                       ],
                                     )
                                   : Column(
-                                      // Display final coordinates and accuracy
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Lat: ${_currentPosition?.latitude.toStringAsFixed(6) ?? 'N/A'}\n'
-                                          'Lon: ${_currentPosition?.longitude.toStringAsFixed(6) ?? 'N/A'}',
+                                          '${localizations.lat}: ${_currentPosition?.latitude.toStringAsFixed(6) ?? 'N/A'}\n'
+                                          '${localizations.lon}: ${_currentPosition?.longitude.toStringAsFixed(6) ?? 'N/A'}',
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodyLarge
@@ -683,7 +675,9 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                   child: TextButton.icon(
                                     icon: Icon(Icons.location_searching,
                                         size: 20, color: colorScheme.secondary),
-                                    label: Text('Get Current Location',
+                                    label: Text(
+                                        localizations
+                                            .getCurrentLocation, // Assuming new string
                                         style: TextStyle(
                                             color: colorScheme.secondary)),
                                     onPressed: _getCurrentLocation,
@@ -702,10 +696,10 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                         icon: const Icon(Icons.arrow_forward),
                         label: Text((_currentPosition != null &&
                                 _isLocationAccurateEnough)
-                            ? 'Continue to Patrolling Details'
+                            ? localizations.continueToPatrollingDetails
                             : (_isFetchingLocation
-                                ? 'Getting Location...'
-                                : 'Required Accuracy Not Met')),
+                                ? localizations.gettingLocation
+                                : localizations.requiredAccuracyNotMet)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.primary,
                           foregroundColor: colorScheme.onPrimary,

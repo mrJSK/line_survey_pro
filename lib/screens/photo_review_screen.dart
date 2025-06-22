@@ -8,6 +8,7 @@ import 'package:line_survey_pro/services/file_service.dart'; // Service for file
 import 'package:line_survey_pro/services/local_database_service.dart'; // Local database service
 import 'package:line_survey_pro/models/survey_record.dart'; // SurveyRecord data model
 import 'package:line_survey_pro/utils/snackbar_utils.dart'; // Snackbar utility
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class PhotoReviewScreen extends StatefulWidget {
   final String imagePath; // Path to the temporarily captured image
@@ -40,6 +41,8 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
   }
 
   Future<void> _savePhotoAndRecord() async {
+    final localizations = AppLocalizations.of(context)!;
+
     setState(() {
       _isSaving = true;
     });
@@ -67,14 +70,14 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
       await LocalDatabaseService().saveSurveyRecord(newRecord);
 
       if (mounted) {
-        SnackBarUtils.showSnackBar(context, 'Photo and record saved locally!');
-        Navigator.of(context).pop(); // Pops PhotoReviewScreen
-        Navigator.of(context).pop(); // Pops CameraScreen
+        SnackBarUtils.showSnackBar(context, localizations.photoSavedLocally);
+        Navigator.of(context).pop();
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        SnackBarUtils.showSnackBar(
-            context, 'Error saving photo and record: ${e.toString()}',
+        SnackBarUtils.showSnackBar(context,
+            localizations.errorSavingPhotoAndRecordLocally(e.toString()),
             isError: true);
       }
     } finally {
@@ -98,59 +101,52 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Review Photo')),
+      appBar: AppBar(title: Text(localizations.reviewPhoto)),
       body: Column(
         children: [
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(10.0), // Consistent padding
+              padding: const EdgeInsets.all(10.0),
               child: Card(
-                // Wrap image in a card for better visual
                 elevation: 4,
-                clipBehavior: Clip.antiAlias, // Clip image to card shape
+                clipBehavior: Clip.antiAlias,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
                   child: Image.file(
                     _capturedImageFile,
-                    fit: BoxFit.contain, // Ensure image fits
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
             ),
           ),
           Padding(
-            padding:
-                const EdgeInsets.all(20.0), // Increased padding for buttons
+            padding: const EdgeInsets.all(20.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Retake Button: Changed to OutlinedButton for secondary action
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _isSaving ? null : _retakePhoto,
-                    icon: const Icon(
-                        Icons.refresh), // More generic refresh/retake icon
-                    label: const Text('Retake'),
+                    icon: const Icon(Icons.refresh),
+                    label: Text(localizations.retake),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colorScheme.primary, // Primary color for text/icon
+                      foregroundColor: colorScheme.primary,
                       side: BorderSide(
-                          color: colorScheme.primary
-                              .withOpacity(0.5)), // Subtle border
+                          color: colorScheme.primary.withOpacity(0.5)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14), // Consistent padding
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
                 ),
                 const SizedBox(width: 15),
-                // Save Button: Remains prominent ElevatedButton
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _isSaving ? null : _savePhotoAndRecord,
@@ -162,10 +158,11 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
                                 color: Colors.white, strokeWidth: 2),
                           )
                         : const Icon(Icons.save),
-                    label: Text(_isSaving ? 'Saving...' : 'Save'),
+                    label: Text(_isSaving
+                        ? localizations.saving
+                        : localizations.save), // Assuming 'saving' string
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme
-                          .primary, // Use primary color for main action
+                      backgroundColor: colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -174,15 +171,13 @@ class _PhotoReviewScreenState extends State<PhotoReviewScreen> {
                   ),
                 ),
                 const SizedBox(width: 15),
-                // Back Button: Changed to TextButton for least prominence
                 Expanded(
                   child: TextButton.icon(
                     onPressed: _isSaving ? null : _goBack,
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Back'),
+                    label: Text(localizations.back),
                     style: TextButton.styleFrom(
-                      foregroundColor: colorScheme.onSurface
-                          .withOpacity(0.7), // Subtler color
+                      foregroundColor: colorScheme.onSurface.withOpacity(0.7),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 14),

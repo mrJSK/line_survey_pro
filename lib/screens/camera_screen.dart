@@ -211,7 +211,7 @@ class _CameraScreenState extends State<CameraScreen>
       // Define a permanent path for the image within the app's directory
       final String appDocsPath =
           (await getApplicationDocumentsDirectory()).path;
-      final String subfolder = 'survey_photos';
+      const String subfolder = 'survey_photos';
       final String permanentImagePath =
           p.join(appDocsPath, subfolder, p.basename(_capturedImageFile!.path));
 

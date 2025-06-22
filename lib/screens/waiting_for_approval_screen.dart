@@ -2,9 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
-import 'package:line_survey_pro/services/auth_service.dart'; // For logout
-import 'package:line_survey_pro/screens/sign_in_screen.dart'; // Import SignInScreen
-import 'package:line_survey_pro/models/user_profile.dart'; // Import UserProfile
+import 'package:line_survey_pro/services/auth_service.dart';
+import 'package:line_survey_pro/screens/sign_in_screen.dart';
+import 'package:line_survey_pro/models/user_profile.dart';
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class WaitingForApprovalScreen extends StatefulWidget {
   final UserProfile userProfile;
@@ -22,6 +23,8 @@ class _WaitingForApprovalScreenState extends State<WaitingForApprovalScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
+
     String titleText = '';
     String messageText = '';
     IconData displayIcon = Icons.hourglass_empty;
@@ -30,24 +33,21 @@ class _WaitingForApprovalScreenState extends State<WaitingForApprovalScreen> {
 
     switch (widget.userProfile.status) {
       case 'pending':
-        titleText = 'Account Pending Approval';
-        messageText =
-            'Your account is awaiting approval from an administrator. Once approved, you will gain full access to the app features.';
+        titleText = localizations.accountPendingApproval;
+        messageText = localizations.awaitingApprovalMessage;
         displayIcon = Icons.hourglass_empty;
         iconColor = colorScheme.tertiary;
         break;
       case 'rejected':
-        titleText = 'Account Rejected';
-        messageText =
-            'Unfortunately, your account has been rejected by an administrator. Please contact support for more information.';
+        titleText = localizations.accountRejected;
+        messageText = localizations.rejectedMessage;
         displayIcon = Icons.cancel;
         iconColor = colorScheme.error;
-        showRefreshButton = false; // No need to re-check if rejected
+        showRefreshButton = false;
         break;
-      default: // Should not happen if roles are set correctly
-        titleText = 'Account Status Unknown';
-        messageText =
-            'An unexpected account status was encountered. Please contact support.';
+      default:
+        titleText = localizations.accountStatusUnknown;
+        messageText = localizations.unexpectedAccountStatus;
         displayIcon = Icons.help_outline;
         iconColor = Colors.grey;
         break;
@@ -56,12 +56,12 @@ class _WaitingForApprovalScreenState extends State<WaitingForApprovalScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(titleText),
-        automaticallyImplyLeading: false, // Prevent users from going back
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await _authService.signOut(); // Allow users to sign out
+              await _authService.signOut();
               if (mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const SignInScreen()),
@@ -69,7 +69,7 @@ class _WaitingForApprovalScreenState extends State<WaitingForApprovalScreen> {
                 );
               }
             },
-            tooltip: 'Sign Out',
+            tooltip: localizations.logout,
           ),
         ],
       ),
@@ -106,10 +106,11 @@ class _WaitingForApprovalScreenState extends State<WaitingForApprovalScreen> {
               if (showRefreshButton)
                 ElevatedButton.icon(
                   onPressed: () async {
-                    // Force sign out to re-check status on next login attempt
                     if (mounted) {
                       SnackBarUtils.showSnackBar(
-                          context, 'Re-checking account status...');
+                          context,
+                          localizations
+                              .recheckingAccountStatus); // Assuming new string
                     }
                     await _authService.signOut();
                     if (mounted) {
@@ -121,7 +122,7 @@ class _WaitingForApprovalScreenState extends State<WaitingForApprovalScreen> {
                     }
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Re-check Status (Requires Sign Out)'),
+                  label: Text(localizations.recheckStatus),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorScheme.primary,
                     foregroundColor: colorScheme.onPrimary,

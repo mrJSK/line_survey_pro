@@ -240,10 +240,11 @@ class _ExportScreenState extends State<ExportScreen>
         _applyFiltersToRecords(); // Re-apply filter if lines data updates
       }
     }, onError: (error) {
-      if (mounted)
+      if (mounted) {
         SnackBarUtils.showSnackBar(
             context, 'Error streaming transmission lines: ${error.toString()}',
             isError: true);
+      }
     });
 
     _firestoreRecordsSubscription =
@@ -360,9 +361,9 @@ class _ExportScreenState extends State<ExportScreen>
         } else {
           String? fieldValue;
           // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
-          if (fieldName == 'building')
+          if (fieldName == 'building') {
             fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'tree')
+          } else if (fieldName == 'tree')
             fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
           else if (fieldName == 'newConstruction')
             fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
@@ -452,9 +453,8 @@ class _ExportScreenState extends State<ExportScreen>
   Future<bool> _hasLocalImagesAvailable() async {
     if (_allRecords.isEmpty) return false;
     for (var record in _allRecords) {
-      if (record.photoPath != null &&
-          record.photoPath!.isNotEmpty &&
-          await File(record.photoPath!).exists()) {
+      if (record.photoPath.isNotEmpty &&
+          await File(record.photoPath).exists()) {
         return true;
       }
     }
@@ -519,9 +519,8 @@ class _ExportScreenState extends State<ExportScreen>
     // Filter only records that have a valid local photoPath
     final List<SurveyRecord> recordsWithLocalImages = [];
     for (var record in _allRecords) {
-      if (record.photoPath != null &&
-          record.photoPath!.isNotEmpty &&
-          await File(record.photoPath!).exists()) {
+      if (record.photoPath.isNotEmpty &&
+          await File(record.photoPath).exists()) {
         recordsWithLocalImages.add(record);
       }
     }
@@ -735,9 +734,8 @@ class _ExportScreenState extends State<ExportScreen>
                               for (String recordId in _selectedImageRecordIds) {
                                 final record = recordsWithLocalImages
                                     .firstWhere((r) => r.id == recordId);
-                                if (record.photoPath != null &&
-                                    record.photoPath!.isNotEmpty) {
-                                  final File file = File(record.photoPath!);
+                                if (record.photoPath.isNotEmpty) {
+                                  final File file = File(record.photoPath);
                                   final File? overlaidFile = await FileService()
                                       .addTextOverlayToImage(record);
 
@@ -748,7 +746,7 @@ class _ExportScreenState extends State<ExportScreen>
                                         .add(XFile(overlaidFile.path));
 
                                     shareMessage.writeln(
-                                        '*Photo ${photoCount}:* ${p.basename(record.photoPath!)}');
+                                        '*Photo $photoCount:* ${p.basename(record.photoPath)}');
                                     shareMessage.writeln(
                                         '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}');
                                     shareMessage.writeln(
@@ -988,13 +986,11 @@ class _ExportScreenState extends State<ExportScreen>
                                                                   .tertiary)),
                                               const SizedBox(width: 8),
                                               FutureBuilder<bool>(
-                                                future: record.photoPath !=
-                                                            null &&
-                                                        record.photoPath!
-                                                            .isNotEmpty
-                                                    ? File(record.photoPath!)
-                                                        .exists()
-                                                    : Future.value(false),
+                                                future:
+                                                    record.photoPath.isNotEmpty
+                                                        ? File(record.photoPath)
+                                                            .exists()
+                                                        : Future.value(false),
                                                 builder: (context, snapshot) {
                                                   if (snapshot.connectionState ==
                                                           ConnectionState
@@ -1023,9 +1019,8 @@ class _ExportScreenState extends State<ExportScreen>
                                         tooltip: 'Delete this record',
                                       ),
                                       onTap: () async {
-                                        if (record.photoPath != null &&
-                                            record.photoPath!.isNotEmpty &&
-                                            await File(record.photoPath!)
+                                        if (record.photoPath.isNotEmpty &&
+                                            await File(record.photoPath)
                                                 .exists()) {
                                           Navigator.of(context).push(
                                             MaterialPageRoute(

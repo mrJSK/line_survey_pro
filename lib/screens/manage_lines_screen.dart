@@ -70,7 +70,7 @@ class _ManageLinesScreenState extends State<ManageLinesScreen> {
       return '';
     }
     // Format: {Voltage level} BaseLineName Line
-    return '${voltageLevel} ${baseName.trim()} Line';
+    return '$voltageLevel ${baseName.trim()} Line';
   }
 
   Future<void> _loadTransmissionLines() async {
@@ -164,20 +164,22 @@ class _ManageLinesScreenState extends State<ManageLinesScreen> {
 
       // NEW: More robust null checks for parsed integers
       if (towerRangeStart == null) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(
               context, 'Invalid "From" tower number. Must be a whole number.',
               isError: true);
+        }
         setState(() {
           _isSaving = false;
         });
         return;
       }
       if (towerRangeEnd == null) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(
               context, 'Invalid "To" tower number. Must be a whole number.',
               isError: true);
+        }
         setState(() {
           _isSaving = false;
         });
@@ -210,9 +212,10 @@ class _ManageLinesScreenState extends State<ManageLinesScreen> {
 
       // Ensure voltage level is selected
       if (voltageLevel == null) {
-        if (mounted)
+        if (mounted) {
           SnackBarUtils.showSnackBar(context, 'Please select a voltage level.',
               isError: true);
+        }
         setState(() {
           _isSaving = false;
         });

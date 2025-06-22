@@ -2,12 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:line_survey_pro/models/survey_record.dart';
-import 'package:line_survey_pro/models/transmission_line.dart'; // To receive the line object
+import 'package:line_survey_pro/models/transmission_line.dart';
 import 'package:line_survey_pro/services/survey_firestore_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'dart:async';
-import 'dart:io'; // For checking local photo existence
-import 'package:line_survey_pro/screens/view_photo_screen.dart'; // To view full photo
+import 'dart:io';
+import 'package:line_survey_pro/screens/view_photo_screen.dart';
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class LinePatrollingDetailsScreen extends StatefulWidget {
   final TransmissionLine line;
@@ -24,27 +25,26 @@ class LinePatrollingDetailsScreen extends StatefulWidget {
 
 class _LinePatrollingDetailsScreenState
     extends State<LinePatrollingDetailsScreen> {
-  List<SurveyRecord> _allLineRecords =
-      []; // All records for this line from Firestore
-  List<SurveyRecord> _filteredRecords = []; // Records after applying filters
+  List<SurveyRecord> _allLineRecords = [];
+  List<SurveyRecord> _filteredRecords = [];
   bool _isLoading = true;
 
-  // Filter state
   final Map<String, Set<String>> _selectedFilters = {
     'overallIssueStatus': {'Issue'}
-  }; // Default to 'Issue' selected
+  };
 
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = ''; // For tower number search or other text search
+  String _searchQuery = '';
 
   final SurveyFirestoreService _surveyFirestoreService =
       SurveyFirestoreService();
   StreamSubscription? _surveyRecordsSubscription;
 
   // Define all possible options for filters (consistent with ManagerWorkerDetailScreen)
+  // These should ideally be localized as well if displayed directly. For now, using English strings.
   final Map<String, List<String>> _filterOptions = {
-    'overallIssueStatus': ['Issue', 'OK'], // Primary filter
-    'missingTowerParts': ['Damaged', 'Missing', 'OK'], // Updated options
+    'overallIssueStatus': ['Issue', 'OK'],
+    'missingTowerParts': ['Damaged', 'Missing', 'OK'],
     'soilCondition': [
       'Backfilling Required',
       'Revetment Wall Required',
@@ -111,7 +111,6 @@ class _LinePatrollingDetailsScreenState
       'OK'
     ],
     'opgwJointBox': ['Damaged', 'Open', 'Leaking', 'Corroded', 'OK'],
-    // New fields from Line Survey Screen (consistent with manager_worker_detail_screen)
     'building': ['OK', 'NOT OKAY'],
     'tree': ['OK', 'NOT OKAY'],
     'conditionOfOpgw': ['OK', 'Damaged'],
@@ -131,7 +130,7 @@ class _LinePatrollingDetailsScreenState
       'Underpass',
       'OK',
       'NOT OKAY'
-    ], // Added OK/NOT OK for general status
+    ],
     'riverCrossing': ['OK', 'NOT OKAY'],
     'electricalLine': [
       '400kV',
@@ -142,10 +141,9 @@ class _LinePatrollingDetailsScreenState
       'PTW',
       'OK',
       'NOT OKAY'
-    ], // Added OK/NOT OK for general status
+    ],
     'railwayCrossing': ['OK', 'NOT OKAY'],
-    'generalNotes':
-        [], // General notes is text, not suitable for direct filter dropdown
+    'generalNotes': [],
   };
 
   @override
@@ -166,27 +164,26 @@ class _LinePatrollingDetailsScreenState
   void _onSearchChanged() {
     setState(() {
       _searchQuery = _searchController.text;
-      _applyFilters(); // Re-apply filters when search query changes
+      _applyFilters();
     });
   }
 
   Future<void> _loadLineRecords() async {
+    final localizations = AppLocalizations.of(context)!;
     setState(() {
       _isLoading = true;
     });
-    _surveyRecordsSubscription?.cancel(); // Cancel any previous subscription
+    _surveyRecordsSubscription?.cancel();
 
-    // Stream records for this specific lineName
-    _surveyRecordsSubscription = _surveyFirestoreService
-        .streamAllSurveyRecords() // Stream all records, then filter by lineName client-side
-        .listen(
+    _surveyRecordsSubscription =
+        _surveyFirestoreService.streamAllSurveyRecords().listen(
       (records) {
         if (mounted) {
           setState(() {
             _allLineRecords = records
                 .where((record) => record.lineName == widget.line.name)
                 .toList();
-            _applyFilters(); // Apply filters whenever new data comes in
+            _applyFilters();
             _isLoading = false;
           });
         }
@@ -194,7 +191,9 @@ class _LinePatrollingDetailsScreenState
       onError: (error) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error loading line records: ${error.toString()}',
+              context,
+              localizations.errorLoadingLineRecords(
+                  error.toString()), // Assuming new string
               isError: true);
           setState(() {
             _isLoading = false;
@@ -205,9 +204,7 @@ class _LinePatrollingDetailsScreenState
     );
   }
 
-  // NEW: Helper to determine if a SurveyRecord is 'NOT OKAY' (has any issues)
   bool _isNotOkay(SurveyRecord record) {
-    // Terms that explicitly indicate NO issue
     const Set<String> nonIssueTerms = {
       'ok',
       'good',
@@ -215,76 +212,69 @@ class _LinePatrollingDetailsScreenState
       'not applicable'
     };
 
-    // Keywords/phrases that explicitly indicate a PROBLEM.
     const Set<String> problemKeywords = {
-      'missing', 'damaged', 'rusted', 'bent', 'hanging', 'cracked', 'broken',
-      'flashover', 'dirty', 'loose', 'bolt missing', 'spacers missing',
+      'missing',
+      'damaged',
+      'rusted',
+      'bent',
+      'hanging',
+      'cracked',
+      'broken',
+      'flashover',
+      'dirty',
+      'loose',
+      'bolt missing',
+      'spacers missing',
       'corroded',
-      'faded', 'disconnected', 'open', 'leaking',
-      'present', // For birdNestOptions (if value is 'Present' it's an issue according to new list)
-      'trimming required', 'lopping required',
-      'cutting required', // For wildGrowth
-      'minor', 'moderate', 'severe', // For hotSpots
-      'backfilling required', 'revetment wall required',
-      'excavation of soil required', 'eroded', // For soil condition
-      'not okay', // Explicit 'NOT OKAY' for boolean fields
+      'faded',
+      'disconnected',
+      'open',
+      'leaking',
+      'present',
+      'trimming required',
+      'lopping required',
+      'cutting required',
+      'minor',
+      'moderate',
+      'severe',
+      'backfilling required',
+      'revetment wall required',
+      'excavation of soil required',
+      'eroded',
+      'not okay',
     };
 
-    // Helper to check string fields
     bool checkStringField(String? value) {
       if (value == null ||
           value.isEmpty ||
           nonIssueTerms.contains(value.toLowerCase())) {
-        return false; // Null, empty, or explicit non-issue
+        return false;
       }
       final lowerCaseValue = value.toLowerCase();
-      // Check for specific problematic keywords
+
+      if (nonIssueTerms.contains(lowerCaseValue)) {
+        return false;
+      }
+
       for (final keyword in problemKeywords) {
         if (lowerCaseValue.contains(keyword)) {
           return true;
         }
       }
-      // Specific checks for values that are issues but might not be caught by generic keywords
-      // based on the provided lists for filtering
-      if (lowerCaseValue == 'yes' &&
-          (record.building == true ||
-              record.tree == true ||
-              record.newConstruction == true ||
-              record.objectOnConductor == true ||
-              record.objectOnEarthwire == true ||
-              record.riverCrossing == true ||
-              record.railwayCrossing == true)) {
-        return true;
-      }
-      if (lowerCaseValue == 'no' &&
-          (record.building == false ||
-              record.tree == false ||
-              record.newConstruction == false ||
-              record.objectOnConductor == false ||
-              record.objectOnEarthwire == false ||
-              record.riverCrossing == false ||
-              record.railwayCrossing == false)) {
-        return false;
-      }
 
-      // Special case for 'insulatorType' when it implies a problem
       if (record.insulatorType != null &&
           ['broken', 'flashover', 'damaged', 'dirty', 'cracked']
               .contains(record.insulatorType!.toLowerCase())) {
         return true;
       }
 
-      return false; // No issue found in this field
+      return false;
     }
 
-    // Helper to check boolean fields (true means 'NOT OKAY' for these contexts)
     bool checkBooleanField(bool? value) {
       return value == true;
     }
 
-    // --- Check all fields for 'NOT OKAY' conditions ---
-
-    // Patrolling Details
     if (checkStringField(record.missingTowerParts) ||
         checkStringField(record.soilCondition) ||
         checkStringField(record.stubCopingLeg) ||
@@ -303,15 +293,12 @@ class _LinePatrollingDetailsScreenState
         checkStringField(record.birdNest) ||
         checkStringField(record.archingHorn) ||
         checkStringField(record.coronaRing) ||
-        checkStringField(record.insulatorType) || // This is now also checked
+        checkStringField(record.insulatorType) ||
         checkStringField(record.opgwJointBox) ||
-        // Line Survey Details (boolean fields explicitly checked for 'true')
         checkBooleanField(record.building) ||
         checkBooleanField(record.tree) ||
         (record.tree == true &&
-            (record.numberOfTrees == null ||
-                record.numberOfTrees! <=
-                    0)) || // Issue if tree is selected but no number
+            (record.numberOfTrees == null || record.numberOfTrees! <= 0)) ||
         checkStringField(record.conditionOfOpgw) ||
         checkStringField(record.conditionOfEarthWire) ||
         checkStringField(record.conditionOfConductor) ||
@@ -321,29 +308,24 @@ class _LinePatrollingDetailsScreenState
         checkBooleanField(record.objectOnEarthwire) ||
         checkStringField(record.spacers) ||
         checkStringField(record.vibrationDamper) ||
-        checkStringField(record
-            .roadCrossing) || // If contains specific issues, e.g., 'Damaged road'
+        checkStringField(record.roadCrossing) ||
         checkBooleanField(record.riverCrossing) ||
-        checkStringField(
-            record.electricalLine) || // If it contains 'Damaged' etc.
+        checkStringField(record.electricalLine) ||
         checkBooleanField(record.railwayCrossing)) {
-      return true; // At least one 'NOT OKAY' condition found
+      return true;
     }
 
-    return false; // No 'NOT OKAY' conditions found
+    return false;
   }
 
   void _applyFilters() {
     List<SurveyRecord> tempRecords = List.from(_allLineRecords);
 
-    // Filter by search query (tower number or general text search)
     if (_searchQuery.isNotEmpty) {
       final String lowerCaseQuery = _searchQuery.toLowerCase();
       tempRecords = tempRecords.where((record) {
         return record.towerNumber.toString().contains(lowerCaseQuery) ||
-            record.lineName
-                .toLowerCase()
-                .contains(lowerCaseQuery) || // Search in line name too
+            record.lineName.toLowerCase().contains(lowerCaseQuery) ||
             (record.missingTowerParts?.toLowerCase().contains(lowerCaseQuery) ??
                 false) ||
             (record.soilCondition?.toLowerCase().contains(lowerCaseQuery) ??
@@ -351,14 +333,13 @@ class _LinePatrollingDetailsScreenState
             (record.earthing?.toLowerCase().contains(lowerCaseQuery) ??
                 false) ||
             (record.hotSpots?.toLowerCase().contains(lowerCaseQuery) ?? false);
-        // Add other fields you want to be searchable in the main search bar
       }).toList();
     }
 
-    // Filter by each selected filter option (dropdown filters)
     _selectedFilters.forEach((fieldName, selectedOptions) {
-      if (selectedOptions.isEmpty)
-        return; // Skip if no options selected for this filter
+      if (selectedOptions.isEmpty) {
+        return;
+      }
 
       if (fieldName == 'overallIssueStatus') {
         if (selectedOptions.contains('Issue') &&
@@ -370,34 +351,31 @@ class _LinePatrollingDetailsScreenState
           tempRecords =
               tempRecords.where((record) => !_isNotOkay(record)).toList();
         }
-        // If both or neither selected, no specific filtering based on issue status.
       } else {
-        // For other filter categories
         tempRecords = tempRecords.where((record) {
           String? fieldValue;
-          // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
-          if (fieldName == 'building')
+          if (fieldName == 'building') {
             fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'tree')
+          } else if (fieldName == 'tree') {
             fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'newConstruction')
+          } else if (fieldName == 'newConstruction') {
             fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnConductor')
+          } else if (fieldName == 'objectOnConductor') {
             fieldValue = (record.objectOnConductor == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnEarthwire')
+          } else if (fieldName == 'objectOnEarthwire') {
             fieldValue = (record.objectOnEarthwire == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'riverCrossing')
+          } else if (fieldName == 'riverCrossing') {
             fieldValue = (record.riverCrossing == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'railwayCrossing')
+          } else if (fieldName == 'railwayCrossing') {
             fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
-          else
-            fieldValue = record.toMap()[fieldName]
-                as String?; // For string/dropdown fields
+          } else {
+            fieldValue = record.toMap()[fieldName] as String?;
+          }
 
-          if (fieldValue == null)
-            return false; // If record has no value for this field, it doesn't match a selection
+          if (fieldValue == null) {
+            return false;
+          }
 
-          // For filter categories where specific values are selected (e.g., 'Damaged' for Condition of OPGW)
           return selectedOptions.contains(fieldValue);
         }).toList();
       }
@@ -416,23 +394,20 @@ class _LinePatrollingDetailsScreenState
       } else {
         _selectedFilters[fieldName]!.add(option);
       }
-      _applyFilters(); // Re-apply filters immediately
+      _applyFilters();
     });
   }
 
   void _clearFilters() {
     setState(() {
       _selectedFilters.clear();
-      _selectedFilters['overallIssueStatus'] = {
-        'Issue'
-      }; // Reset to default 'Issue' selected
+      _selectedFilters['overallIssueStatus'] = {'Issue'};
       _searchController.clear();
       _searchQuery = '';
       _applyFilters();
     });
   }
 
-  // Helper to convert camelCase to Human Readable Title Case
   String _toHumanReadable(String camelCase) {
     return camelCase
         .replaceAllMapped(
@@ -442,9 +417,9 @@ class _LinePatrollingDetailsScreenState
         .trim();
   }
 
-  // Build the filter panel UI (as a Drawer or Overlay)
   Widget _buildFilterPanel() {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     return Drawer(
       child: SafeArea(
@@ -452,7 +427,7 @@ class _LinePatrollingDetailsScreenState
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text('Filter Records',
+              child: Text(localizations.filterRecords,
                   style: Theme.of(context).textTheme.headlineSmall),
             ),
             Expanded(
@@ -482,7 +457,7 @@ class _LinePatrollingDetailsScreenState
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
                 onPressed: _clearFilters,
-                child: const Text('Clear Filters'),
+                child: Text(localizations.clearFilters),
               ),
             ),
           ],
@@ -493,22 +468,25 @@ class _LinePatrollingDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.line.name} Details'),
+        title: Text(
+            localizations.linePatrollingDetailsScreenTitle(widget.line.name)),
         actions: [
-          Builder(// Use a Builder to get a context that can open the EndDrawer
-              builder: (context) {
+          Builder(builder: (context) {
             return IconButton(
               icon: const Icon(Icons.filter_list),
               onPressed: () {
-                Scaffold.of(context).openEndDrawer(); // Open the filter drawer
+                Scaffold.of(context).openEndDrawer();
               },
             );
           }),
         ],
       ),
-      endDrawer: _buildFilterPanel(), // Add the filter panel as an end drawer
+      endDrawer: _buildFilterPanel(),
       body: Column(
         children: [
           Padding(
@@ -516,7 +494,7 @@ class _LinePatrollingDetailsScreenState
             child: TextFormField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: 'Search Tower Number or Details',
+                labelText: localizations.searchTowerNumberOrDetails,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -540,8 +518,8 @@ class _LinePatrollingDetailsScreenState
                     ? Center(
                         child: Text(
                           _searchQuery.isEmpty && _selectedFilters.isEmpty
-                              ? 'No survey records found for this line.'
-                              : 'No records found matching current filters.',
+                              ? localizations.noSurveyRecordsFoundForLine
+                              : localizations.noRecordsFoundMatchingFiltersLine,
                           textAlign: TextAlign.center,
                           style: Theme.of(context)
                               .textTheme
@@ -559,108 +537,124 @@ class _LinePatrollingDetailsScreenState
                             elevation: 3,
                             child: ExpansionTile(
                               title: Text(
-                                  'Tower: ${record.towerNumber} | ${record.status.toUpperCase()}'),
+                                  '${localizations.tower}: ${record.towerNumber} | ${record.status.toUpperCase()}'),
                               subtitle: Text(
-                                  'Time: ${record.timestamp.toLocal().toString().split('.')[0]}'),
+                                  '${localizations.time}: ${record.timestamp.toLocal().toString().split('.')[0]}'),
                               children: [
-                                _buildDetailRow('Record ID', record.id),
-                                _buildDetailRow('Line Name', record.lineName),
-                                _buildDetailRow('Task ID', record.taskId),
-                                _buildDetailRow('User ID', record.userId),
-                                _buildDetailRow('Latitude',
+                                _buildDetailRow(
+                                    localizations.recordId, record.id),
+                                _buildDetailRow(localizations.lineNameDisplay,
+                                    record.lineName),
+                                _buildDetailRow(
+                                    localizations.taskId, record.taskId),
+                                _buildDetailRow(
+                                    localizations.userId, record.userId),
+                                _buildDetailRow(localizations.latitude,
                                     record.latitude.toStringAsFixed(6)),
-                                _buildDetailRow('Longitude',
+                                _buildDetailRow(localizations.longitude,
                                     record.longitude.toStringAsFixed(6)),
-                                // Detailed patrolling points
-                                _buildDetailRow('Missing Tower Parts',
+                                _buildDetailRow(localizations.missingTowerParts,
                                     record.missingTowerParts),
+                                _buildDetailRow(localizations.soilCondition,
+                                    record.soilCondition),
+                                _buildDetailRow(localizations.stubCopingLeg,
+                                    record.stubCopingLeg),
                                 _buildDetailRow(
-                                    'Soil Condition', record.soilCondition),
+                                    localizations.earthing, record.earthing),
                                 _buildDetailRow(
-                                    'Stub / Coping Leg', record.stubCopingLeg),
-                                _buildDetailRow('Earthing', record.earthing),
-                                _buildDetailRow('Condition of Tower Parts',
+                                    localizations.conditionOfTowerParts,
                                     record.conditionOfTowerParts),
-                                _buildDetailRow('Status of Insulator',
+                                _buildDetailRow(localizations.statusOfInsulator,
                                     record.statusOfInsulator),
+                                _buildDetailRow(localizations.jumperStatus,
+                                    record.jumperStatus),
                                 _buildDetailRow(
-                                    'Jumper Status', record.jumperStatus),
-                                _buildDetailRow('Hot Spots', record.hotSpots),
+                                    localizations.hotSpots, record.hotSpots),
+                                _buildDetailRow(localizations.numberPlate,
+                                    record.numberPlate),
+                                _buildDetailRow(localizations.dangerBoard,
+                                    record.dangerBoard),
+                                _buildDetailRow(localizations.phasePlate,
+                                    record.phasePlate),
                                 _buildDetailRow(
-                                    'Number Plate', record.numberPlate),
-                                _buildDetailRow(
-                                    'Danger Board', record.dangerBoard),
-                                _buildDetailRow(
-                                    'Phase Plate', record.phasePlate),
-                                _buildDetailRow('Nut and Bolt Condition',
+                                    localizations.nutAndBoltCondition,
                                     record.nutAndBoltCondition),
-                                _buildDetailRow('Anti Climbing Device',
+                                _buildDetailRow(
+                                    localizations.antiClimbingDevice,
                                     record.antiClimbingDevice),
+                                _buildDetailRow(localizations.wildGrowth,
+                                    record.wildGrowth),
                                 _buildDetailRow(
-                                    'Wild Growth', record.wildGrowth),
-                                _buildDetailRow('Bird Guard', record.birdGuard),
-                                _buildDetailRow('Bird Nest', record.birdNest),
+                                    localizations.birdGuard, record.birdGuard),
                                 _buildDetailRow(
-                                    'Arching Horn', record.archingHorn),
+                                    localizations.birdNest, record.birdNest),
+                                _buildDetailRow(localizations.archingHorn,
+                                    record.archingHorn),
+                                _buildDetailRow(localizations.coronaRing,
+                                    record.coronaRing),
+                                _buildDetailRow(localizations.insulatorType,
+                                    record.insulatorType),
+                                _buildDetailRow(localizations.opgwJointBox,
+                                    record.opgwJointBox),
                                 _buildDetailRow(
-                                    'Corona Ring', record.coronaRing),
+                                    localizations.building,
+                                    record.building == true
+                                        ? localizations.yes
+                                        : localizations
+                                            .no), // Assuming yes/no strings
                                 _buildDetailRow(
-                                    'Insulator Type', record.insulatorType),
-                                _buildDetailRow(
-                                    'OPGW Joint Box', record.opgwJointBox),
-                                // NEW Line Survey Details for display
-                                _buildDetailRow('Building',
-                                    record.building == true ? 'Yes' : 'No'),
-                                _buildDetailRow(
-                                    'Tree', record.tree == true ? 'Yes' : 'No'),
+                                    localizations.tree,
+                                    record.tree == true
+                                        ? localizations.yes
+                                        : localizations.no),
                                 if (record.tree == true)
-                                  _buildDetailRow('Number of Trees',
+                                  _buildDetailRow(localizations.numberOfTrees,
                                       record.numberOfTrees?.toString()),
-                                _buildDetailRow('Condition of OPGW',
+                                _buildDetailRow(localizations.conditionOfOpgw,
                                     record.conditionOfOpgw),
-                                _buildDetailRow('Condition of Earth Wire',
+                                _buildDetailRow(
+                                    localizations.conditionOfEarthWire,
                                     record.conditionOfEarthWire),
-                                _buildDetailRow('Condition of Conductor',
+                                _buildDetailRow(
+                                    localizations.conditionOfConductor,
                                     record.conditionOfConductor),
+                                _buildDetailRow(localizations.midSpanJoint,
+                                    record.midSpanJoint),
                                 _buildDetailRow(
-                                    'Mid Span Joint', record.midSpanJoint),
-                                _buildDetailRow(
-                                    'New Construction',
+                                    localizations.newConstruction,
                                     record.newConstruction == true
-                                        ? 'Yes'
-                                        : 'No'),
+                                        ? localizations.yes
+                                        : localizations.no),
                                 _buildDetailRow(
-                                    'Object on Conductor',
+                                    localizations.objectOnConductor,
                                     record.objectOnConductor == true
-                                        ? 'Yes'
-                                        : 'No'),
+                                        ? localizations.yes
+                                        : localizations.no),
                                 _buildDetailRow(
-                                    'Object on Earthwire',
+                                    localizations.objectOnEarthwire,
                                     record.objectOnEarthwire == true
-                                        ? 'Yes'
-                                        : 'No'),
-                                _buildDetailRow('Spacers', record.spacers),
+                                        ? localizations.yes
+                                        : localizations.no),
                                 _buildDetailRow(
-                                    'Vibration Damper', record.vibrationDamper),
+                                    localizations.spacers, record.spacers),
+                                _buildDetailRow(localizations.vibrationDamper,
+                                    record.vibrationDamper),
+                                _buildDetailRow(localizations.roadCrossing,
+                                    record.roadCrossing),
                                 _buildDetailRow(
-                                    'Road Crossing', record.roadCrossing),
-                                _buildDetailRow(
-                                    'River Crossing',
+                                    localizations.riverCrossing,
                                     record.riverCrossing == true
-                                        ? 'Yes'
-                                        : 'No'),
+                                        ? localizations.yes
+                                        : localizations.no),
+                                _buildDetailRow(localizations.electricalLine,
+                                    record.electricalLine),
                                 _buildDetailRow(
-                                    'Electrical Line', record.electricalLine),
-                                _buildDetailRow(
-                                    'Railway Crossing',
+                                    localizations.railwayCrossing,
                                     record.railwayCrossing == true
-                                        ? 'Yes'
-                                        : 'No'),
-                                _buildDetailRow(
-                                    'General Notes',
-                                    record
-                                        .generalNotes), // General Notes for display
-                                // Photo display if available
+                                        ? localizations.yes
+                                        : localizations.no),
+                                _buildDetailRow(localizations.generalNotes,
+                                    record.generalNotes),
                                 if (record.photoPath.isNotEmpty &&
                                     File(record.photoPath).existsSync())
                                   Padding(
@@ -679,13 +673,11 @@ class _LinePatrollingDetailsScreenState
                                           ));
                                         },
                                         child: Hero(
-                                          tag: record
-                                              .photoPath, // Unique tag for Hero animation
+                                          tag: record.photoPath,
                                           child: Image.file(
                                             File(record.photoPath),
                                             height: 100,
-                                            width:
-                                                100, // Fixed width for thumbnail
+                                            width: 100,
                                             fit: BoxFit.cover,
                                           ),
                                         ),
@@ -705,7 +697,7 @@ class _LinePatrollingDetailsScreenState
 
   Widget _buildDetailRow(String label, String? value) {
     if (value == null || value.isEmpty) {
-      return const SizedBox.shrink(); // Hide if no value
+      return const SizedBox.shrink();
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),

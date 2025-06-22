@@ -4,22 +4,16 @@
 // Updated for a more modern UI theme, and wrapped with ConnectivityWrapper.
 
 import 'package:flutter/material.dart';
-// Removed: import 'package:firebase_core/firebase_core.dart'; // Initialized in SplashScreen
-// Removed: import 'package:firebase_auth/firebase_auth.dart'; // Handled in SplashScreen
+import 'package:flutter_localizations/flutter_localizations.dart'; // Add this
 import 'package:line_survey_pro/screens/home_screen.dart';
-import 'package:line_survey_pro/screens/sign_in_screen.dart'; // Your sign-in screen
-import 'package:line_survey_pro/services/local_database_service.dart'; // Service for local database initialization
-// import 'package:line_survey_pro/widgets/connectivity_wrapper.dart'; // Keep if you decide to use it
-import 'package:line_survey_pro/screens/splash_screen.dart'; // NEW: Import SplashScreen
-
-// IMPORTANT: You need to generate this file using FlutterFire CLI.
-// Run: `flutterfire configure` in your project root after adding Firebase to the project.
-// Removed: import 'firebase_options.dart'; // No longer needed here as SplashScreen handles it
+import 'package:line_survey_pro/screens/sign_in_screen.dart';
+import 'package:line_survey_pro/services/local_database_service.dart';
+import 'package:line_survey_pro/screens/splash_screen.dart';
+import 'package:line_survey_pro/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize the local SQLite database early. Firebase initialization is now in SplashScreen.
   await LocalDatabaseService().initializeDatabase();
 
   runApp(const MyApp());
@@ -30,60 +24,65 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Define the primary blue color based on your request
     const Color primaryBlue = Color(0xFF0D6EFD);
 
     return MaterialApp(
-      title: 'Line Survey Pro',
-      debugShowCheckedModeBanner: false, // Hide the debug banner
+      title:
+          'Line Survey Pro', // This will be set by the first available localization
+      debugShowCheckedModeBanner: false,
+      // Add these localization delegates
+      localizationsDelegates: [
+        AppLocalizations.delegate, // Generated app localizations
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
+      // Add supported locales (English and Hindi)
+      supportedLocales: const [
+        Locale('en'), // English
+        Locale('hi'), // Hindi
+      ],
+
       theme: ThemeData(
-        brightness: Brightness.light, // Ensure light mode
-        // Define a custom ColorScheme using the primary blue
+        brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryBlue, // The base color for generating the scheme
-          primary: primaryBlue, // Your specified blue
-          onPrimary: Colors.white, // Text/icons on primary color
-          secondary: const Color(
-              0xFF28A745), // A vibrant green for accents (e.g., progress, success)
+          seedColor: primaryBlue,
+          primary: primaryBlue,
+          onPrimary: Colors.white,
+          secondary: const Color(0xFF28A745),
           onSecondary: Colors.white,
-          tertiary: const Color(
-              0xFFFFC107), // An orange/amber for warning/export actions
+          tertiary: const Color(0xFFFFC107),
           onTertiary: Colors.black87,
-          surface: Colors.white, // Background for cards and surfaces
-          onSurface: Colors.black87, // Text/icons on surface
-          background: Colors.white, // Main scaffold background
+          surface: Colors.white,
+          onSurface: Colors.black87,
+          background: Colors.white,
           onBackground: Colors.black87,
-          error: const Color(0xFFDC3545), // Red for error states
+          error: const Color(0xFFDC3545),
           onError: Colors.white,
           brightness: Brightness.light,
         ),
-
-        // AppBar theme
         appBarTheme: const AppBarTheme(
-          backgroundColor: primaryBlue, // Blue AppBar background
-          foregroundColor: Colors.white, // White text/icons on AppBar
-          elevation: 4.0, // Subtle shadow for depth
+          backgroundColor: primaryBlue,
+          foregroundColor: Colors.white,
+          elevation: 4.0,
           centerTitle: true,
           titleTextStyle: TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            fontFamily: 'Inter', // Applying a modern font
+            fontFamily: 'Inter',
           ),
         ),
-
-        // ElevatedButton theme
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: primaryBlue, // Primary blue for buttons
-            foregroundColor: Colors.white, // White text on buttons
+            backgroundColor: primaryBlue,
+            foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(10), // Moderately rounded corners
+              borderRadius: BorderRadius.circular(10),
             ),
-            padding: const EdgeInsets.symmetric(
-                horizontal: 24, vertical: 14), // Generous padding
-            elevation: 4, // Good shadow for buttons
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            elevation: 4,
             textStyle: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -91,102 +90,70 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // InputDecorationTheme for text fields
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: primaryBlue.withOpacity(0.05), // Very light blue fill
+          fillColor: primaryBlue.withOpacity(0.05),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10), // Rounded borders
-            borderSide: BorderSide.none, // No border line by default
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(
-                color: primaryBlue,
-                width: 2), // Primary blue border when focused
+            borderSide: const BorderSide(color: primaryBlue, width: 2),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(
-                color: primaryBlue.withOpacity(0.3),
-                width: 1), // Lighter blue border when enabled
+            borderSide:
+                BorderSide(color: primaryBlue.withOpacity(0.3), width: 1),
           ),
           labelStyle: TextStyle(color: primaryBlue.withOpacity(0.8)),
           hintStyle: TextStyle(color: Colors.grey.shade600),
-          prefixIconColor: primaryBlue, // Primary blue for prefix icons
+          prefixIconColor: primaryBlue,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
-
-        // Card theme
         cardTheme: CardThemeData(
-          elevation: 4, // Consistent shadow for cards
+          elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(12), // Rounded corners for cards
+            borderRadius: BorderRadius.circular(12),
           ),
-          margin: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 8), // Consistent margin
-          color: Colors.white, // Ensure cards are white
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: Colors.white,
         ),
-
-        // Progress indicator theme
         progressIndicatorTheme: ProgressIndicatorThemeData(
-          color: primaryBlue, // Use primary blue for active progress
-          linearTrackColor:
-              primaryBlue.withOpacity(0.2), // Lighter track for linear progress
+          color: primaryBlue,
+          linearTrackColor: primaryBlue.withOpacity(0.2),
         ),
-
-        // Typography adjustments for a cleaner look
         textTheme: const TextTheme(
           headlineSmall: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black87, // Strong, readable headings
-              fontSize: 24),
+              fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 24),
           titleMedium: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.black87, // Distinct section titles
-              fontSize: 18),
-          bodyLarge: TextStyle(
-              fontSize: 16.0,
-              color: Colors.black87), // Primary body text for readability
-          bodyMedium: TextStyle(
-              fontSize: 14.0,
-              color: Colors.black54), // Secondary body text, slightly subdued
+              fontWeight: FontWeight.w600, color: Colors.black87, fontSize: 18),
+          bodyLarge: TextStyle(fontSize: 16.0, color: Colors.black87),
+          bodyMedium: TextStyle(fontSize: 14.0, color: Colors.black54),
           bodySmall: TextStyle(
             fontSize: 12.0,
-            color: Colors.black45, // Fine print, timestamps etc.
+            color: Colors.black45,
           ),
           labelLarge: TextStyle(
-              fontSize: 16.0,
-              fontWeight: FontWeight.bold,
-              color: Colors.white), // Button labels
+              fontSize: 16.0, fontWeight: FontWeight.bold, color: Colors.white),
         ).apply(
-          fontFamily: 'Roboto', // Material Design's default font
+          fontFamily: 'Roboto',
         ),
-
-        // Bottom Navigation Bar theme
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          selectedItemColor: primaryBlue, // Selected icon/label color
-          unselectedItemColor:
-              Colors.grey.shade600, // Unselected icon/label color
-          backgroundColor: Colors.white, // White background for the bar
-          type: BottomNavigationBarType.fixed, // Ensure all items are visible
+          selectedItemColor: primaryBlue,
+          unselectedItemColor: Colors.grey.shade600,
+          backgroundColor: Colors.white,
+          type: BottomNavigationBarType.fixed,
           selectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.bold, fontFamily: 'Roboto'),
           unselectedLabelStyle: const TextStyle(fontFamily: 'Roboto'),
         ),
       ),
-      home: const SplashScreen(), // NEW: Set SplashScreen as the home screen
+      home: const SplashScreen(),
       routes: {
         '/home': (BuildContext context) => const HomeScreen(),
         '/signIn': (BuildContext context) => const SignInScreen(),
-        // If you have a NoInternetScreen, ensure it's imported and defined.
-        // Otherwise, comment out or remove this route.
-        // '/noInternet': (context) => NoInternetScreen(onRetry: () {
-        //       Navigator.of(context).pop();
-        //     }),
       },
     );
   }
