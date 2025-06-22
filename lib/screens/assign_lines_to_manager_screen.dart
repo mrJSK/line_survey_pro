@@ -7,7 +7,7 @@ import 'package:line_survey_pro/services/auth_service.dart';
 import 'package:line_survey_pro/services/firestore_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'dart:async'; // For StreamSubscription
-import 'package:collection/collection.dart'; // For firstWhereOrNull
+// For firstWhereOrNull
 
 class AssignLinesToManagerScreen extends StatefulWidget {
   final UserProfile manager;

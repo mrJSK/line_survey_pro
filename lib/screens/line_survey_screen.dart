@@ -7,7 +7,7 @@ import 'package:line_survey_pro/models/transmission_line.dart'; // To get line r
 import 'package:line_survey_pro/services/local_database_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/screens/camera_screen.dart'; // Next screen in flow
-import 'package:collection/collection.dart'; // For firstWhereOrNull
+// For firstWhereOrNull
 
 class LineSurveyScreen extends StatefulWidget {
   final SurveyRecord initialRecord; // Record from PatrollingDetailScreen

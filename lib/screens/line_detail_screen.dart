@@ -39,7 +39,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   Timer? _accuracyTimeoutTimer;
   static const int _maximumWaitSeconds = 30;
   static const double _requiredAccuracyForCapture =
-      50.0; // Minimum accuracy required to proceed
+      20.0; // Minimum accuracy required to proceed
 
   final LocalDatabaseService _localDatabaseService =
       LocalDatabaseService(); // Used for local survey record saving
@@ -60,7 +60,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   void initState() {
     super.initState();
     _parseTowerRange(widget.task.targetTowerRange);
-    _getCurrentLocation();
+    _getCurrentLocation(); // This is already called here
   }
 
   @override
@@ -107,8 +107,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   }
 
   Future<void> _getCurrentLocation() async {
-    final localizations = AppLocalizations.of(context)!;
-
+    // Removed: final localizations = AppLocalizations.of(context)!;
     if (_isFetchingLocation) return;
 
     setState(() {
@@ -122,7 +121,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     if (!hasPermission) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, localizations.locationPermissionDenied,
+            context, AppLocalizations.of(context)!.locationPermissionDenied,
             isError: true);
       }
       setState(() {
@@ -151,7 +150,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
               _positionStreamSubscription?.cancel();
               SnackBarUtils.showSnackBar(
                 context,
-                localizations.requiredAccuracyAchieved(
+                AppLocalizations.of(context)!.requiredAccuracyAchieved(
                     position.accuracy.toStringAsFixed(2),
                     _requiredAccuracyForCapture.toStringAsFixed(1)),
                 isError: false,
@@ -161,8 +160,8 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         }
       }, onError: (e) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(
-              context, localizations.errorGettingLocation as String,
+          SnackBarUtils.showSnackBar(context,
+              AppLocalizations.of(context)!.errorGettingLocation(e.toString()),
               isError: true);
           setState(() {
             _isFetchingLocation = false;
@@ -185,23 +184,23 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
 
           if (!_isLocationAccurateEnough && mounted) {
             String accuracyMessage = _currentPosition != null
-                ? localizations.currentAccuracy(
+                ? AppLocalizations.of(context)!.currentAccuracy(
                         _currentPosition!.accuracy.toStringAsFixed(2),
                         _requiredAccuracyForCapture.toStringAsFixed(1)) +
                     '. ' +
-                    localizations
-                        .moveToOpenArea // Assuming a new string for "Move to an open area"
-                : localizations.couldNotGetLocationWithinSeconds(
-                    _maximumWaitSeconds); // Assuming new string
+                    AppLocalizations.of(context)!.moveToOpenArea
+                : AppLocalizations.of(context)!
+                    .couldNotGetLocationWithinSeconds(_maximumWaitSeconds);
             SnackBarUtils.showSnackBar(
               context,
-              localizations.timeoutReached(accuracyMessage),
+              AppLocalizations.of(context)!.timeoutReached(accuracyMessage),
               isError: true,
             );
           } else if (mounted && _currentPosition != null) {
             SnackBarUtils.showSnackBar(
               context,
-              localizations.locationAcquired(_currentPosition!.accuracy
+              AppLocalizations.of(context)!.locationAcquired(_currentPosition!
+                  .accuracy
                   .toStringAsFixed(2)), // Assuming new string
               isError: false,
             );
@@ -210,9 +209,11 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       });
     } catch (e) {
       if (mounted) {
-        SnackBarUtils.showSnackBar(context,
-            localizations.unexpectedErrorStartingLocation(e.toString()),
-            isError: true); // Assuming new string
+        SnackBarUtils.showSnackBar(
+            context,
+            AppLocalizations.of(context)!
+                .unexpectedErrorStartingLocation(e.toString()),
+            isError: true);
         setState(() {
           _isFetchingLocation = false;
           _isLocationAccurateEnough = false;
@@ -631,7 +632,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                                 _maximumWaitSeconds -
                                                     (_accuracyTimeoutTimer
                                                             ?.tick ??
-                                                        0)), // Assuming new string
+                                                        0)),
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodySmall

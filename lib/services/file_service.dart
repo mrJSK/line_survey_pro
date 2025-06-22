@@ -3,7 +3,7 @@
 // generating CSV files, and facilitating file sharing.
 
 import 'dart:io'; // Provides File and Directory classes for file system interactions
-import 'dart:ui' as ui; // Alias 'dart:ui' to 'ui' for image operations
+// Alias 'dart:ui' to 'ui' for image operations
 import 'package:flutter/services.dart'; // For ByteData
 import 'package:path_provider/path_provider.dart'; // Plugin to get common file system locations (e.g., app documents directory)
 import 'package:path/path.dart'

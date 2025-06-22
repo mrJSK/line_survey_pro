@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
           'Line Survey Pro', // This will be set by the first available localization
       debugShowCheckedModeBanner: false,
       // Add these localization delegates
-      localizationsDelegates: [
+      localizationsDelegates: const [
         AppLocalizations.delegate, // Generated app localizations
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

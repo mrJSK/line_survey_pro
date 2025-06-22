@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:geolocator/geolocator.dart'; // Ensure this is imported for Position
+// Ensure this is imported for Position
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord model

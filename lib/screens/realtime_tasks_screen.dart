@@ -94,7 +94,6 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   Future<void> _loadAllData() async {
-    final localizations = AppLocalizations.of(context)!;
     if (!mounted || widget.currentUserProfile == null) {
       return;
     }
@@ -120,8 +119,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       }
     }, onError: (e) {
       if (mounted) {
-        SnackBarUtils.showSnackBar(context,
-            localizations.errorStreamingLocalSurveyRecords(e.toString()),
+        SnackBarUtils.showSnackBar(
+            context,
+            AppLocalizations.of(context)!.errorStreamingLocalSurveyRecords(
+                e.toString()), // Access directly
             isError: true);
         setState(() {
           _isLoadingLocalRecords = false; // Mark as loaded even on error
@@ -136,8 +137,6 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   void _setupDataStreamsBasedOnRole() {
-    final localizations = AppLocalizations.of(context)!;
-
     // Stream all transmission lines
     _transmissionLinesSubscription?.cancel();
     _transmissionLinesSubscription =
@@ -153,7 +152,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     }, onError: (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, localizations.errorStreamingManagerLines(e.toString()),
+            context,
+            AppLocalizations.of(context)!
+                .errorStreamingManagerLines(e.toString()), // Access directly
             isError: true);
         setState(() {
           _isLoadingTransmissionLines = false; // Mark as loaded even on error
@@ -183,7 +184,6 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   }
 
   void _setupDataStreamsBasedOnRoleInner() {
-    final localizations = AppLocalizations.of(context)!;
     final UserProfile user = widget.currentUserProfile!;
 
     // Re-setup tasks and firestore survey streams after transmission lines are loaded
@@ -205,7 +205,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       }, onError: (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, localizations.errorStreamingYourTasks(e.toString()),
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingYourTasks(e.toString()), // Access directly
               isError: true);
           setState(() {
             _isLoadingTasks = false; // Mark as loaded even on error
@@ -227,8 +229,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         }
       }, onError: (e) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(context,
-              localizations.errorStreamingYourSurveyRecords(e.toString()),
+          SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!.errorStreamingYourSurveyRecords(
+                  e.toString()), // Access directly
               isError: true);
           setState(() {
             _isLoadingFirestoreRecords = false; // Mark as loaded even on error
@@ -263,7 +267,9 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       }, onError: (e) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, localizations.errorStreamingAllTasks(e.toString()),
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingAllTasks(e.toString()), // Access directly
               isError: true);
           setState(() {
             _isLoadingTasks = false; // Mark as loaded even on error
@@ -296,8 +302,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         }
       }, onError: (e) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(context,
-              localizations.errorStreamingAllSurveyRecords(e.toString()),
+          SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!.errorStreamingAllSurveyRecords(
+                  e.toString()), // Access directly
               isError: true);
           setState(() {
             _isLoadingFirestoreRecords = false; // Mark as loaded even on error
@@ -311,7 +319,10 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       _tasks = [];
       _surveyRecordsByTask = {};
       if (mounted) {
-        SnackBarUtils.showSnackBar(context, localizations.unassignedRoleTitle,
+        SnackBarUtils.showSnackBar(
+            context,
+            AppLocalizations.of(context)!
+                .unassignedRoleTitle, // Access directly
             isError: true);
         setState(() {
           _isLoadingTasks = false;

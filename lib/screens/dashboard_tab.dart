@@ -27,6 +27,7 @@ import 'package:line_survey_pro/screens/manager_worker_detail_screen.dart'; // I
 import 'package:collection/collection.dart'
     as collection; // Import the collection package for its extension
 import 'package:line_survey_pro/screens/line_patrolling_details_screen.dart'; // Import LinePatrollingDetailsScreen
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class DashboardTab extends StatefulWidget {
   final UserProfile? currentUserProfile; // NEW: Receive UserProfile
@@ -144,8 +145,10 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       }, onError: (error) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(context,
-              'Error streaming local survey records: ${error.toString()}',
+          SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingLocalSurveyRecords(error.toString()),
               isError: true);
         }
       });
@@ -160,8 +163,10 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       }, onError: (error) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(context,
-              'Error streaming transmission lines: ${error.toString()}',
+          SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingManagerLines(error.toString()),
               isError: true);
         }
       });
@@ -176,7 +181,9 @@ class _DashboardTabState extends State<DashboardTab> {
       }, onError: (error) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error streaming all tasks: ${error.toString()}',
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingAllTasks(error.toString()),
               isError: true);
         }
       });
@@ -191,8 +198,10 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       }, onError: (error) {
         if (mounted) {
-          SnackBarUtils.showSnackBar(context,
-              'Error streaming all survey records: ${error.toString()}',
+          SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingAllSurveyRecords(error.toString()),
               isError: true);
         }
       });
@@ -211,14 +220,18 @@ class _DashboardTabState extends State<DashboardTab> {
       }, onError: (error) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error streaming all users: ${error.toString()}',
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingAllUsers(error.toString()),
               isError: true);
         }
       });
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error loading dashboard data: ${e.toString()}',
+            context,
+            AppLocalizations.of(context)!
+                .errorLoadingDashboardData(e.toString()),
             isError: true);
       }
       print('Dashboard data loading error: $e');
@@ -296,9 +309,10 @@ class _DashboardTabState extends State<DashboardTab> {
 
       final Set<String> workerAssignedLineNames =
           displayedTasks.map((task) => task.lineName).toSet();
-      displayedLines = _transmissionLines
-          .where((line) => workerAssignedLineNames.contains(line.name))
-          .toList();
+      displayedLines =
+          _transmissionLines // This is the _allTransmissionLines before filtering
+              .where((line) => workerAssignedLineNames.contains(line.name))
+              .toList();
     }
 
     if (user.role == 'Manager' || user.role == 'Admin') {
@@ -306,7 +320,8 @@ class _DashboardTabState extends State<DashboardTab> {
     }
 
     setState(() {
-      _transmissionLines = displayedLines;
+      _transmissionLines =
+          displayedLines; // Now _transmissionLines only contains lines for worker's tasks
       _tasksWithProgress = displayedTasks;
     });
   }
@@ -409,6 +424,8 @@ class _DashboardTabState extends State<DashboardTab> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations =
+        AppLocalizations.of(context)!; // Access here
 
     if (_isLoadingData || widget.currentUserProfile == null) {
       return const Center(child: CircularProgressIndicator());
@@ -426,7 +443,7 @@ class _DashboardTabState extends State<DashboardTab> {
               Icon(Icons.person_off, size: 80, color: colorScheme.error),
               const SizedBox(height: 20),
               Text(
-                'Your account is not approved.',
+                localizations.accountNotApproved,
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -435,7 +452,7 @@ class _DashboardTabState extends State<DashboardTab> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Please wait for administrator approval or contact support.',
+                localizations.accountApprovalMessage,
                 style: Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -462,7 +479,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   size: 80, color: colorScheme.error),
               const SizedBox(height: 20),
               Text(
-                'Your account role is not assigned or recognized.',
+                localizations.unassignedRoleTitle,
                 style: Theme.of(context)
                     .textTheme
                     .headlineSmall
@@ -471,7 +488,7 @@ class _DashboardTabState extends State<DashboardTab> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Please ensure your role (Worker, Manager, or Admin) is correctly assigned by an administrator in the Firebase Console.',
+                localizations.unassignedRoleMessage,
                 style: Theme.of(context)
                     .textTheme
                     .bodyLarge
@@ -516,7 +533,7 @@ class _DashboardTabState extends State<DashboardTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Survey Progress Overview',
+            localizations.surveyProgressOverview,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 15),
@@ -524,7 +541,7 @@ class _DashboardTabState extends State<DashboardTab> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Admin Dashboard Summary',
+                Text(localizations.adminDashboardSummary,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 Card(
@@ -534,27 +551,27 @@ class _DashboardTabState extends State<DashboardTab> {
                     child: Column(
                       children: [
                         _buildStatRow(
-                            'Total Managers:',
+                            localizations.totalManagersCount,
                             _totalManagersCount.toString(),
                             Icons.person_outline,
                             colorScheme.primary),
                         _buildStatRow(
-                            'Total Workers:',
+                            localizations.totalWorkersCount,
                             _totalWorkersCount.toString(),
                             Icons.engineering,
                             colorScheme.secondary),
                         _buildStatRow(
-                            'Total Lines:',
+                            localizations.totalLinesCount,
                             _totalLinesCount.toString(),
                             Icons.speed,
                             colorScheme.tertiary),
                         _buildStatRow(
-                            'Total Towers in System:',
+                            localizations.totalTowersInSystemCount,
                             _totalTowersInSystem.toString(),
                             Icons.location_on,
                             colorScheme.onSurface),
                         _buildStatRow(
-                            'Pending Approvals:',
+                            localizations.pendingApprovalsCount,
                             _latestPendingRequests.length.toString(),
                             Icons.hourglass_empty,
                             colorScheme.error),
@@ -563,11 +580,11 @@ class _DashboardTabState extends State<DashboardTab> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                Text('Latest Pending Requests',
+                Text(localizations.latestPendingRequestsTitle,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 _latestPendingRequests.isEmpty
-                    ? Text('No pending requests.',
+                    ? Text(localizations.noPendingRequestsTitle,
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
@@ -579,19 +596,20 @@ class _DashboardTabState extends State<DashboardTab> {
                                       const EdgeInsets.symmetric(vertical: 4),
                                   child: ListTile(
                                     title: Text(user.email),
-                                    subtitle: Text('Status: ${user.status}'),
+                                    subtitle: Text(
+                                        '${localizations.status}: ${user.status}'),
                                   ),
                                 ))
                             .toList(),
                       ),
                 const SizedBox(height: 30),
-                Text('Managers & Their Assignments',
+                Text(localizations.managersAssignmentsTitle,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 _allUsersInSystem
                         .where((user) => user.role == 'Manager')
                         .isEmpty
-                    ? Text('No managers found.',
+                    ? Text(localizations.noManagersFoundTitle,
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
@@ -626,18 +644,23 @@ class _DashboardTabState extends State<DashboardTab> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                      'Lines Assigned: ${assignedLinesToManager.length}'),
-                                  Text(
-                                      'Total Towers Assigned: $totalTowersAssignedToManager'),
-                                  Text(
-                                      'Tasks Assigned by Them: ${_tasksWithProgress.where((task) => task.assignedByUserId == manager.id).length}'),
+                                  Text(localizations.linesAssignedManagerCount(
+                                      assignedLinesToManager.length)),
+                                  Text(localizations
+                                      .totalTowersAssignedManagerCount(
+                                          totalTowersAssignedToManager)),
+                                  Text(localizations.tasksAssignedByThemCount(
+                                      _tasksWithProgress
+                                          .where((task) =>
+                                              task.assignedByUserId ==
+                                              manager.id)
+                                          .length)),
                                 ],
                               ),
                               trailing: TextButton(
                                 onPressed: () =>
                                     _navigateToWorkerDetails(manager),
-                                child: Text('View >',
+                                child: Text(localizations.viewButton,
                                     style:
                                         TextStyle(color: colorScheme.primary)),
                               ),
@@ -653,7 +676,7 @@ class _DashboardTabState extends State<DashboardTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 10),
-                Text('Progress by Worker:',
+                Text(localizations.progressByWorkerTitle,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 _allWorkers.isEmpty
@@ -665,7 +688,7 @@ class _DashboardTabState extends State<DashboardTab> {
                           padding: const EdgeInsets.all(16.0),
                           child: Center(
                             child: Text(
-                              'No worker profiles found or assigned tasks to track.',
+                              localizations.noWorkerProfilesFoundTitle,
                               textAlign: TextAlign.center,
                               style: Theme.of(context)
                                   .textTheme
@@ -702,17 +725,17 @@ class _DashboardTabState extends State<DashboardTab> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                      'Lines Assigned: ${summary.linesAssigned}'),
+                                      '${localizations.linesAssigned}: ${summary.linesAssigned}'),
                                   Text(
-                                      'Lines Patrolled: ${summary.linesCompleted}'),
+                                      '${localizations.linesPatrolled}: ${summary.linesCompleted}'),
                                   Text(
-                                      'Lines Working/Pending: ${summary.linesWorkingPending}'),
+                                      '${localizations.linesWorkingPending}: ${summary.linesWorkingPending}'),
                                 ],
                               ),
                               trailing: TextButton(
                                 onPressed: () =>
                                     _navigateToWorkerDetails(worker),
-                                child: Text('View >',
+                                child: Text(localizations.viewButton,
                                     style:
                                         TextStyle(color: colorScheme.primary)),
                               ),
@@ -725,8 +748,8 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
           Text(
             currentUser.role == 'Worker'
-                ? 'Your Assigned Tasks:'
-                : 'Lines under your supervision:',
+                ? localizations.yourAssignedTasks
+                : localizations.linesUnderSupervision,
             style: Theme.of(context)
                 .textTheme
                 .headlineSmall
@@ -737,8 +760,8 @@ class _DashboardTabState extends State<DashboardTab> {
               ? Center(
                   child: Text(
                     currentUser.role == 'Worker'
-                        ? 'No tasks assigned to you yet.'
-                        : 'No lines or tasks available for your role within your assigned areas.',
+                        ? localizations.noTasksAssigned
+                        : localizations.noLinesOrTasksAvailable,
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
@@ -754,9 +777,14 @@ class _DashboardTabState extends State<DashboardTab> {
                   itemBuilder: (context, index) {
                     if (currentUser.role == 'Worker') {
                       final task = _tasksWithProgress[index];
+                      // DEBUG PRINTS ADDED HERE:
+                      print(
+                          'DEBUG Dashboard: Current Task on card tap: Line=${task.lineName}, TargetTowerRange=${task.targetTowerRange}');
                       final TransmissionLine? taskLine =
                           _transmissionLines.firstWhereOrNull(
                               (line) => line.name == task.lineName);
+                      print(
+                          'DEBUG Dashboard: Lookup Result for "${task.lineName}": Found=${taskLine != null}');
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
@@ -766,8 +794,8 @@ class _DashboardTabState extends State<DashboardTab> {
                             if (taskLine != null) {
                               _navigateToLineDetailForTask(task, taskLine);
                             } else {
-                              SnackBarUtils.showSnackBar(
-                                  context, 'Line data not found for this task.',
+                              SnackBarUtils.showSnackBar(context,
+                                  'Line data not found for this task.', // Keep hardcoded as no exact match in AppLocalizations
                                   isError: true);
                             }
                           },
@@ -778,21 +806,21 @@ class _DashboardTabState extends State<DashboardTab> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Task: ${task.lineName} - Towers: ${task.targetTowerRange}',
+                                  '${localizations.task}: ${task.lineName} - ${localizations.towers}: ${task.targetTowerRange} (${task.numberOfTowersToPatrol} ${localizations.toPatrol})',
                                   style:
                                       Theme.of(context).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Patrolled: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                  '${localizations.patrolledCount}: ${task.localCompletedCount} / ${task.numberOfTowersToPatrol}',
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
                                 Text(
-                                  'Uploaded: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
+                                  '${localizations.uploadedCount}: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
                                 Text(
-                                    'Due: ${task.dueDate.toLocal().toString().split(' ')[0]} | Status: ${task.derivedStatus}',
+                                    '${localizations.due}: ${task.dueDate.toLocal().toString().split(' ')[0]} | ${localizations.status}: ${task.derivedStatus}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
@@ -854,10 +882,12 @@ class _DashboardTabState extends State<DashboardTab> {
                                         .textTheme
                                         .titleMedium),
                                 const SizedBox(height: 8),
-                                Text('Voltage: ${line.voltageLevel ?? 'N/A'}',
+                                Text(
+                                    '${localizations.voltageLevel}: ${line.voltageLevel ?? 'N/A'}',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium),
-                                Text('Towers: $completedTowers / $totalTowers',
+                                Text(
+                                    '${localizations.towers}: $completedTowers / $totalTowers',
                                     style:
                                         Theme.of(context).textTheme.bodyLarge),
                                 const SizedBox(height: 12),
@@ -889,7 +919,8 @@ class _DashboardTabState extends State<DashboardTab> {
                 ),
           const SizedBox(height: 30),
           Text(
-            'Overall Survey Progress',
+            localizations
+                .surveyProgressOverview, // Or use a suitable existing getter
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 15),
@@ -941,7 +972,7 @@ class _DashboardTabState extends State<DashboardTab> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '$totalCompletedTowers / $totalOverallTowers Towers',
+                              '${totalCompletedTowers} / ${totalOverallTowers} ${localizations.towers}', // Localized "Towers"
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyLarge

@@ -28,22 +28,18 @@ class HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final AuthService _authService = AuthService();
 
-  // State for the language toggle (true for English, false for Hindi)
-  bool _isEnglish = true;
+  // Removed _isEnglish state variable as language is now role-based and automatic.
 
   @override
   void initState() {
     super.initState();
-    // No longer initialize _isEnglish here to avoid dependOnInheritedWidgetOfExactType error.
-    // Initialization moved to didChangeDependencies().
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Initialize the toggle based on the current app locale here,
-    // as BuildContext is fully initialized and can access inherited widgets.
-    _isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    // No longer explicitly managing _isEnglish based on system locale here,
+    // as it's now driven by user role below.
   }
 
   void changeTab(int index) {
@@ -109,36 +105,16 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _toggleLanguage(bool value) {
-    Locale newLocale = value ? const Locale('en') : const Locale('hi');
-    if (Localizations.localeOf(context).languageCode !=
-        newLocale.languageCode) {
-      setState(() {
-        _isEnglish = value;
-      });
-      // This will trigger a rebuild of the MaterialApp to apply the new locale.
-      // This approach rebuilds the entire app subtree. For frequent changes,
-      // a state management solution affecting MaterialApp's locale property
-      // would be more performant.
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => _buildAppWithNewLocale(newLocale),
-        ),
-        (route) => false,
-      );
-    }
-  }
-
-  // Helper to rebuild MaterialApp with new locale
+  // This helper method is now strictly for rebuilding the MaterialApp with a new locale.
+  // It no longer handles any direct toggle logic or app title fetching from an old context.
   Widget _buildAppWithNewLocale(Locale newLocale) {
     return MaterialApp(
       locale: newLocale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
-      title: AppLocalizations.of(context)?.appTitle ?? '',
+      title: 'Line Survey Pro', // Use a static title for the MaterialApp itself
       theme: Theme.of(context).copyWith(),
-      home: const SplashScreen(),
+      home: const SplashScreen(), // SplashScreen will handle redirection
     );
   }
 
@@ -166,6 +142,34 @@ class HomeScreenState extends State<HomeScreen> {
         final UserProfile? currentUserProfile = snapshot.data;
         final bool isLoadingProfile =
             snapshot.connectionState == ConnectionState.waiting;
+
+        // Determine target locale based on user role
+        Locale? targetLocale;
+        if (currentUserProfile?.role == 'Worker') {
+          targetLocale = const Locale('hi'); // Hindi for Worker
+        } else if (currentUserProfile != null) {
+          targetLocale = const Locale('en'); // English for everyone else
+        }
+
+        // Get the current locale of the context (the actual displayed locale)
+        final currentContextLocale = Localizations.localeOf(context);
+
+        // If a target locale is determined and it's different from the current locale,
+        // trigger a rebuild of the entire MaterialApp with the new locale.
+        if (targetLocale != null &&
+            currentContextLocale.languageCode != targetLocale.languageCode) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => _buildAppWithNewLocale(targetLocale!),
+              ),
+              (route) => false,
+            );
+          });
+          // While navigation/rebuild happens, show a loading indicator.
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
 
         final List<Widget> _widgetOptions = <Widget>[
           DashboardTab(currentUserProfile: currentUserProfile),
@@ -203,27 +207,8 @@ class HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Text(appBarTitle),
             centerTitle: true,
-            actions: [
-              // NEW: Language Toggle Switch
-              Tooltip(
-                message: _isEnglish
-                    ? localizations.switchToHindi
-                    : localizations.switchToEnglish,
-                child: Switch(
-                  value: _isEnglish,
-                  onChanged: _toggleLanguage,
-                  activeColor: Theme.of(context)
-                      .colorScheme
-                      .tertiary, // Yellow for English
-                  inactiveThumbColor: Theme.of(context)
-                      .colorScheme
-                      .secondary, // Green for Hindi
-                  inactiveTrackColor:
-                      Theme.of(context).colorScheme.secondary.withOpacity(0.5),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
+            // Language toggle removed from AppBar actions
+            actions: const [],
           ),
           drawer: Drawer(
             child: ListView(
@@ -286,6 +271,7 @@ class HomeScreenState extends State<HomeScreen> {
                     title: Text(localizations.manageTransmissionLines),
                     onTap: _navigateToManageLinesScreen,
                   ),
+                // Language Toggle ListTile removed from Drawer
                 const Divider(),
                 ListTile(
                   leading: Icon(Icons.logout,
