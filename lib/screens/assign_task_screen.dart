@@ -1,7 +1,7 @@
 // lib/screens/assign_task_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:line_survey_pro/models/task.dart';
+import 'package:line_survey_pro/models/task.dart'; //
 import 'package:line_survey_pro/models/user_profile.dart';
 import 'package:line_survey_pro/models/transmission_line.dart';
 import 'package:line_survey_pro/services/auth_service.dart';
@@ -9,7 +9,7 @@ import 'package:line_survey_pro/services/task_service.dart';
 import 'package:line_survey_pro/services/firestore_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:uuid/uuid.dart';
-import 'package:collection/collection.dart';
+import 'package:collection/collection.dart' as collection;
 
 class AssignTaskScreen extends StatefulWidget {
   final Task? taskToEdit;
@@ -99,8 +99,9 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       if (widget.taskToEdit != null) {
         _selectedWorker = _workers.firstWhereOrNull(
             (worker) => worker.id == widget.taskToEdit!.assignedToUserId);
-        _selectedLine = _transmissionLines.firstWhereOrNull(
-            (line) => line.name == widget.taskToEdit!.lineName);
+        // MODIFIED: Use lineId for matching
+        _selectedLine = _transmissionLines
+            .firstWhereOrNull((line) => line.id == widget.taskToEdit!.lineId);
 
         if (_selectedWorker == null && _workers.isNotEmpty) {
           _selectedWorker = _workers.first;
@@ -258,7 +259,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       final List<Task> allTasksForSelectedLine =
           (await _taskService.getAllTasks())
               .where((task) =>
-                  task.lineName == _selectedLine!.name &&
+                  // MODIFIED: Use lineId for filtering tasks
+                  task.lineId == _selectedLine!.id &&
                   task.id !=
                       widget.taskToEdit?.id) // Exclude current task if editing
               .toList();
@@ -300,7 +302,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       final allExistingTasks = await _taskService.getAllTasks();
       final relevantExistingTasks = allExistingTasks
           .where((task) =>
-                  task.lineName == _selectedLine!.name &&
+                  // MODIFIED: Use lineId for filtering tasks
+                  task.lineId == _selectedLine!.id &&
                   task.id !=
                       widget.taskToEdit?.id // Exclude current task if editing
               )
@@ -338,6 +341,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           assignedByUserId: _currentManager!.id,
           assignedByUserName:
               _currentManager!.displayName ?? _currentManager!.email,
+          lineId: _selectedLine!
+              .id, // NEW: Pass the line ID from the selected TransmissionLine
           lineName: _selectedLine!.name,
           targetTowerRange: targetRangeString,
           numberOfTowersToPatrol: numberOfTowers,

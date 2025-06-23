@@ -416,7 +416,7 @@
   "current": "वर्तमान",
   "nationalHighway": "राष्ट्रीय राजमार्ग",
   "stateHighway": "राज्य राजमार्ग",
-  "chakkRoad": "चक्क रोड",
+  "localRoad": "स्थानीय सड़क",
   "overBridge": "ओवर ब्रिज",
   "underpass": "अंडरपास",
   "voltage400kV": "400kV",
@@ -476,5 +476,11 @@
   "confirmCancellation": "क्या आप इस कार्य को रद्द करना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती है।",
   "cancelTaskConfirmation": "क्या आप लाइन: {lineName}, टावरों: {towerRange} से {assignedToUserName} का कार्य रद्द करना चाहते हैं? इससे इस कार्य के लिए ऐप में किसी भी संबंधित सर्वेक्षण प्रगति को भी हटा दिया जाएगा। यह कार्रवाई पूर्ववत नहीं की जा सकती है।",
   "cancelTask": "कार्य रद्द करें",
-  "reassignTask": "कार्य पुनः असाइन करें"
+  "reassignTask": "कार्य पुनः असाइन करें",
+  "suspension": "सस्पेंशन",
+  "tension": "टेंशन",
+  "angle": "एंगल",
+  "transposition": "ट्रांसपोज़िशन",
+  "deadEnd": "डेड एंड",
+  "grantry": "ग्रैंट्री"
 }

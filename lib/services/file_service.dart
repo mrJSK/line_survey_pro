@@ -17,6 +17,115 @@ import 'package:line_survey_pro/models/transmission_line.dart'; // NEW: Import T
 import 'package:collection/collection.dart'; // For firstWhereOrNull
 
 class FileService {
+  // NEW: A static map to translate common Hindi terms to English
+  // This map should contain entries for all localized strings that are stored
+  // in your SurveyRecord fields and need to be exported in English.
+  static const Map<String, String> _hindiToEnglishMap = {
+    // Statuses
+    'ठीक है': 'OK',
+    'गश्त की गई': 'Patrolled',
+    'प्रगति में (अपलोड किया गया)': 'In Progress (Uploaded)',
+    'प्रगति में (स्थानीय)': 'In Progress (Local)',
+    'लंबित': 'Pending',
+    'अतिदेय': 'Overdue',
+    'ठीक नहीं': 'NOT OKAY', // specific not okay status
+    'हाँ': 'Yes',
+    'नहीं': 'No',
+
+    // General conditions / options
+    'गायब': 'Missing',
+    'लागू नहीं': 'Not Applicable',
+    'अच्छा': 'Good',
+    'मामूली': 'Minor',
+    'मध्यम': 'Moderate',
+    'गंभीर': 'Severe',
+    'अक्षुण्ण': 'Intact',
+    'वर्तमान':
+        'Current', // From general context, could be a status or descriptor
+
+    // Soil Conditions
+    'बैकफिलिंग आवश्यक': 'Backfilling Required',
+    'रिवेटमेंट वॉल आवश्यक': 'Revetment Wall Required',
+    'मिट्टी की खुदाई आवश्यक': 'Excavation Of Soil Required',
+
+    // Tower Parts Conditions / Other Mechanical
+    'जंग लगा हुआ': 'Rusted',
+    'मुड़ा हुआ': 'Bent',
+    'लटका हुआ': 'Hanging',
+    'क्षतिग्रस्त': 'Damaged',
+    'फटा हुआ': 'Cracked',
+    'टूटा हुआ': 'Broken',
+    'ढीला': 'Loose',
+    'बोल्ट गायब': 'Bolt Missing',
+    'संक्षारित': 'Corroded',
+    'फीका पड़ा हुआ': 'Faded',
+    'डिस्कनेक्टेड': 'Disconnected',
+    'स्पेसर्स गायब': 'Spacers Missing',
+
+    // Electrical Components
+    'फ्लैशओवर': 'Flashover',
+    'गंदा': 'Dirty',
+    'खुला': 'Open',
+    'लीक हो रहा है': 'Leaking',
+    'उपस्थित': 'Present', // For bird nest, etc.
+
+    // Environmental / Growth
+    'ट्रिमिंग आवश्यक': 'Trimming Required',
+    'लॉपिंग आवश्यक': 'Lopping Required',
+    'कटिंग आवश्यक': 'Cutting Required',
+
+    // Tower Types
+    'सस्पेंशन': 'Suspension',
+    'टेंशन': 'Tension',
+    'एंगल': 'Angle',
+    'ट्रांसपोजिशन': 'Transposition',
+    'डेड एंड': 'Dead End',
+    'ग्रैंट्री': 'Gantry', // Assuming 'grantry' maps to 'Gantry'
+
+    // Road Crossing Types
+    'राष्ट्रीय राजमार्ग': 'National Highway',
+    'राज्य राजमार्ग': 'State Highway',
+    'स्थानीय सड़क': 'Local Road',
+    'ओवर ब्रिज': 'Over Bridge',
+    'अंडरपास': 'Underpass',
+
+    // Electrical Line Types (if stored as translated values, though typically they are codes like 400kV)
+    'निजी ट्यूबवेल':
+        'Private Tube Well', // Example of a specific line type name
+
+    // If numerical voltage levels are stored as strings that might be localized
+    // '400kV': '400kV', // Not expected to be translated
+    // '220kV': '220kV', // Not expected to be translated
+    // '132kV': '132kV', // Not expected to be translated
+    // '33kV': '33kV',   // Not expected to be translated
+    // '11kV': '11kV',   // Not expected to be translated
+  };
+
+  // NEW: Helper function to translate a string or list of strings to its English equivalent
+  String _translateToEnglish(dynamic value) {
+    if (value == null) {
+      return '';
+    }
+    if (value is List<String>) {
+      // If it's a list, translate each item and join them back
+      return value
+          .map((s) => _hindiToEnglishMap[s.trim()] ?? s.trim())
+          .join('; ');
+    }
+    if (value is String) {
+      // Handle comma-separated strings (like from lists stored as strings in SQLite, or multi-select dropdowns)
+      if (value.contains(',') || value.contains(';')) {
+        final separator = value.contains(',') ? ',' : ';';
+        return value
+            .split(separator)
+            .map((s) => _hindiToEnglishMap[s.trim()] ?? s.trim())
+            .join(separator);
+      }
+      return _hindiToEnglishMap[value.trim()] ?? value.trim();
+    }
+    return value.toString(); // Return as string if not a recognized type
+  }
+
   // Returns a temporary file path for a given filename.
   // This is useful for storing intermediate files that do not need to persist long-term.
   Future<String> getTemporaryImagePath(String filename) async {
@@ -90,6 +199,8 @@ class FileService {
       'Electrical Line Names',
       // NEW: Span Details
       'Span Length', 'Bottom Conductor', 'Top Conductor',
+      // NEW: Tower Type
+      'Tower Type',
     ]);
 
     // Iterate through each survey record and convert its properties into a list
@@ -118,56 +229,64 @@ class FileService {
         record.longitude,
         record.timestamp
             .toIso8601String(), // Convert DateTime to ISO 8601 string
-        record.status,
-        record.missingTowerParts ?? '', // Use empty string if null
-        record.soilCondition ?? '',
-        record.stubCopingLeg ?? '',
-        record.earthing ?? '',
-        record.conditionOfTowerParts ?? '',
-        record.statusOfInsulator ?? '',
-        record.jumperStatus ?? '',
-        record.hotSpots ?? '',
-        record.numberPlate ?? '',
-        record.dangerBoard ?? '',
-        record.phasePlate ?? '',
-        record.nutAndBoltCondition ?? '',
-        record.antiClimbingDevice ?? '',
-        record.wildGrowth ?? '',
-        record.birdGuard ?? '',
-        record.birdNest ?? '',
-        record.archingHorn ?? '',
-        record.coronaRing ?? '',
-        record.insulatorType ?? '',
-        record.opgwJointBox ?? '',
+        _translateToEnglish(
+            record.status), // Translate status if it's localized
+        _translateToEnglish(record.missingTowerParts),
+        _translateToEnglish(record.soilCondition),
+        _translateToEnglish(record.stubCopingLeg),
+        _translateToEnglish(record.earthing),
+        _translateToEnglish(record.conditionOfTowerParts),
+        _translateToEnglish(record.statusOfInsulator),
+        _translateToEnglish(record.jumperStatus),
+        _translateToEnglish(record.hotSpots),
+        _translateToEnglish(record.numberPlate),
+        _translateToEnglish(record.dangerBoard),
+        _translateToEnglish(record.phasePlate),
+        _translateToEnglish(record.nutAndBoltCondition),
+        _translateToEnglish(record.antiClimbingDevice),
+        _translateToEnglish(record.wildGrowth),
+        _translateToEnglish(record.birdGuard),
+        _translateToEnglish(record.birdNest),
+        _translateToEnglish(record.archingHorn),
+        _translateToEnglish(record.coronaRing),
+        _translateToEnglish(record.insulatorType),
+        _translateToEnglish(record.opgwJointBox),
         // Line Survey Details (Existing)
-        record.building == true ? 'Yes' : 'No',
-        record.tree == true ? 'Yes' : 'No',
+        record.building == true ? 'Yes' : 'No', // Already English
+        record.tree == true ? 'Yes' : 'No', // Already English
         record.numberOfTrees ?? '',
-        record.conditionOfOpgw ?? '',
-        record.conditionOfEarthWire ?? '',
-        record.conditionOfConductor ?? '',
-        record.midSpanJoint ?? '',
-        record.newConstruction == true ? 'Yes' : 'No',
-        record.objectOnConductor == true ? 'Yes' : 'No',
-        record.objectOnEarthwire == true ? 'Yes' : 'No',
-        record.spacers ?? '',
-        record.vibrationDamper ?? '',
-        record.riverCrossing == true ? 'Yes' : 'No',
-        record.railwayCrossing == true ? 'Yes' : 'No',
-        record.generalNotes ?? '', // Add General Notes
-
+        _translateToEnglish(record.conditionOfOpgw),
+        _translateToEnglish(record.conditionOfEarthWire),
+        _translateToEnglish(record.conditionOfConductor),
+        _translateToEnglish(record.midSpanJoint),
+        record.newConstruction == true ? 'Yes' : 'No', // Already English
+        record.objectOnConductor == true ? 'Yes' : 'No', // Already English
+        record.objectOnEarthwire == true ? 'Yes' : 'No', // Already English
+        _translateToEnglish(record.spacers),
+        _translateToEnglish(record.vibrationDamper),
+        record.riverCrossing == true ? 'Yes' : 'No', // Already English
+        record.railwayCrossing == true ? 'Yes' : 'No', // Already English
+        record.generalNotes ?? '', // Text field, no translation needed
         // NEW: Road Crossing Details
-        record.hasRoadCrossing == true ? 'Yes' : 'No',
-        record.roadCrossingTypes?.join('; ') ?? '', // Join list into string
-        record.roadCrossingName ?? '',
+        record.hasRoadCrossing == true ? 'Yes' : 'No', // Already English
+        _translateToEnglish(
+            record.roadCrossingTypes), // Pass list to translator
+        record.roadCrossingName ?? '', // Text field, no translation needed
         // NEW: Electrical Line Crossing Details
-        record.hasElectricalLineCrossing == true ? 'Yes' : 'No',
-        record.electricalLineTypes?.join('; ') ?? '', // Join list into string
-        record.electricalLineNames?.join('; ') ?? '', // Join list into string
+        record.hasElectricalLineCrossing == true
+            ? 'Yes'
+            : 'No', // Already English
+        _translateToEnglish(
+            record.electricalLineTypes), // Pass list to translator
+        record.electricalLineNames?.join(
+                '; ') ?? // Assuming these are not translated, just joined
+            '',
         // NEW: Span Details
-        record.spanLength ?? '',
-        record.bottomConductor ?? '',
-        record.topConductor ?? '',
+        record.spanLength ?? '', // Text field, no translation needed
+        _translateToEnglish(record.bottomConductor),
+        _translateToEnglish(record.topConductor),
+        // NEW: Tower Type
+        _translateToEnglish(record.towerType),
       ]);
     }
 

@@ -80,7 +80,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
   final List<String> _roadCrossingOptions = [
     'NH',
     'SH',
-    'Chakk road',
+    'Local road',
     'Over Bridge',
     'Underpass'
   ];
@@ -297,7 +297,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
     final List<String> localizedRoadCrossingOptions = [
       localizations.nationalHighway,
       localizations.stateHighway,
-      localizations.chakkRoad,
+      localizations.localRoad,
       localizations.overBridge,
       localizations.underpass
     ];

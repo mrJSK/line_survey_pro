@@ -420,7 +420,7 @@
   "userNotFoundAfterSignIn": "User not found after sign-in.",
   "nationalHighway": "National Highway",
   "stateHighway": "State Highway",
-  "chakkRoad": "Chakk road",
+  "localRoad": "Local road",
   "overBridge": "Over Bridge",
   "underpass": "Underpass",
   "voltage400kV": "400kV",
@@ -473,5 +473,11 @@
   "confirmCancellation": "Are you sure you want to cancel this task? This action cannot be undone.",
   "cancelTaskConfirmation": "Are you sure you want to cancel the task for Line: {lineName}, Towers: {towerRange} from {assignedToUserName}? This will also delete any associated survey progress in the app for this task. This action cannot be undone.",
   "cancelTask": "Cancel Task",
-  "reassignTask": "Reassign Task"
+  "reassignTask": "Reassign Task",
+  "suspension": "Suspension",
+  "tension": "Tension",
+  "angle": "Angle",
+  "transposition": "Transposition",
+  "deadEnd": "Dead End",
+  "grantry": "Grantry"
 }

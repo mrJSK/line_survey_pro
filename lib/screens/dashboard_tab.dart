@@ -272,8 +272,9 @@ class _DashboardTabState extends State<DashboardTab> {
           .where((line) => user.assignedLineIds.contains(line.id))
           .toList();
       displayedTasks = _tasksWithProgress.where((task) {
+        // MODIFIED: Use line.id for manager task filtering
         final TransmissionLine? taskLine =
-            _transmissionLines.firstWhereOrNull((l) => l.name == task.lineName);
+            _transmissionLines.firstWhereOrNull((l) => l.id == task.lineId);
         return taskLine != null && user.assignedLineIds.contains(taskLine.id);
       }).toList();
     } else if (user.role == 'Worker') {
@@ -310,11 +311,12 @@ class _DashboardTabState extends State<DashboardTab> {
       }
       displayedTasks = enrichedWorkerTasks;
 
-      final Set<String> workerAssignedLineNames =
-          displayedTasks.map((task) => task.lineName).toSet();
+      // MODIFIED: Use lineId for worker assigned lines
+      final Set<String> workerAssignedLineIds =
+          displayedTasks.map((task) => task.lineId).toSet();
       displayedLines =
           _transmissionLines // This is the _allTransmissionLines before filtering
-              .where((line) => workerAssignedLineNames.contains(line.name))
+              .where((line) => workerAssignedLineIds.contains(line.id))
               .toList();
     }
 
@@ -346,7 +348,8 @@ class _DashboardTabState extends State<DashboardTab> {
           .where((task) => task.assignedToUserId == worker.id)
           .toList();
 
-      linesAssigned = workerTasks.map((t) => t.lineName).toSet().length;
+      // MODIFIED: Use lineId for assigned lines count
+      linesAssigned = workerTasks.map((t) => t.lineId).toSet().length;
 
       for (var task in workerTasks) {
         final completedTowersForTask = _allFirebaseSurveyRecords
@@ -360,10 +363,12 @@ class _DashboardTabState extends State<DashboardTab> {
             task.copyWith(uploadedCompletedCount: completedTowersForTask);
 
         if (tempTask.derivedStatus == 'Patrolled') {
-          completedLines.add(task.lineName);
+          // MODIFIED: Use lineId for completed/working lines
+          completedLines.add(task.lineId);
         } else if (tempTask.derivedStatus != 'Pending' ||
             completedTowersForTask > 0) {
-          workingLines.add(task.lineName);
+          // MODIFIED: Use lineId for completed/working lines
+          workingLines.add(task.lineId);
         }
       }
       linesCompleted = completedLines.length;
@@ -782,12 +787,13 @@ class _DashboardTabState extends State<DashboardTab> {
                       final task = _tasksWithProgress[index];
                       // DEBUG PRINTS ADDED HERE:
                       print(
-                          'DEBUG Dashboard: Current Task on card tap: Line=${task.lineName}, TargetTowerRange=${task.targetTowerRange}');
+                          'DEBUG Dashboard: Current Task on card tap: LineId="${task.lineId}", LineName="${task.lineName}", TargetTowerRange="${task.targetTowerRange}"'); //
+                      // MODIFIED: Use line.id for matching
                       final TransmissionLine? taskLine =
                           _transmissionLines.firstWhereOrNull(
-                              (line) => line.name == task.lineName);
+                              (line) => line.id == task.lineId); //
                       print(
-                          'DEBUG Dashboard: Lookup Result for "${task.lineName}": Found=${taskLine != null}');
+                          'DEBUG Dashboard: Lookup Result for Task LineId "${task.lineId}": Found=${taskLine != null}'); //
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
@@ -798,7 +804,7 @@ class _DashboardTabState extends State<DashboardTab> {
                               _navigateToLineDetailForTask(task, taskLine);
                             } else {
                               SnackBarUtils.showSnackBar(context,
-                                  'Line data not found for this task.', // Keep hardcoded as no exact match in AppLocalizations
+                                  'Line data not found for this task (ID: ${task.lineId}). Please ensure the line is correctly configured.', // Updated message
                                   isError: true);
                             }
                           },

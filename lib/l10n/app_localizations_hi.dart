@@ -1409,7 +1409,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get stateHighway => 'राज्य राजमार्ग';
 
   @override
-  String get chakkRoad => 'चक्क रोड';
+  String get localRoad => 'स्थानीय सड़क';
 
   @override
   String get overBridge => 'ओवर ब्रिज';
@@ -1576,4 +1576,22 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get reassignTask => 'कार्य पुनः असाइन करें';
+
+  @override
+  String get suspension => 'सस्पेंशन';
+
+  @override
+  String get tension => 'टेंशन';
+
+  @override
+  String get angle => 'एंगल';
+
+  @override
+  String get transposition => 'ट्रांसपोज़िशन';
+
+  @override
+  String get deadEnd => 'डेड एंड';
+
+  @override
+  String get grantry => 'ग्रैंट्री';
 }

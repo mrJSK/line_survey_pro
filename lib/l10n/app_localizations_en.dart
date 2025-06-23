@@ -1409,7 +1409,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stateHighway => 'State Highway';
 
   @override
-  String get chakkRoad => 'Chakk road';
+  String get localRoad => 'Local road';
 
   @override
   String get overBridge => 'Over Bridge';
@@ -1576,4 +1576,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reassignTask => 'Reassign Task';
+
+  @override
+  String get suspension => 'Suspension';
+
+  @override
+  String get tension => 'Tension';
+
+  @override
+  String get angle => 'Angle';
+
+  @override
+  String get transposition => 'Transposition';
+
+  @override
+  String get deadEnd => 'Dead End';
+
+  @override
+  String get grantry => 'Grantry';
 }

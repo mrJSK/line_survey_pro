@@ -55,7 +55,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
   String? _nutAndBoltCondition;
   String? _birdGuard;
   String? _antiClimbingDevice;
-  String? _towerType; // NEW: Tower Type state variable
+  // MODIFIED: Changed _towerType to a List to allow multiple selections
+  List<String> _selectedTowerTypes = [];
 
   bool _isSavingDetails = false;
 
@@ -98,7 +99,15 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
     _nutAndBoltCondition = _currentRecord.nutAndBoltCondition;
     _birdGuard = _currentRecord.birdGuard;
     _antiClimbingDevice = _currentRecord.antiClimbingDevice;
-    _towerType = _currentRecord.towerType; // NEW: Populate Tower Type
+
+    // MODIFIED: Populate _selectedTowerTypes from _currentRecord.towerType
+    if (_currentRecord.towerType != null &&
+        _currentRecord.towerType!.isNotEmpty) {
+      _selectedTowerTypes =
+          _currentRecord.towerType!.split(',').map((e) => e.trim()).toList();
+    } else {
+      _selectedTowerTypes = [];
+    }
 
     _earthingController.text = _currentRecord.earthing ?? '';
     _hotSpotsController.text = _currentRecord.hotSpots ?? '';
@@ -165,7 +174,10 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
         opgwJointBox: _opgwJointBoxController.text.trim().isEmpty
             ? null
             : _opgwJointBoxController.text.trim(),
-        towerType: _towerType, // NEW: Add Tower Type to record
+        // MODIFIED: Convert List<String> _selectedTowerTypes to a comma-separated String
+        towerType: _selectedTowerTypes.isNotEmpty
+            ? _selectedTowerTypes.join(',')
+            : null,
       );
 
       // Navigate to LineSurveyScreen, passing the detailed record and TransmissionLine
@@ -321,7 +333,14 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
       localizations.okStatus
     ];
     // NEW: Options for Tower Type
-    final List<String> towerTypeOptions = ['Suspension', 'Tension'];
+    final List<String> towerTypeOptions = [
+      localizations.suspension,
+      localizations.tension,
+      localizations.angle,
+      localizations.transposition,
+      localizations.deadEnd,
+      localizations.grantry,
+    ];
     // --- END Specific Options ---
 
     return Scaffold(
@@ -337,8 +356,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
             children: [
               Text(
                 localizations.enterDetailedObservations(
-                    widget.initialRecord.towerNumber,
-                    widget.initialRecord.lineName),
+                    widget.initialRecord.lineName,
+                    widget.initialRecord.towerNumber),
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
@@ -358,27 +377,82 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               const SizedBox(height: 20),
 
               // --- Detailed Patrolling Points ---
-              // NEW: Tower Type (Dropdown)
-              DropdownButtonFormField<String>(
-                value: _towerType,
-                decoration: _inputDecoration(localizations.towerType,
-                    Icons.cell_tower_sharp, colorScheme),
-                items: towerTypeOptions
-                    .map((String option) => DropdownMenuItem(
-                        value: option,
-                        child: Text(
-                          option,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        )))
-                    .toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _towerType = newValue;
-                  });
+              // MODIFIED: Replaced DropdownButtonFormField with a custom FormField for multi-selection
+              FormField<List<String>>(
+                initialValue: _selectedTowerTypes,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return localizations
+                        .selectTowerType; // Reusing existing validation string
+                  }
+                  return null;
                 },
-                validator: (value) =>
-                    value == null ? localizations.selectTowerType : null,
+                builder: (FormFieldState<List<String>> state) {
+                  return InputDecorator(
+                    decoration: _inputDecoration(
+                      localizations.towerType, // Label for the section
+                      Icons.cell_tower_sharp,
+                      colorScheme,
+                    ).copyWith(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: state.hasError
+                              ? Theme.of(context).colorScheme.error
+                              : colorScheme.outline,
+                        ),
+                      ),
+                      errorText: state.errorText,
+                    ),
+                    isEmpty: _selectedTowerTypes.isEmpty,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          localizations.towerType, // Label text for the section
+                          style: TextStyle(
+                            color: colorScheme.primary.withOpacity(0.8),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8.0, // gap between adjacent chips
+                          runSpacing: 4.0, // gap between lines
+                          children: towerTypeOptions.map((String option) {
+                            final isSelected =
+                                _selectedTowerTypes.contains(option);
+                            return FilterChip(
+                              label: Text(option),
+                              selected: isSelected,
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedTowerTypes.add(option);
+                                  } else {
+                                    _selectedTowerTypes.remove(option);
+                                  }
+                                  // Update the FormField's state manually to trigger re-validation
+                                  state.didChange(_selectedTowerTypes);
+                                });
+                              },
+                              selectedColor:
+                                  colorScheme.primary.withOpacity(0.2),
+                              checkmarkColor: colorScheme.primary,
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 15),
 

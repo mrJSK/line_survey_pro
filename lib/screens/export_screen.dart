@@ -822,35 +822,37 @@ class _ExportScreenState extends State<ExportScreen>
                                     imageFilesToShare
                                         .add(XFile(overlaidFile.path));
 
-                                    shareMessage.writeln(
-                                        '*Photo $photoCount:* ${p.basename(record.photoPath)}');
+                                    // shareMessage.writeln(
+                                    //     '*Photo $photoCount:* ${p.basename(record.photoPath)}');
                                     shareMessage.writeln(
                                         '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}');
                                     shareMessage.writeln(
-                                        '  *Lat/Lon:* ${record.latitude.toStringAsFixed(6)}, ${record.longitude.toStringAsFixed(6)}');
+                                        '  *Latitude:* ${record.latitude.toStringAsFixed(6)}');
+                                    shareMessage.writeln(
+                                        'Longitude: *${record.longitude.toStringAsFixed(6)}');
                                     shareMessage.writeln(
                                         '  *Time:* ${record.timestamp.toLocal().toString().split('.')[0]}');
                                     shareMessage.writeln(
                                         '  *Status:* ${record.status.toUpperCase()}');
 
-                                    if (record.spanLength != null &&
-                                        record.spanLength!.isNotEmpty) {
-                                      // NEW: Add span length to share message
-                                      shareMessage.writeln(
-                                          '  *Span Length:* ${record.spanLength}');
-                                    }
-                                    if (record.bottomConductor != null &&
-                                        record.bottomConductor!.isNotEmpty) {
-                                      // NEW: Add bottom conductor to share message
-                                      shareMessage.writeln(
-                                          '  *Bottom Conductor:* ${record.bottomConductor}');
-                                    }
-                                    if (record.topConductor != null &&
-                                        record.topConductor!.isNotEmpty) {
-                                      // NEW: Add top conductor to share message
-                                      shareMessage.writeln(
-                                          '  *Top Conductor:* ${record.topConductor}');
-                                    }
+                                    // if (record.spanLength != null &&
+                                    //     record.spanLength!.isNotEmpty) {
+                                    //   // NEW: Add span length to share message
+                                    //   shareMessage.writeln(
+                                    //       '  *Span Length:* ${record.spanLength}');
+                                    // }
+                                    // if (record.bottomConductor != null &&
+                                    //     record.bottomConductor!.isNotEmpty) {
+                                    //   // NEW: Add bottom conductor to share message
+                                    //   shareMessage.writeln(
+                                    //       '  *Bottom Conductor:* ${record.bottomConductor}');
+                                    // }
+                                    // if (record.topConductor != null &&
+                                    //     record.topConductor!.isNotEmpty) {
+                                    //   // NEW: Add top conductor to share message
+                                    //   shareMessage.writeln(
+                                    //       '  *Top Conductor:* ${record.topConductor}');
+                                    // }
                                     if (record.hasRoadCrossing == true &&
                                         record.roadCrossingName != null &&
                                         record.roadCrossingName!.isNotEmpty) {

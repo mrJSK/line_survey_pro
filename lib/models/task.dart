@@ -8,7 +8,8 @@ class Task {
   final String? assignedToUserName;
   final String assignedByUserId;
   final String? assignedByUserName;
-  final String lineName;
+  final String lineName; // Keep lineName for display purposes
+  final String lineId; // NEW: Field to store the TransmissionLine ID
   final String targetTowerRange;
   final int numberOfTowersToPatrol;
   final DateTime dueDate;
@@ -31,6 +32,7 @@ class Task {
     required this.assignedByUserId,
     this.assignedByUserName,
     required this.lineName,
+    required this.lineId, // NEW: Make it required
     required this.targetTowerRange,
     required this.numberOfTowersToPatrol,
     required this.dueDate,
@@ -47,16 +49,17 @@ class Task {
   // Factory constructor from Firestore Map
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
-      id: map['id'] as String,
-      assignedToUserId: map['assignedToUserId'] as String,
+      id: map['id'] as String? ?? '',
+      assignedToUserId: map['assignedToUserId'] as String? ?? '',
       assignedToUserName: map['assignedToUserName'] as String?,
-      assignedByUserId: map['assignedByUserId'] as String,
+      assignedByUserId: map['assignedByUserId'] as String? ?? '',
       assignedByUserName: map['assignedByUserName'] as String?,
-      lineName: map['lineName'] as String,
-      targetTowerRange: map['targetTowerRange'] as String,
+      lineName: map['lineName'] as String? ?? 'Unknown Line',
+      lineId: map['lineId'] as String? ?? '', // NEW: Read lineId from map
+      targetTowerRange: map['targetTowerRange'] as String? ?? '',
       numberOfTowersToPatrol: (map['numberOfTowersToPatrol'] as int?) ?? 0,
       dueDate: (map['dueDate'] as Timestamp).toDate(),
-      status: map['status'] as String,
+      status: map['status'] as String? ?? 'Pending',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       completionDate: (map['completionDate'] as Timestamp?)?.toDate(),
       reviewNotes: map['reviewNotes'] as String?,
@@ -74,6 +77,7 @@ class Task {
       'assignedByUserId': assignedByUserId,
       'assignedByUserName': assignedByUserName,
       'lineName': lineName,
+      'lineId': lineId, // NEW: Add lineId to map
       'targetTowerRange': targetTowerRange,
       'numberOfTowersToPatrol': numberOfTowersToPatrol,
       'dueDate': Timestamp.fromDate(dueDate),
@@ -130,6 +134,7 @@ class Task {
     String? assignedByUserId,
     String? assignedByUserName,
     String? lineName,
+    String? lineId, // NEW: Add lineId to copyWith
     String? targetTowerRange,
     int? numberOfTowersToPatrol,
     DateTime? dueDate,
@@ -148,6 +153,7 @@ class Task {
       assignedByUserId: assignedByUserId ?? this.assignedByUserId,
       assignedByUserName: assignedByUserName ?? this.assignedByUserName,
       lineName: lineName ?? this.lineName,
+      lineId: lineId ?? this.lineId, // NEW: Copy lineId
       targetTowerRange: targetTowerRange ?? this.targetTowerRange,
       numberOfTowersToPatrol:
           numberOfTowersToPatrol ?? this.numberOfTowersToPatrol,

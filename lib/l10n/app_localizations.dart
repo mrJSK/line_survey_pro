@@ -2603,11 +2603,11 @@ abstract class AppLocalizations {
   /// **'State Highway'**
   String get stateHighway;
 
-  /// No description provided for @chakkRoad.
+  /// No description provided for @localRoad.
   ///
   /// In en, this message translates to:
-  /// **'Chakk road'**
-  String get chakkRoad;
+  /// **'Local road'**
+  String get localRoad;
 
   /// No description provided for @overBridge.
   ///
@@ -2920,6 +2920,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reassign Task'**
   String get reassignTask;
+
+  /// No description provided for @suspension.
+  ///
+  /// In en, this message translates to:
+  /// **'Suspension'**
+  String get suspension;
+
+  /// No description provided for @tension.
+  ///
+  /// In en, this message translates to:
+  /// **'Tension'**
+  String get tension;
+
+  /// No description provided for @angle.
+  ///
+  /// In en, this message translates to:
+  /// **'Angle'**
+  String get angle;
+
+  /// No description provided for @transposition.
+  ///
+  /// In en, this message translates to:
+  /// **'Transposition'**
+  String get transposition;
+
+  /// No description provided for @deadEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Dead End'**
+  String get deadEnd;
+
+  /// No description provided for @grantry.
+  ///
+  /// In en, this message translates to:
+  /// **'Grantry'**
+  String get grantry;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
