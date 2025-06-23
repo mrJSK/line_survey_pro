@@ -3,15 +3,15 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:line_survey_pro/models/survey_record.dart';
-import 'package:line_survey_pro/models/task.dart'; // [cite: mrjsk/line_survey_pro/line_survey_pro-231c3e0bb69b85dc974dde4f067aa68d9ac159c7/lib/services/local_database_service.dart]
+import 'package:line_survey_pro/models/task.dart';
 import 'dart:async'; // For StreamController
 import 'package:collection/collection.dart'; // Ensure collection is imported for firstWhereOrNull
 
 class LocalDatabaseService {
   static Database? _database;
   static const String _databaseName = 'line_survey_pro.db';
-  // Increment to a new version (e.g., 5) because we're adding many new columns
-  static const int _databaseVersion = 5; // UPDATED DATABASE VERSION
+  // Increment to a new version (e.g., 6) because we're adding many new columns
+  static const int _databaseVersion = 6; // UPDATED DATABASE VERSION
 
   static final StreamController<List<SurveyRecord>>
       _surveyRecordsStreamController =
@@ -200,18 +200,13 @@ class LocalDatabaseService {
         await db.execute(
             'ALTER TABLE $_surveyRecordsTable ADD COLUMN vibrationDamper TEXT');
       } catch (e) {}
-      try {
-        await db.execute(
-            'ALTER TABLE $_surveyRecordsTable ADD COLUMN roadCrossing TEXT');
-      } catch (e) {}
+      // Removed old roadCrossing/electricalLine as they are replaced by new boolean/list fields
+      // try { await db.execute('ALTER TABLE $_surveyRecordsTable ADD COLUMN roadCrossing TEXT'); } catch (e) {}
       try {
         await db.execute(
             'ALTER TABLE $_surveyRecordsTable ADD COLUMN riverCrossing INTEGER'); // Bool as INTEGER
       } catch (e) {}
-      try {
-        await db.execute(
-            'ALTER TABLE $_surveyRecordsTable ADD COLUMN electricalLine TEXT');
-      } catch (e) {}
+      // try { await db.execute('ALTER TABLE $_surveyRecordsTable ADD COLUMN electricalLine TEXT'); } catch (e) {}
       try {
         await db.execute(
             'ALTER TABLE $_surveyRecordsTable ADD COLUMN railwayCrossing INTEGER'); // Bool as INTEGER
@@ -223,10 +218,50 @@ class LocalDatabaseService {
       print(
           'Migrated to DB Version 5: Added all Line Survey and General Notes columns.');
     }
+    // NEW: Migration from version 5 to 6 (Adding new Road/Electrical/Span fields)
+    if (oldVersion < 6) {
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN hasRoadCrossing INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN roadCrossingTypes TEXT'); // List as TEXT (comma-separated)
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN roadCrossingName TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN hasElectricalLineCrossing INTEGER'); // Bool as INTEGER
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN electricalLineTypes TEXT'); // List as TEXT (comma-separated)
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN electricalLineNames TEXT'); // List as TEXT (comma-separated)
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN spanLength TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN bottomConductor TEXT');
+      } catch (e) {}
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN topConductor TEXT');
+      } catch (e) {}
+      print('Migrated to DB Version 6: Added Road/Electrical/Span fields.');
+    }
     print('Database upgraded from version $oldVersion to $newVersion.');
   }
 
-  // Define the table schema for NEW database creations (version 5)
+  // Define the table schema for NEW database creations (version 6)
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_surveyRecordsTable(
@@ -261,7 +296,7 @@ class LocalDatabaseService {
         coronaRing TEXT,
         insulatorType TEXT,
         opgwJointBox TEXT,
-        -- NEW Line Survey Details (from version 5)
+        -- Line Survey Details (from version 5)
         building INTEGER,
         tree INTEGER,
         numberOfTrees INTEGER,
@@ -274,11 +309,21 @@ class LocalDatabaseService {
         objectOnEarthwire INTEGER,
         spacers TEXT,
         vibrationDamper TEXT,
-        roadCrossing TEXT,
         riverCrossing INTEGER,
-        electricalLine TEXT,
         railwayCrossing INTEGER,
-        generalNotes TEXT -- NEW: General Notes
+        generalNotes TEXT, -- General Notes
+        -- NEW Road Crossing Fields (from version 6)
+        hasRoadCrossing INTEGER,
+        roadCrossingTypes TEXT,
+        roadCrossingName TEXT,
+        -- NEW Electrical Line Crossing Fields (from version 6)
+        hasElectricalLineCrossing INTEGER,
+        electricalLineTypes TEXT,
+        electricalLineNames TEXT,
+        -- NEW Span Details Fields (from version 6)
+        spanLength TEXT,
+        bottomConductor TEXT,
+        topConductor TEXT
       )
     ''');
     print('Database created with version $version.');
@@ -455,15 +500,3 @@ class LocalDatabaseService {
     _surveyRecordsStreamController.close(); // Close the stream controller
   }
 }
-
-// REMOVED: The conflicting IterableExtension
-// extension IterableExtension<T> on Iterable<T> {
-//   T? firstWhereOrNull(bool Function(T element) test) {
-//     for (final element in this) {
-//       if (test(element)) {
-//         return element;
-//       }
-//     }
-//     return null;
-//   }
-// }

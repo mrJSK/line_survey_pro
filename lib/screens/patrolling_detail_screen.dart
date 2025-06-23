@@ -201,11 +201,11 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
     final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     // --- Specific Options for Dropdowns ---
-    // Modified: Removed 'Other', added 'OK' where applicable, made names more concise
-    const List<String> generalGoodBadOptions = [
-      'OK',
-      'Missing',
-      'Not Applicable',
+    // MODIFIED: generalGoodBadOptions now uses localized strings
+    final List<String> generalGoodBadOptions = [
+      localizations.okStatus,
+      localizations.missing,
+      localizations.notApplicable,
     ];
     final List<String> soilConditionOptions = [
       localizations.good,
@@ -377,16 +377,17 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               ),
               const SizedBox(height: 15),
 
-              // Stub / Coping Leg (Dropdown)
+              // Stub / Coping Leg (Dropdown) - THIS IS THE MODIFIED SECTION
               DropdownButtonFormField<String>(
                 value: _stubCopingLeg,
                 decoration: _inputDecoration(
                     localizations.stubCopingLeg, Icons.foundation, colorScheme),
+                // Use the localized generalGoodBadOptions list
                 items: generalGoodBadOptions
                     .map((String option) => DropdownMenuItem(
                         value: option,
                         child: Text(
-                          option,
+                          option, // This will now correctly display the localized string
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         )))
@@ -420,6 +421,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                     .toList(),
                 onChanged: (String? newValue) {
                   setState(() {
+                    // This stores the canonical key for direct dropdown selection
                     _earthingController.text = newValue ?? '';
                   });
                 },
@@ -559,7 +561,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _dangerBoard,
                 decoration: _inputDecoration(
                     localizations.dangerBoard, Icons.warning, colorScheme),
-                items: numberPlateOptions
+                items: numberPlateOptions // Reuse options if applicable
                     .map((String option) => DropdownMenuItem(
                         value: option,
                         child: Text(
@@ -584,7 +586,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
                 value: _phasePlate,
                 decoration: _inputDecoration(localizations.phasePlate,
                     Icons.power_outlined, colorScheme),
-                items: numberPlateOptions
+                items: numberPlateOptions // Reuse options if applicable
                     .map((String option) => DropdownMenuItem(
                         value: option,
                         child: Text(

@@ -54,13 +54,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get accountPendingApproval => 'खाता अनुमोदन लंबित है';
 
   @override
-  String get awaitingApprovalMessage => 'आपका खाता एक प्रशासक से अनुमोदन की प्रतीक्षा कर रहा है। एक बार अनुमोदित होने के बाद, आपको ऐप सुविधाओं तक पूर्ण पहुंच प्राप्त होगी।';
+  String get awaitingApprovalMessage =>
+      'आपका खाता एक प्रशासक से अनुमोदन की प्रतीक्षा कर रहा है। एक बार अनुमोदित होने के बाद, आपको ऐप सुविधाओं तक पूर्ण पहुंच प्राप्त होगी।';
 
   @override
   String get accountRejected => 'खाता अस्वीकृत';
 
   @override
-  String get rejectedMessage => 'दुर्भाग्य से, आपका खाता एक प्रशासक द्वारा अस्वीकृत कर दिया गया है। अधिक जानकारी के लिए कृपया सहायता से संपर्क करें।';
+  String get rejectedMessage =>
+      'दुर्भाग्य से, आपका खाता एक प्रशासक द्वारा अस्वीकृत कर दिया गया है। अधिक जानकारी के लिए कृपया सहायता से संपर्क करें।';
 
   @override
   String get recheckStatus => 'स्थिति पुनः जांचें (साइन आउट की आवश्यकता है)';
@@ -69,7 +71,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noInternetTitle => 'क्षमा करें! कोई इंटरनेट कनेक्शन नहीं है';
 
   @override
-  String get noInternetMessage => 'ऐसा लगता है कि आप ऑफ़लाइन हैं। कृपया अपनी नेटवर्क सेटिंग्स जांचें और पुनः प्रयास करें।';
+  String get noInternetMessage =>
+      'ऐसा लगता है कि आप ऑफ़लाइन हैं। कृपया अपनी नेटवर्क सेटिंग्स जांचें और पुनः प्रयास करें।';
 
   @override
   String get tryAgain => 'पुनः प्रयास करें';
@@ -160,7 +163,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get noUnsyncedRecords => 'अपलोड करने के लिए कोई असिंक्रनाइज़ किए गए रिकॉर्ड नहीं हैं।';
+  String get noUnsyncedRecords =>
+      'अपलोड करने के लिए कोई असिंक्रनाइज़ किए गए रिकॉर्ड नहीं हैं।';
 
   @override
   String get cameraPermissionDenied => 'कैमरा अनुमति अस्वीकृत।';
@@ -185,7 +189,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get photoSavedLocally => 'फोटो और रिकॉर्ड स्थानीय रूप से सहेजा गया!';
 
   @override
-  String get cameraCaptureCancelled => 'कैमरा कैप्चर रद्द या विफल हो गया। डेटा सहेजा नहीं गया।';
+  String get cameraCaptureCancelled =>
+      'कैमरा कैप्चर रद्द या विफल हो गया। डेटा सहेजा नहीं गया।';
 
   @override
   String get takePhoto => 'फोटो लें';
@@ -231,10 +236,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get locationPermissionDenied => 'स्थान अनुमति अस्वीकृत।';
 
   @override
-  String get locationServiceDisabled => 'स्थान सेवाएं अक्षम हैं। जीपीएस निर्देशांक प्राप्त करने के लिए कृपया उन्हें सक्षम करें।';
+  String get locationServiceDisabled =>
+      'स्थान सेवाएं अक्षम हैं। जीपीएस निर्देशांक प्राप्त करने के लिए कृपया उन्हें सक्षम करें।';
 
   @override
-  String get locationPermissionPermanentlyDenied => 'स्थान अनुमतियाँ स्थायी रूप से अस्वीकृत हैं। कृपया उन्हें अपनी डिवाइस की ऐप सेटिंग्स से सक्षम करें।';
+  String get locationPermissionPermanentlyDenied =>
+      'स्थान अनुमतियाँ स्थायी रूप से अस्वीकृत हैं। कृपया उन्हें अपनी डिवाइस की ऐप सेटिंग्स से सक्षम करें।';
 
   @override
   String errorGettingLocation(Object error) {
@@ -299,7 +306,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get progressByWorker => 'कार्यकर्ता द्वारा प्रगति:';
 
   @override
-  String get noWorkerProfilesFound => 'कोई कार्यकर्ता प्रोफ़ाइल नहीं मिली या ट्रैक करने के लिए कार्य असाइन नहीं किए गए।';
+  String get noWorkerProfilesFound =>
+      'कोई कार्यकर्ता प्रोफ़ाइल नहीं मिली या ट्रैक करने के लिए कार्य असाइन नहीं किए गए।';
 
   @override
   String get linesAssigned => 'असाइन की गई लाइनें';
@@ -314,7 +322,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get linesUnderSupervision => 'आपकी निगरानी में लाइनें:';
 
   @override
-  String get noLinesOrTasksAvailable => 'आपकी भूमिका के लिए आपके असाइन किए गए क्षेत्रों में कोई लाइन या कार्य उपलब्ध नहीं है।';
+  String get noLinesOrTasksAvailable =>
+      'आपकी भूमिका के लिए आपके असाइन किए गए क्षेत्रों में कोई लाइन या कार्य उपलब्ध नहीं है।';
 
   @override
   String get assignedTaskDetails => 'असाइन किए गए कार्य विवरण:';
@@ -422,7 +431,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get antiClimbingDevice => 'एंटी क्लाइंबिंग डिवाइस';
 
   @override
-  String get selectAntiClimbingDeviceStatus => 'एंटी-क्लाइंबिंग डिवाइस स्थिति चुनें';
+  String get selectAntiClimbingDeviceStatus =>
+      'एंटी-क्लाइंबिंग डिवाइस स्थिति चुनें';
 
   @override
   String get wildGrowth => 'जंगली विकास';
@@ -464,7 +474,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get opgwJointBox => 'ओपीजीडब्ल्यू जॉइंट बॉक्स';
 
   @override
-  String get selectOpgwJointBoxStatus => 'ओपीजीडब्ल्यू जॉइंट बॉक्स स्थिति चुनें';
+  String get selectOpgwJointBoxStatus =>
+      'ओपीजीडब्ल्यू जॉइंट बॉक्स स्थिति चुनें';
 
   @override
   String get missingTowerParts => 'गुम हुए टॉवर पार्ट्स';
@@ -535,7 +546,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get lineSurveyDetails => 'लाइन सर्वेक्षण विवरण';
 
   @override
-  String get lineSurveyDetailsSaved => 'लाइन सर्वेक्षण विवरण सफलतापूर्वक सहेजे गए!';
+  String get lineSurveyDetailsSaved =>
+      'लाइन सर्वेक्षण विवरण सफलतापूर्वक सहेजे गए!';
 
   @override
   String get selectBottomConductor => 'तल कंडक्टर चुनें';
@@ -547,7 +559,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noRecordsToExport => 'निर्यात करने के लिए कोई रिकॉर्ड नहीं।';
 
   @override
-  String get allRecordsExported => 'सभी रिकॉर्ड CSV में निर्यात किए गए और शेयर डायलॉग दिखाया गया।';
+  String get allRecordsExported =>
+      'सभी रिकॉर्ड CSV में निर्यात किए गए और शेयर डायलॉग दिखाया गया।';
 
   @override
   String get failedToGenerateCsv => 'CSV फ़ाइल बनाने में विफल।';
@@ -561,7 +574,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get selectImagesToShare => 'साझा करने के लिए छवियां चुनें';
 
   @override
-  String get noImagesAvailable => 'साझा करने के लिए स्थानीय रूप से कोई छवियां उपलब्ध नहीं हैं।';
+  String get noImagesAvailable =>
+      'साझा करने के लिए स्थानीय रूप से कोई छवियां उपलब्ध नहीं हैं।';
 
   @override
   String get selectLine => 'लाइन चुनें';
@@ -573,7 +587,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noTowersFound => 'खोज से मेल खाने वाले कोई टॉवर नहीं मिले।';
 
   @override
-  String get noImagesForLine => 'इस लाइन के लिए स्थानीय रूप से कोई छवियां उपलब्ध नहीं हैं।';
+  String get noImagesForLine =>
+      'इस लाइन के लिए स्थानीय रूप से कोई छवियां उपलब्ध नहीं हैं।';
 
   @override
   String shareSelected(Object count) {
@@ -581,7 +596,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get noValidImagesForShare => 'चयनित रिकॉर्ड साझा करने के लिए ओवरले के साथ कोई वैध छवियां नहीं मिलीं।';
+  String get noValidImagesForShare =>
+      'चयनित रिकॉर्ड साझा करने के लिए ओवरले के साथ कोई वैध छवियां नहीं मिलीं।';
 
   @override
   String get selectedImagesShared => 'चयनित छवियां और विवरण साझा किए गए।';
@@ -607,7 +623,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get imageNotAvailableLocally => 'यह छवि इस रिकॉर्ड के लिए स्थानीय रूप से उपलब्ध नहीं है। केवल विवरण सिंक्रनाइज़ किए गए हैं।';
+  String get imageNotAvailableLocally =>
+      'यह छवि इस रिकॉर्ड के लिए स्थानीय रूप से उपलब्ध नहीं है। केवल विवरण सिंक्रनाइज़ किए गए हैं।';
 
   @override
   String get closeMenu => 'मेनू बंद करें';
@@ -622,10 +639,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get exportCsv => 'CSV निर्यात करें';
 
   @override
-  String get noRecordsFoundConductSurvey => 'कोई सर्वेक्षण रिकॉर्ड नहीं मिला। पहले एक सर्वेक्षण करें और उसे सहेजें/अपलोड करें!';
+  String get noRecordsFoundConductSurvey =>
+      'कोई सर्वेक्षण रिकॉर्ड नहीं मिला। पहले एक सर्वेक्षण करें और उसे सहेजें/अपलोड करें!';
 
   @override
-  String get localRecordsPresentUpload => 'आपके पास स्थानीय रिकॉर्ड हैं। पूर्ण सिंक के लिए उन्हें क्लाउड पर अपलोड करें!';
+  String get localRecordsPresentUpload =>
+      'आपके पास स्थानीय रिकॉर्ड हैं। पूर्ण सिंक के लिए उन्हें क्लाउड पर अपलोड करें!';
 
   @override
   String get viewPhoto => 'फोटो देखें';
@@ -643,7 +662,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get fromTowerNumber => 'टॉवर संख्या से (उदाहरण के लिए, 10)';
 
   @override
-  String get toTowerNumber => 'टॉवर संख्या तक (उदाहरण के लिए, 30, एकल टॉवर के लिए खाली छोड़ें)';
+  String get toTowerNumber =>
+      'टॉवर संख्या तक (उदाहरण के लिए, 30, एकल टॉवर के लिए खाली छोड़ें)';
 
   @override
   String get selectDueDate => 'देय तिथि चुनें';
@@ -658,7 +678,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get invalidTowerRange => 'अवैध टॉवर सीमा। कृपया से/तक मान जांचें।';
 
   @override
-  String get numberOfTowersZero => 'गश्त करने के लिए टावरों की संख्या शून्य नहीं हो सकती। यदि \"सभी\" चुना गया है तो सीमा या लाइन के कुल टावर जांचें।';
+  String get numberOfTowersZero =>
+      'गश्त करने के लिए टावरों की संख्या शून्य नहीं हो सकती। यदि \"सभी\" चुना गया है तो सीमा या लाइन के कुल टावर जांचें।';
 
   @override
   String towersExceedLineTotal(Object assigned, Object total) {
@@ -666,7 +687,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String conflictOverlappingTask(Object assignedTo, Object lineName, Object status, Object towerRange) {
+  String conflictOverlappingTask(
+      Object assignedTo, Object lineName, Object status, Object towerRange) {
     return 'टकराव: लाइन: $lineName, टावरों: $towerRange (असाइन किए गए: $assignedTo, स्थिति: $status) के लिए एक कार्य इस असाइनमेंट के साथ ओवरलैप होता है।';
   }
 
@@ -687,7 +709,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get possibleReasons => 'संभावित कारण: \n- आपका खाता अनुमोदित नहीं है या आपके पास प्रबंधक/प्रशासक भूमिका नहीं है। \n- कोई कार्यकर्ता खाते नहीं मिले। \n- कोई ट्रांसमिशन लाइन लोड नहीं हुई (या यदि आप प्रबंधक हैं तो आपको असाइन की गई)। (ड्रॉअर में \"लाइनें प्रबंधित करें\" से लाइनें जोड़ें/प्रबंधित करें)';
+  String get possibleReasons =>
+      'संभावित कारण: \n- आपका खाता अनुमोदित नहीं है या आपके पास प्रबंधक/प्रशासक भूमिका नहीं है। \n- कोई कार्यकर्ता खाते नहीं मिले। \n- कोई ट्रांसमिशन लाइन लोड नहीं हुई (या यदि आप प्रबंधक हैं तो आपको असाइन की गई)। (ड्रॉअर में \"लाइनें प्रबंधित करें\" से लाइनें जोड़ें/प्रबंधित करें)';
 
   @override
   String get retryLoadingData => 'डेटा पुनः लोड करें';
@@ -732,7 +755,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get towerRangeValuesPositive => 'टॉवर रेंज मान धनात्मक होने चाहिए।';
 
   @override
-  String get towerRangeFromGreaterThanTo => 'टॉवर रेंज \"से\" \"तक\" से अधिक नहीं हो सकती।';
+  String get towerRangeFromGreaterThanTo =>
+      'टॉवर रेंज \"से\" \"तक\" से अधिक नहीं हो सकती।';
 
   @override
   String get totalTowersLabel => 'कुल टावर';
@@ -750,10 +774,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get cancelEdit => 'संपादन रद्द करें';
 
   @override
-  String get transmissionLineAddedSuccessfully => 'ट्रांसमिशन लाइन सफलतापूर्वक जोड़ी गई!';
+  String get transmissionLineAddedSuccessfully =>
+      'ट्रांसमिशन लाइन सफलतापूर्वक जोड़ी गई!';
 
   @override
-  String get transmissionLineUpdatedSuccessfully => 'ट्रांसमिशन लाइन सफलतापूर्वक अपडेट की गई!';
+  String get transmissionLineUpdatedSuccessfully =>
+      'ट्रांसमिशन लाइन सफलतापूर्वक अपडेट की गई!';
 
   @override
   String errorSavingLine(Object error) {
@@ -764,10 +790,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get existingTransmissionLines => 'मौजूदा ट्रांसमिशन लाइनें';
 
   @override
-  String get noTransmissionLinesAdded => 'अभी तक कोई ट्रांसमिशन लाइन नहीं जोड़ी गई है।';
+  String get noTransmissionLinesAdded =>
+      'अभी तक कोई ट्रांसमिशन लाइन नहीं जोड़ी गई है।';
 
   @override
-  String get transmissionLineDeletedSuccessfully => 'ट्रांसमिशन लाइन सफलतापूर्वक हटाई गई!';
+  String get transmissionLineDeletedSuccessfully =>
+      'ट्रांसमिशन लाइन सफलतापूर्वक हटाई गई!';
 
   @override
   String errorDeletingLine(Object error) {
@@ -775,7 +803,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get confirmDeletionText => 'क्या आप इस ट्रांसमिशन लाइन को हटाना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती।';
+  String get confirmDeletionText =>
+      'क्या आप इस ट्रांसमिशन लाइन को हटाना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती।';
 
   @override
   String get edit => 'संपादित करें';
@@ -792,10 +821,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get searchLines => 'लाइनें खोजें';
 
   @override
-  String get noLinesAvailableToAssign => 'असाइन करने के लिए कोई लाइन उपलब्ध नहीं है।';
+  String get noLinesAvailableToAssign =>
+      'असाइन करने के लिए कोई लाइन उपलब्ध नहीं है।';
 
   @override
-  String get noLinesFoundSearch => 'आपकी खोज से मेल खाने वाली कोई लाइन नहीं मिली।';
+  String get noLinesFoundSearch =>
+      'आपकी खोज से मेल खाने वाली कोई लाइन नहीं मिली।';
 
   @override
   String get saveAssignments => 'सहेजें';
@@ -826,10 +857,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get searchByNameOrEmail => 'नाम या ईमेल द्वारा खोजें';
 
   @override
-  String get noUserProfilesFound => 'सिस्टम में कोई उपयोगकर्ता प्रोफ़ाइल नहीं मिली।';
+  String get noUserProfilesFound =>
+      'सिस्टम में कोई उपयोगकर्ता प्रोफ़ाइल नहीं मिली।';
 
   @override
-  String get noUsersFoundMatchingFilters => 'वर्तमान फ़िल्टर/खोज से मेल खाने वाले कोई उपयोगकर्ता नहीं मिले।';
+  String get noUsersFoundMatchingFilters =>
+      'वर्तमान फ़िल्टर/खोज से मेल खाने वाले कोई उपयोगकर्ता नहीं मिले।';
 
   @override
   String get roleLabel => 'भूमिका';
@@ -855,7 +888,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get userProfileRejectedDeletedSuccessfully => 'उपयोगकर्ता प्रोफ़ाइल सफलतापूर्वक अस्वीकृत और हटा दी गई!';
+  String get userProfileRejectedDeletedSuccessfully =>
+      'उपयोगकर्ता प्रोफ़ाइल सफलतापूर्वक अस्वीकृत और हटा दी गई!';
 
   @override
   String get rejectionDeletionCancelled => 'अस्वीकृति/विलोपन रद्द कर दिया गया।';
@@ -884,7 +918,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get managedLines => 'प्रबंधित लाइनें:';
 
   @override
-  String get noManagedLines => 'इस प्रबंधक को कोई ट्रांसमिशन लाइन प्रबंधित करने के लिए असाइन नहीं किया गया है।';
+  String get noManagedLines =>
+      'इस प्रबंधक को कोई ट्रांसमिशन लाइन प्रबंधित करने के लिए असाइन नहीं किया गया है।';
 
   @override
   String totalTowersManaged(Object count) {
@@ -897,7 +932,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get noAssignedTasksManager => 'इस प्रबंधक ने अभी तक कोई कार्य असाइन नहीं किया है।';
+  String get noAssignedTasksManager =>
+      'इस प्रबंधक ने अभी तक कोई कार्य असाइन नहीं किया है।';
 
   @override
   String get assignedToUser => 'असाइन किया गया:';
@@ -911,10 +947,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get searchTowerNumberOrDetails => 'टॉवर संख्या या विवरण खोजें';
 
   @override
-  String get noSurveyRecordsFoundForLine => 'इस लाइन के लिए कोई सर्वेक्षण रिकॉर्ड नहीं मिला।';
+  String get noSurveyRecordsFoundForLine =>
+      'इस लाइन के लिए कोई सर्वेक्षण रिकॉर्ड नहीं मिला।';
 
   @override
-  String get noRecordsFoundMatchingFiltersLine => 'वर्तमान फ़िल्टर से मेल खाने वाले कोई रिकॉर्ड नहीं मिले।';
+  String get noRecordsFoundMatchingFiltersLine =>
+      'वर्तमान फ़िल्टर से मेल खाने वाले कोई रिकॉर्ड नहीं मिले।';
 
   @override
   String get recordId => 'रिकॉर्ड आईडी';
@@ -950,10 +988,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get clearFilters => 'फ़िल्टर साफ़ करें';
 
   @override
-  String get accountRoleUnassigned => 'आपकी खाता भूमिका असाइन या पहचानी नहीं गई है।';
+  String get accountRoleUnassigned =>
+      'आपकी खाता भूमिका असाइन या पहचानी नहीं गई है।';
 
   @override
-  String get accountRoleExplanation => 'कृपया सुनिश्चित करें कि आपकी भूमिका (कार्यकर्ता, प्रबंधक, या प्रशासक) Firebase कंसोल में एक प्रशासक द्वारा सही ढंग से असाइन की गई है।';
+  String get accountRoleExplanation =>
+      'कृपया सुनिश्चित करें कि आपकी भूमिका (कार्यकर्ता, प्रबंधक, या प्रशासक) Firebase कंसोल में एक प्रशासक द्वारा सही ढंग से असाइन की गई है।';
 
   @override
   String get adminDashboardSummary => 'व्यवस्थापक डैशबोर्ड सारांश';
@@ -989,7 +1029,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get progressByWorkerTitle => 'कार्यकर्ता द्वारा प्रगति:';
 
   @override
-  String get noWorkerProfilesFoundTitle => 'कोई कार्यकर्ता प्रोफ़ाइल नहीं मिली या ट्रैक करने के लिए कार्य असाइन नहीं किए गए।';
+  String get noWorkerProfilesFoundTitle =>
+      'कोई कार्यकर्ता प्रोफ़ाइल नहीं मिली या ट्रैक करने के लिए कार्य असाइन नहीं किए गए।';
 
   @override
   String linesAssignedManagerCount(Object count) {
@@ -1013,19 +1054,23 @@ class AppLocalizationsHi extends AppLocalizations {
   String get accountNotApproved => 'आपका खाता अनुमोदित नहीं है।';
 
   @override
-  String get accountApprovalMessage => 'कृपया प्रशासक अनुमोदन की प्रतीक्षा करें या सहायता से संपर्क करें।';
+  String get accountApprovalMessage =>
+      'कृपया प्रशासक अनुमोदन की प्रतीक्षा करें या सहायता से संपर्क करें।';
 
   @override
   String get accountStatusUnknown => 'खाता स्थिति अज्ञात';
 
   @override
-  String get unexpectedAccountStatus => 'एक अप्रत्याशित खाता स्थिति का सामना करना पड़ा। कृपया सहायता से संपर्क करें।';
+  String get unexpectedAccountStatus =>
+      'एक अप्रत्याशित खाता स्थिति का सामना करना पड़ा। कृपया सहायता से संपर्क करें।';
 
   @override
-  String get unassignedRoleTitle => 'आपकी खाता भूमिका असाइन या पहचानी नहीं गई है।';
+  String get unassignedRoleTitle =>
+      'आपकी खाता भूमिका असाइन या पहचानी नहीं गई है।';
 
   @override
-  String get unassignedRoleMessage => 'कृपया सुनिश्चित करें कि आपकी भूमिका (कार्यकर्ता, प्रबंधक, या प्रशासक) Firebase कंसोल में एक प्रशासक द्वारा सही ढंग से असाइन की गई है।';
+  String get unassignedRoleMessage =>
+      'कृपया सुनिश्चित करें कि आपकी भूमिका (कार्यकर्ता, प्रबंधक, या प्रशासक) Firebase कंसोल में एक प्रशासक द्वारा सही ढंग से असाइन की गई है।';
 
   @override
   String get surveyProgressOverview => 'समग्र सर्वेक्षण प्रगति';
@@ -1042,25 +1087,30 @@ class AppLocalizationsHi extends AppLocalizations {
   String get googleSignInCancelled => 'गूगल साइन-इन रद्द कर दिया गया।';
 
   @override
-  String get userProfileNotFound => 'साइन-इन के बाद उपयोगकर्ता प्रोफ़ाइल नहीं मिली। कृपया पुनः प्रयास करें।';
+  String get userProfileNotFound =>
+      'साइन-इन के बाद उपयोगकर्ता प्रोफ़ाइल नहीं मिली। कृपया पुनः प्रयास करें।';
 
   @override
   String get userNotFoundAfterSignIn => 'साइन-इन के बाद उपयोगकर्ता नहीं मिला।';
 
   @override
-  String get accountExistsWithDifferentCredential => 'एक खाता पहले से ही विभिन्न क्रेडेंशियल्स के साथ मौजूद है।';
+  String get accountExistsWithDifferentCredential =>
+      'एक खाता पहले से ही विभिन्न क्रेडेंशियल्स के साथ मौजूद है।';
 
   @override
   String get invalidCredential => 'प्रदान की गई क्रेडेंशियल अमान्य है।';
 
   @override
-  String get userDisabled => 'दिए गए क्रेडेंशियल से जुड़ा उपयोगकर्ता अक्षम कर दिया गया है।';
+  String get userDisabled =>
+      'दिए गए क्रेडेंशियल से जुड़ा उपयोगकर्ता अक्षम कर दिया गया है।';
 
   @override
-  String get operationNotAllowed => 'इस परियोजना के लिए गूगल साइन-इन सक्षम नहीं है।';
+  String get operationNotAllowed =>
+      'इस परियोजना के लिए गूगल साइन-इन सक्षम नहीं है।';
 
   @override
-  String get networkRequestFailed => 'नेटवर्क त्रुटि हुई। कृपया अपना इंटरनेट कनेक्शन जांचें।';
+  String get networkRequestFailed =>
+      'नेटवर्क त्रुटि हुई। कृपया अपना इंटरनेट कनेक्शन जांचें।';
 
   @override
   String signInFailed(Object error) {
@@ -1068,7 +1118,8 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get noInternetConnection => 'कोई इंटरनेट कनेक्शन नहीं। कृपया कनेक्ट करें और पुनः प्रयास करें।';
+  String get noInternetConnection =>
+      'कोई इंटरनेट कनेक्शन नहीं। कृपया कनेक्ट करें और पुनः प्रयास करें।';
 
   @override
   String errorCheckingConnectivity(Object error) {
@@ -1178,17 +1229,20 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String towerAlreadyExists(Object distance, Object lineName, Object towerNumber) {
+  String towerAlreadyExists(
+      Object distance, Object lineName, Object towerNumber) {
     return 'लाइन $lineName के लिए टॉवर $towerNumber पर इस स्थान ($distanceमी पिछले रिकॉर्ड से) पर एक सर्वेक्षण पहले से मौजूद है। कृपया सुनिश्चित करें कि आप एक नए टॉवर पर हैं या यदि यह पुनः सर्वेक्षण है तो मौजूदा रिकॉर्ड अपडेट करें।';
   }
 
   @override
-  String towerTooClose(Object distance, Object lineName, Object minDistance, Object towerNumber) {
+  String towerTooClose(Object distance, Object lineName, Object minDistance,
+      Object towerNumber) {
     return 'लाइन $lineName पर एक और सर्वेक्षण किया गया टॉवर बहुत करीब है ($distanceमी टॉवर $towerNumber से)। एक ही लाइन पर सभी अलग-अलग सर्वेक्षण बिंदु कम से कम $minDistance मीटर अलग होने चाहिए।';
   }
 
   @override
-  String get userNotLoggedIn => 'उपयोगकर्ता लॉग इन नहीं है। सर्वेक्षण सहेजा नहीं जा सकता।';
+  String get userNotLoggedIn =>
+      'उपयोगकर्ता लॉग इन नहीं है। सर्वेक्षण सहेजा नहीं जा सकता।';
 
   @override
   String errorProcessingDetails(Object error) {
@@ -1216,10 +1270,12 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get invalidTowerNumberInput => 'अवैध \"से\" टॉवर संख्या। एक पूर्ण संख्या होनी चाहिए।';
+  String get invalidTowerNumberInput =>
+      'अवैध \"से\" टॉवर संख्या। एक पूर्ण संख्या होनी चाहिए।';
 
   @override
-  String get invalidToTowerNumberInput => 'अवैध \"तक\" टॉवर संख्या। एक पूर्ण संख्या होनी चाहिए।';
+  String get invalidToTowerNumberInput =>
+      'अवैध \"तक\" टॉवर संख्या। एक पूर्ण संख्या होनी चाहिए।';
 
   @override
   String get selectWorkerError => 'कृपया एक कार्यकर्ता चुनें।';
@@ -1231,7 +1287,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get selectDueDateError => 'कृपया एक देय तिथि चुनें।';
 
   @override
-  String get allTowersRequiresLine => '\"सभी\" के लिए परिभाषित टावरों के साथ एक चयनित लाइन की आवश्यकता है।';
+  String get allTowersRequiresLine =>
+      '\"सभी\" के लिए परिभाषित टावरों के साथ एक चयनित लाइन की आवश्यकता है।';
 
   @override
   String get allTowers => 'सभी टावर';
@@ -1266,7 +1323,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get getCurrentLocation => 'वर्तमान स्थान प्राप्त करें';
 
   @override
-  String get fillAllRequiredFields => 'कृपया सभी आवश्यक फ़ील्ड सही ढंग से भरें।';
+  String get fillAllRequiredFields =>
+      'कृपया सभी आवश्यक फ़ील्ड सही ढंग से भरें।';
 
   @override
   String get good => 'अच्छा';
@@ -1356,7 +1414,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get notApplicable => 'लागू नहीं';
 
   @override
-  String get taskAndAssociatedRecordsDeleted => 'कार्य और संबंधित स्थानीय रिकॉर्ड सफलतापूर्वक हटा दिए गए!';
+  String get taskAndAssociatedRecordsDeleted =>
+      'कार्य और संबंधित स्थानीय रिकॉर्ड सफलतापूर्वक हटा दिए गए!';
 
   @override
   String get taskStatusUpdated => 'कार्य स्थिति अपडेट की गई!';
@@ -1389,7 +1448,8 @@ class AppLocalizationsHi extends AppLocalizations {
   String get yourSurveyLogForThisTask => 'इस कार्य के लिए आपका सर्वेक्षण लॉग:';
 
   @override
-  String get noSurveysRecordedForThisTask => 'इस कार्य के लिए अभी तक कोई सर्वेक्षण रिकॉर्ड नहीं किया गया है।';
+  String get noSurveysRecordedForThisTask =>
+      'इस कार्य के लिए अभी तक कोई सर्वेक्षण रिकॉर्ड नहीं किया गया है।';
 
   @override
   String get at => 'पर';
