@@ -1532,4 +1532,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get topConductor => 'Top Conductor';
+
+  @override
+  String get towerType => 'Tower Type';
+
+  @override
+  String get selectTowerType => 'Select tower type';
+
+  @override
+  String get overdue => 'Overdue';
+
+  @override
+  String daysLeft(Object daysLeft) {
+    return 'Days Left $daysLeft';
+  }
+
+  @override
+  String get progress => 'Progress';
+
+  @override
+  String taskReassignedSuccessfully(Object displayName, Object email, Object lineName, Object targetTowerRange) {
+    return 'Task of $lineName from $targetTowerRange to $displayName, $email reassigned successfully!';
+  }
+
+  @override
+  String get selectWorkerToReassign => 'Select a worker to reassign this task';
+
+  @override
+  String taskCancelledSuccessfully(Object lineName, Object targetTowerRange) {
+    return 'Task of $lineName from $targetTowerRange cancelled successfully, !';
+  }
+
+  @override
+  String get confirmCancellation => 'Are you sure you want to cancel this task? This action cannot be undone.';
+
+  @override
+  String cancelTaskConfirmation(Object assignedToUserName, Object lineName, Object towerRange) {
+    return 'Are you sure you want to cancel the task for Line: $lineName, Towers: $towerRange from $assignedToUserName? This will also delete any associated survey progress in the app for this task. This action cannot be undone.';
+  }
+
+  @override
+  String get cancelTask => 'Cancel Task';
+
+  @override
+  String get reassignTask => 'Reassign Task';
 }

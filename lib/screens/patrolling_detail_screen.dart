@@ -55,6 +55,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
   String? _nutAndBoltCondition;
   String? _birdGuard;
   String? _antiClimbingDevice;
+  String? _towerType; // NEW: Tower Type state variable
 
   bool _isSavingDetails = false;
 
@@ -97,6 +98,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
     _nutAndBoltCondition = _currentRecord.nutAndBoltCondition;
     _birdGuard = _currentRecord.birdGuard;
     _antiClimbingDevice = _currentRecord.antiClimbingDevice;
+    _towerType = _currentRecord.towerType; // NEW: Populate Tower Type
 
     _earthingController.text = _currentRecord.earthing ?? '';
     _hotSpotsController.text = _currentRecord.hotSpots ?? '';
@@ -163,6 +165,7 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
         opgwJointBox: _opgwJointBoxController.text.trim().isEmpty
             ? null
             : _opgwJointBoxController.text.trim(),
+        towerType: _towerType, // NEW: Add Tower Type to record
       );
 
       // Navigate to LineSurveyScreen, passing the detailed record and TransmissionLine
@@ -317,6 +320,8 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
       localizations.damaged,
       localizations.okStatus
     ];
+    // NEW: Options for Tower Type
+    final List<String> towerTypeOptions = ['Suspension', 'Tension'];
     // --- END Specific Options ---
 
     return Scaffold(
@@ -353,6 +358,30 @@ class _PatrollingDetailScreenState extends State<PatrollingDetailScreen> {
               const SizedBox(height: 20),
 
               // --- Detailed Patrolling Points ---
+              // NEW: Tower Type (Dropdown)
+              DropdownButtonFormField<String>(
+                value: _towerType,
+                decoration: _inputDecoration(localizations.towerType,
+                    Icons.cell_tower_sharp, colorScheme),
+                items: towerTypeOptions
+                    .map((String option) => DropdownMenuItem(
+                        value: option,
+                        child: Text(
+                          option,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        )))
+                    .toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _towerType = newValue;
+                  });
+                },
+                validator: (value) =>
+                    value == null ? localizations.selectTowerType : null,
+              ),
+              const SizedBox(height: 15),
+
               // Soil Condition (Dropdown)
               DropdownButtonFormField<String>(
                 value: _soilCondition,

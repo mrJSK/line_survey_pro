@@ -77,6 +77,32 @@ class SurveyFirestoreService {
     });
   }
 
+  /**
+   * NEW METHOD: Fetches the latest survey record for a specific line and tower number.
+   * This is used for GPS location comparison against previously uploaded data.
+   */
+  Future<SurveyRecord?> getLatestSurveyRecordByLineAndTower(
+      String lineName, int towerNumber) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('survey_records')
+          .where('lineName', isEqualTo: lineName)
+          .where('towerNumber', isEqualTo: towerNumber)
+          .orderBy('timestamp', descending: true) // Get the most recent one
+          .limit(1) // Only interested in the latest record
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return SurveyRecord.fromFirestore(querySnapshot.docs.first.data());
+      }
+      return null; // No record found for this line and tower
+    } catch (e) {
+      print(
+          'Error fetching latest survey record for $lineName, tower $towerNumber: $e');
+      return null;
+    }
+  }
+
   // Gets survey records associated with a list of specific task IDs.
   // Used for calculating worker dashboard progress based on assigned tasks.
   // Handles Firestore's 'whereIn' query limit (max 10 items).

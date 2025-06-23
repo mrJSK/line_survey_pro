@@ -38,8 +38,10 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   StreamSubscription<Position>? _positionStreamSubscription;
   Timer? _accuracyTimeoutTimer;
   static const int _maximumWaitSeconds = 30;
-  static const double _requiredAccuracyForCapture =
-      20.0; // Minimum accuracy required to proceed
+  static const double _requiredAccuracyForCapture = 10.0;
+
+  // New state variable for countdown
+  int _remainingSeconds = 0;
 
   final LocalDatabaseService _localDatabaseService =
       LocalDatabaseService(); // Used for local survey record saving
@@ -60,7 +62,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   void initState() {
     super.initState();
     _parseTowerRange(widget.task.targetTowerRange);
-    _getCurrentLocation(); // This is already called here
+    _getCurrentLocation();
   }
 
   @override
@@ -107,13 +109,13 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
   }
 
   Future<void> _getCurrentLocation() async {
-    // Removed: final localizations = AppLocalizations.of(context)!;
     if (_isFetchingLocation) return;
 
     setState(() {
       _isFetchingLocation = true;
       _isLocationAccurateEnough = false;
       _currentPosition = null;
+      _remainingSeconds = _maximumWaitSeconds; // Initialize countdown
     });
 
     final hasPermission =
@@ -131,9 +133,54 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     }
 
     _positionStreamSubscription?.cancel();
-    _accuracyTimeoutTimer?.cancel();
+    _accuracyTimeoutTimer?.cancel(); // Cancel any existing timer
 
     try {
+      // Start a periodic timer for the countdown
+      _accuracyTimeoutTimer =
+          Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          _remainingSeconds--;
+        });
+
+        // Check for timeout condition
+        if (_remainingSeconds <= 0) {
+          timer.cancel(); // Cancel the periodic timer
+          setState(() {
+            _isLocationAccurateEnough = (_currentPosition != null &&
+                _currentPosition!.accuracy <= _requiredAccuracyForCapture);
+            _isFetchingLocation = false;
+          });
+
+          if (!_isLocationAccurateEnough) {
+            String accuracyMessage = _currentPosition != null
+                ? AppLocalizations.of(context)!.currentAccuracy(
+                        _currentPosition!.accuracy.toStringAsFixed(2),
+                        _requiredAccuracyForCapture.toStringAsFixed(1)) +
+                    '. ' +
+                    AppLocalizations.of(context)!.moveToOpenArea
+                : AppLocalizations.of(context)!
+                    .couldNotGetLocationWithinSeconds(_maximumWaitSeconds);
+            SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!.timeoutReached(accuracyMessage),
+              isError: true,
+            );
+          } else {
+            SnackBarUtils.showSnackBar(
+              context,
+              AppLocalizations.of(context)!.locationAcquired(
+                  _currentPosition!.accuracy.toStringAsFixed(2)),
+              isError: false,
+            );
+          }
+        }
+      });
+
       _positionStreamSubscription = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.best,
@@ -146,7 +193,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
             if (position.accuracy <= _requiredAccuracyForCapture) {
               _isLocationAccurateEnough = true;
               _isFetchingLocation = false;
-              _accuracyTimeoutTimer?.cancel();
+              _accuracyTimeoutTimer?.cancel(); // Cancel the periodic timer
               _positionStreamSubscription?.cancel();
               SnackBarUtils.showSnackBar(
                 context,
@@ -170,42 +217,6 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         }
         _positionStreamSubscription?.cancel();
         _accuracyTimeoutTimer?.cancel();
-      });
-
-      _accuracyTimeoutTimer =
-          Timer(const Duration(seconds: _maximumWaitSeconds), () {
-        if (mounted) {
-          setState(() {
-            _isLocationAccurateEnough = (_currentPosition != null &&
-                _currentPosition!.accuracy <= _requiredAccuracyForCapture);
-            _isFetchingLocation = false;
-          });
-          _positionStreamSubscription?.cancel();
-
-          if (!_isLocationAccurateEnough && mounted) {
-            String accuracyMessage = _currentPosition != null
-                ? AppLocalizations.of(context)!.currentAccuracy(
-                        _currentPosition!.accuracy.toStringAsFixed(2),
-                        _requiredAccuracyForCapture.toStringAsFixed(1)) +
-                    '. ' +
-                    AppLocalizations.of(context)!.moveToOpenArea
-                : AppLocalizations.of(context)!
-                    .couldNotGetLocationWithinSeconds(_maximumWaitSeconds);
-            SnackBarUtils.showSnackBar(
-              context,
-              AppLocalizations.of(context)!.timeoutReached(accuracyMessage),
-              isError: true,
-            );
-          } else if (mounted && _currentPosition != null) {
-            SnackBarUtils.showSnackBar(
-              context,
-              AppLocalizations.of(context)!.locationAcquired(_currentPosition!
-                  .accuracy
-                  .toStringAsFixed(2)), // Assuming new string
-              isError: false,
-            );
-          }
-        }
       });
     } catch (e) {
       if (mounted) {
@@ -255,7 +266,37 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
       }
     }
 
-    // Get all *uploaded* survey records for this line from Firestore.
+    // --- NEW VALIDATION: Compare with latest Firebase record for the same tower (10m accuracy) ---
+    final SurveyRecord? latestFirebaseRecord = await _surveyFirestoreService
+        .getLatestSurveyRecordByLineAndTower(widget.task.lineName, towerNumber);
+
+    if (latestFirebaseRecord != null) {
+      final double distance = Geolocator.distanceBetween(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+        latestFirebaseRecord.latitude,
+        latestFirebaseRecord.longitude,
+      );
+
+      // If outside 10m, it's considered an issue.
+      if (distance > 10.0) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+            context,
+            'Current location (${distance.toStringAsFixed(2)}m) is too far from the last recorded location '
+            '(${latestFirebaseRecord.latitude.toStringAsFixed(6)}, ${latestFirebaseRecord.longitude.toStringAsFixed(6)}) '
+            'for Tower $towerNumber on ${widget.task.lineName}. Must be within 10 meters.',
+            isError: true,
+          );
+        }
+        return false;
+      }
+      // If within 10m, it's considered the same location, and the survey can proceed.
+    }
+    // If latestFirebaseRecord is null, it means no previous record exists for this tower in Firebase, so allow recording.
+
+    // --- EXISTING VALIDATION: Check against all records (local + uploaded) for general proximity rules ---
+    // This part ensures no other towers (different numbers) are too close, and also catches local duplicates.
     final allUploadedRecordsForLine =
         (await _surveyFirestoreService.streamAllSurveyRecords().first)
             .where((record) =>
@@ -263,21 +304,24 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                 record.status == 'uploaded')
             .toList();
 
-    // Get all *local* survey records for this line from SQLite.
     final allLocalRecordsForLine = await _localDatabaseService
         .getSurveyRecordsByLine(widget.task.lineName);
 
-    // Combine these two lists into a single list for validation.
-    // Ensure that records are unique by ID, preferring the Firestore version for status if an ID matches.
-    Map<String, SurveyRecord> allRecordsForValidation = {};
+    Map<String, SurveyRecord> combinedRecordsMap = {};
     for (var record in allLocalRecordsForLine) {
-      allRecordsForValidation[record.id] = record;
+      combinedRecordsMap[record.id] = record;
     }
-    for (var record in allUploadedRecordsForLine) {
-      allRecordsForValidation[record.id] = record;
+    for (var fRecord in allUploadedRecordsForLine) {
+      final localMatch = combinedRecordsMap[fRecord.id];
+      if (localMatch != null) {
+        combinedRecordsMap[fRecord.id] =
+            localMatch.copyWith(status: fRecord.status);
+      } else {
+        combinedRecordsMap[fRecord.id] = fRecord;
+      }
     }
     final List<SurveyRecord> recordsToValidateAgainst =
-        allRecordsForValidation.values.toList();
+        combinedRecordsMap.values.toList();
 
     // Debugging: Print records being validated against to confirm lineName filtering
     print(
@@ -301,12 +345,10 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     );
 
     for (var record in recordsToValidateAgainst) {
-      // Ensure we are ONLY comparing records that actually belong to the current task's line.
-      // This explicit check ensures no rogue records slip through if initial filtering failed (which it shouldn't).
       if (record.lineName != widget.task.lineName) {
         print(
             'DEBUG WARNING: Record with ID ${record.id} and line ${record.lineName} found in validation list for task line ${widget.task.lineName}. This should not happen.');
-        continue; // Skip this record, it's not for the current line
+        continue;
       }
 
       final existingPosition = Position(
@@ -329,9 +371,13 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
         newPosition.longitude,
       );
 
-      // Rule 1: Cannot re-survey the SAME tower number too close to its previous (any status) record.
+      // Rule 1 (Redundant/Fallback): Cannot re-survey the SAME tower number too close to its previous (any status) record.
+      // The primary 10m check against Firebase handles the "same tower, same location" more strictly.
+      // This remains as a broader check, especially for local unsynced records.
       if (record.towerNumber == towerNumber &&
           distance < _sameTowerToleranceMeters) {
+        // This message might be redundant if the 10m Firebase check already failed.
+        // You might want to remove or adjust this specific check if the Firebase check is deemed sufficient for exact tower duplicates.
         if (mounted) {
           SnackBarUtils.showSnackBar(
             context,
@@ -428,7 +474,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
     Color accuracyStatusColor;
     if (_isFetchingLocation) {
       accuracyStatusText =
-          '${localizations.fetchingLocation}... ${localizations.current}: ${_currentPosition?.accuracy.toStringAsFixed(2) ?? 'N/A'}m'; // Assuming 'current' string
+          '${localizations.fetchingLocation}... ${localizations.current}: ${_currentPosition?.accuracy.toStringAsFixed(2) ?? 'N/A'}m';
       accuracyStatusColor = colorScheme.onSurface.withOpacity(0.6);
     } else if (_currentPosition == null) {
       accuracyStatusText = localizations.noLocationObtained;
@@ -447,7 +493,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
 
     String towerRangeDisplay = widget.task.targetTowerRange;
     if (_isAllTowers) {
-      towerRangeDisplay = localizations.allTowers; // Assuming new string
+      towerRangeDisplay = localizations.allTowers;
     } else if (_minTower != null && _maxTower != null) {
       towerRangeDisplay = '${localizations.towers} ${_minTower!}-${_maxTower!}';
     } else if (_minTower != null) {
@@ -456,8 +502,7 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            '${widget.task.lineName} - ${localizations.surveyEntry}'), // Assuming new string
+        title: Text('${widget.task.lineName} - ${localizations.surveyEntry}'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -625,14 +670,11 @@ class _LineDetailScreenState extends State<LineDetailScreen> {
                                                 fontWeight: FontWeight.bold,
                                               ),
                                         ),
-                                        if (_accuracyTimeoutTimer != null &&
-                                            _accuracyTimeoutTimer!.isActive)
+                                        // Display dynamic countdown
+                                        if (_remainingSeconds > 0)
                                           Text(
                                             localizations.timeoutInSeconds(
-                                                _maximumWaitSeconds -
-                                                    (_accuracyTimeoutTimer
-                                                            ?.tick ??
-                                                        0)),
+                                                _remainingSeconds),
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodySmall

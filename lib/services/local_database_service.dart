@@ -10,8 +10,8 @@ import 'package:collection/collection.dart'; // Ensure collection is imported fo
 class LocalDatabaseService {
   static Database? _database;
   static const String _databaseName = 'line_survey_pro.db';
-  // Increment to a new version (e.g., 6) because we're adding many new columns
-  static const int _databaseVersion = 6; // UPDATED DATABASE VERSION
+  // Increment to a new version (e.g., 7) because we're adding the towerType column
+  static const int _databaseVersion = 7; // UPDATED DATABASE VERSION
 
   static final StreamController<List<SurveyRecord>>
       _surveyRecordsStreamController =
@@ -258,10 +258,18 @@ class LocalDatabaseService {
       } catch (e) {}
       print('Migrated to DB Version 6: Added Road/Electrical/Span fields.');
     }
+    // NEW: Migration from version 6 to 7 (Adding towerType field)
+    if (oldVersion < 7) {
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN towerType TEXT'); // NEW: Tower Type
+      } catch (e) {}
+      print('Migrated to DB Version 7: Added towerType field.');
+    }
     print('Database upgraded from version $oldVersion to $newVersion.');
   }
 
-  // Define the table schema for NEW database creations (version 6)
+  // Define the table schema for NEW database creations (version 7)
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_surveyRecordsTable(
@@ -323,7 +331,9 @@ class LocalDatabaseService {
         -- NEW Span Details Fields (from version 6)
         spanLength TEXT,
         bottomConductor TEXT,
-        topConductor TEXT
+        topConductor TEXT,
+        -- NEW Tower Type field (from version 7)
+        towerType TEXT
       )
     ''');
     print('Database created with version $version.');

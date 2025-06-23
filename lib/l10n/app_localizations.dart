@@ -62,8 +62,7 @@ import 'app_localizations_hi.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -71,8 +70,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -84,8 +82,7 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
     delegate,
     GlobalMaterialLocalizations.delegate,
     GlobalCupertinoLocalizations.delegate,
@@ -1344,8 +1341,7 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'Conflict: A task for Line: {lineName}, Towers: {towerRange} (Assigned to: {assignedTo}, Status: {status}) overlaps with this assignment.'**
-  String conflictOverlappingTask(
-      Object assignedTo, Object lineName, Object status, Object towerRange);
+  String conflictOverlappingTask(Object assignedTo, Object lineName, Object status, Object towerRange);
 
   /// No description provided for @taskAssignedSuccessfully.
   ///
@@ -2209,15 +2205,13 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'A survey for Tower {towerNumber} at this location ({distance}m from previous record) already exists for Line {lineName}. Please ensure you are at a new tower or update the existing record if this is a re-survey.'**
-  String towerAlreadyExists(
-      Object distance, Object lineName, Object towerNumber);
+  String towerAlreadyExists(Object distance, Object lineName, Object towerNumber);
 
   /// No description provided for @towerTooClose.
   ///
   /// In en, this message translates to:
   /// **'Another surveyed tower on Line {lineName} is too close ({distance}m from Tower {towerNumber}). All DIFFERENT survey points on the same line must be at least {minDistance} meters apart.'**
-  String towerTooClose(
-      Object distance, Object lineName, Object minDistance, Object towerNumber);
+  String towerTooClose(Object distance, Object lineName, Object minDistance, Object towerNumber);
 
   /// No description provided for @userNotLoggedIn.
   ///
@@ -2854,10 +2848,81 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Top Conductor'**
   String get topConductor;
+
+  /// No description provided for @towerType.
+  ///
+  /// In en, this message translates to:
+  /// **'Tower Type'**
+  String get towerType;
+
+  /// No description provided for @selectTowerType.
+  ///
+  /// In en, this message translates to:
+  /// **'Select tower type'**
+  String get selectTowerType;
+
+  /// No description provided for @overdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Overdue'**
+  String get overdue;
+
+  /// No description provided for @daysLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Days Left {daysLeft}'**
+  String daysLeft(Object daysLeft);
+
+  /// No description provided for @progress.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress'**
+  String get progress;
+
+  /// No description provided for @taskReassignedSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Task of {lineName} from {targetTowerRange} to {displayName}, {email} reassigned successfully!'**
+  String taskReassignedSuccessfully(Object displayName, Object email, Object lineName, Object targetTowerRange);
+
+  /// No description provided for @selectWorkerToReassign.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a worker to reassign this task'**
+  String get selectWorkerToReassign;
+
+  /// No description provided for @taskCancelledSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Task of {lineName} from {targetTowerRange} cancelled successfully, !'**
+  String taskCancelledSuccessfully(Object lineName, Object targetTowerRange);
+
+  /// No description provided for @confirmCancellation.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to cancel this task? This action cannot be undone.'**
+  String get confirmCancellation;
+
+  /// No description provided for @cancelTaskConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to cancel the task for Line: {lineName}, Towers: {towerRange} from {assignedToUserName}? This will also delete any associated survey progress in the app for this task. This action cannot be undone.'**
+  String cancelTaskConfirmation(Object assignedToUserName, Object lineName, Object towerRange);
+
+  /// No description provided for @cancelTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel Task'**
+  String get cancelTask;
+
+  /// No description provided for @reassignTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Reassign Task'**
+  String get reassignTask;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -2866,25 +2931,25 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['en', 'hi'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['en', 'hi'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'en':
-      return AppLocalizationsEn();
-    case 'hi':
-      return AppLocalizationsHi();
+    case 'en': return AppLocalizationsEn();
+    case 'hi': return AppLocalizationsHi();
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.'
+  );
 }

@@ -464,5 +464,17 @@
   "oK": "ठीक है",
   "lineSurveyDetailsSaved": "लाइन सर्वेक्षण विवरण सफलतापूर्वक सहेजे गए!",
   "selectBottomConductor": "तल कंडक्टर चुनें",
-  "selectTopConductor": "शीर्ष कंडक्टर चुनें"
+  "selectTopConductor": "शीर्ष कंडक्टर चुनें",
+  "towerType": "टॉवर प्रकार",
+  "selectTowerType": "टॉवर प्रकार चुनें",
+  "overdue": "अतिदेय",
+  "daysLeft": "{daysLeft} दिन शेष",
+  "progress": "प्रगति",
+  "taskReassignedSuccessfully": "कार्य सफलतापूर्वक पुनः असाइन किया गया!",
+  "selectWorkerToReassign": "इस कार्य को पुनः असाइन करने के लिए एक कार्यकर्ता चुनें",
+  "taskCancelledSuccessfully": "{lineName} से {targetTowerRange} का कार्य सफलतापूर्वक रद्द किया गया!",
+  "confirmCancellation": "क्या आप इस कार्य को रद्द करना चाहते हैं? यह कार्रवाई पूर्ववत नहीं की जा सकती है।",
+  "cancelTaskConfirmation": "क्या आप लाइन: {lineName}, टावरों: {towerRange} से {assignedToUserName} का कार्य रद्द करना चाहते हैं? इससे इस कार्य के लिए ऐप में किसी भी संबंधित सर्वेक्षण प्रगति को भी हटा दिया जाएगा। यह कार्रवाई पूर्ववत नहीं की जा सकती है।",
+  "cancelTask": "कार्य रद्द करें",
+  "reassignTask": "कार्य पुनः असाइन करें"
 }

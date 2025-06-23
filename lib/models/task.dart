@@ -115,6 +115,13 @@ class Task {
     return dueDate.isBefore(DateTime.now()) && derivedStatus != 'Patrolled';
   }
 
+  // NEW: Calculate days left until due date
+  int get daysLeft {
+    final now = DateTime.now();
+    final difference = dueDate.difference(now);
+    return difference.inDays;
+  }
+
   // NEW: copyWith method for immutability and setting calculated fields
   Task copyWith({
     String? id,
@@ -159,6 +166,6 @@ class Task {
 
   @override
   String toString() {
-    return 'Task(id: $id, lineName: $lineName, targetTowerRange: $targetTowerRange, count: $numberOfTowersToPatrol, derivedStatus: $derivedStatus)';
+    return 'Task(id: $id, lineName: $lineName, targetTowerRange: $targetTowerRange, count: $numberOfTowersToPatrol, derivedStatus: $derivedStatus, daysLeft: $daysLeft)';
   }
 }

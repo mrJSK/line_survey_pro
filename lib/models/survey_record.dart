@@ -72,6 +72,9 @@ class SurveyRecord {
   String? bottomConductor; // e.g., "Good", "Damaged"
   String? topConductor; // e.g., "Good", "Damaged"
 
+  // NEW: Tower Type field
+  String? towerType; // "Suspension" or "Tension"
+
   SurveyRecord({
     String? id,
     required this.lineName,
@@ -136,6 +139,8 @@ class SurveyRecord {
     this.spanLength,
     this.bottomConductor,
     this.topConductor,
+    // Initialize NEW Tower Type field
+    this.towerType,
   }) : id = id ?? const Uuid().v4();
 
   // Factory constructor to create a SurveyRecord from a Firestore document's data Map
@@ -210,6 +215,8 @@ class SurveyRecord {
       spanLength: map['spanLength'] as String?,
       bottomConductor: map['bottomConductor'] as String?,
       topConductor: map['topConductor'] as String?,
+      // Read NEW Tower Type field
+      towerType: map['towerType'] as String?,
     );
   }
 
@@ -278,6 +285,8 @@ class SurveyRecord {
       'spanLength': spanLength,
       'bottomConductor': bottomConductor,
       'topConductor': topConductor,
+      // Add NEW Tower Type field
+      'towerType': towerType,
     };
   }
 
@@ -349,6 +358,8 @@ class SurveyRecord {
       spanLength: map['spanLength'] as String?,
       bottomConductor: map['bottomConductor'] as String?,
       topConductor: map['topConductor'] as String?,
+      // Read NEW Tower Type field
+      towerType: map['towerType'] as String?,
     );
   }
 
@@ -403,8 +414,7 @@ class SurveyRecord {
       'riverCrossing': riverCrossing == true ? 1 : 0,
       // 'electricalLine': electricalLine, // Removed
       'railwayCrossing': railwayCrossing == true ? 1 : 0,
-      // Add NEW General Notes field for SQLite
-      'generalNotes': generalNotes,
+      'generalNotes': generalNotes, // General Notes
       // Add NEW Road Crossing fields for SQLite
       'hasRoadCrossing': hasRoadCrossing == true ? 1 : 0,
       'roadCrossingTypes':
@@ -420,6 +430,8 @@ class SurveyRecord {
       'spanLength': spanLength,
       'bottomConductor': bottomConductor,
       'topConductor': topConductor,
+      // Add NEW Tower Type field
+      'towerType': towerType,
     };
   }
 
@@ -486,6 +498,8 @@ class SurveyRecord {
     String? spanLength,
     String? bottomConductor,
     String? topConductor,
+    // Copy NEW Tower Type field
+    String? towerType,
   }) {
     return SurveyRecord(
       id: id ?? this.id,
@@ -552,6 +566,8 @@ class SurveyRecord {
       spanLength: spanLength ?? this.spanLength,
       bottomConductor: bottomConductor ?? this.bottomConductor,
       topConductor: topConductor ?? this.topConductor,
+      // Copy NEW Tower Type field
+      towerType: towerType ?? this.towerType,
     );
   }
 

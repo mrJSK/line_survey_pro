@@ -461,5 +461,17 @@
   "electricalLineName": "Electrical Line Name",
   "enterElectricalLineName": "Enter electrical line name",
   "bottomConductor": "Bottom Conductor",
-  "topConductor": "Top Conductor"
+  "topConductor": "Top Conductor",
+  "towerType": "Tower Type",
+  "selectTowerType": "Select tower type",
+  "overdue": "Overdue",
+  "daysLeft": "Days Left {daysLeft}",
+  "progress": "Progress",
+  "taskReassignedSuccessfully": "Task of {lineName} from {targetTowerRange} to {displayName}, {email} reassigned successfully!",
+  "selectWorkerToReassign": "Select a worker to reassign this task",
+  "taskCancelledSuccessfully": "Task of {lineName} from {targetTowerRange} cancelled successfully, !",
+  "confirmCancellation": "Are you sure you want to cancel this task? This action cannot be undone.",
+  "cancelTaskConfirmation": "Are you sure you want to cancel the task for Line: {lineName}, Towers: {towerRange} from {assignedToUserName}? This will also delete any associated survey progress in the app for this task. This action cannot be undone.",
+  "cancelTask": "Cancel Task",
+  "reassignTask": "Reassign Task"
 }

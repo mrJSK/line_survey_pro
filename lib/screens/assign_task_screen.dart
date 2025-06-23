@@ -395,10 +395,11 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       );
     }
 
+    // Check _currentManager is not null and is approved, and has a valid role
     if (_currentManager == null ||
-        // _currentManager!.status != 'approved' || // Ensure manager is approved (removed, as 'status' is not defined)
+        _currentManager!.status != 'approved' ||
         (_currentManager!.role != 'Manager' &&
-            _currentManager!.role != 'Admin') || // Must be manager or admin
+            _currentManager!.role != 'Admin') ||
         _workers.isEmpty ||
         _transmissionLines.isEmpty) {
       return Scaffold(

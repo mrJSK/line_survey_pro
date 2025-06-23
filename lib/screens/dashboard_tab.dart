@@ -281,6 +281,9 @@ class _DashboardTabState extends State<DashboardTab> {
           .where((task) => task.assignedToUserId == user.id)
           .toList();
 
+      // Sort worker tasks by daysLeft (least days first)
+      displayedTasks.sort((a, b) => a.daysLeft.compareTo(b.daysLeft));
+
       final List<Task> enrichedWorkerTasks = [];
       for (var task in displayedTasks) {
         Set<int> uniqueLocalTowers = {};
@@ -819,6 +822,20 @@ class _DashboardTabState extends State<DashboardTab> {
                                   '${localizations.uploadedCount}: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol}',
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
+                                // Display days left for worker
+                                Text(
+                                    task.isOverdue
+                                        ? localizations.overdue
+                                        : localizations.daysLeft(
+                                            task.daysLeft), // Days left
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                            fontStyle: FontStyle.italic,
+                                            color: task.isOverdue
+                                                ? Colors.red
+                                                : Colors.green)),
                                 Text(
                                     '${localizations.due}: ${task.dueDate.toLocal().toString().split(' ')[0]} | ${localizations.status}: ${task.derivedStatus}',
                                     style: Theme.of(context)

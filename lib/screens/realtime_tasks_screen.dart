@@ -40,12 +40,14 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
 
   List<SurveyRecord> _allLocalSurveyRecords = [];
   List<TransmissionLine> _allTransmissionLines = [];
+  List<UserProfile> _allWorkers = []; // For reassigning tasks
 
   // Individual loading flags for each data source
   bool _isLoadingTasks = true;
   bool _isLoadingFirestoreRecords = true;
   bool _isLoadingLocalRecords = true;
   bool _isLoadingTransmissionLines = true;
+  bool _isLoadingAllUsers = true; // For reassign/cancel feature
 
   final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
@@ -58,6 +60,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
   StreamSubscription? _firestoreSurveyRecordsSubscription;
   StreamSubscription? _localSurveyRecordsSubscription;
   StreamSubscription? _transmissionLinesSubscription;
+  StreamSubscription?
+      _allUserProfilesStreamSubscription; // For reassign feature
 
   @override
   void initState() {
@@ -71,6 +75,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
     _firestoreSurveyRecordsSubscription?.cancel();
     _localSurveyRecordsSubscription?.cancel();
     _transmissionLinesSubscription?.cancel();
+    _allUserProfilesStreamSubscription?.cancel();
     super.dispose();
   }
 
@@ -88,7 +93,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         _isLoading = _isLoadingTasks ||
             _isLoadingFirestoreRecords ||
             _isLoadingLocalRecords ||
-            _isLoadingTransmissionLines;
+            _isLoadingTransmissionLines ||
+            _isLoadingAllUsers;
       });
     }
   }
@@ -103,6 +109,7 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
       _isLoadingFirestoreRecords = true;
       _isLoadingLocalRecords = true;
       _isLoadingTransmissionLines = true;
+      _isLoadingAllUsers = true;
     });
 
     // Listen to ALL local survey records (for instant UI update on local saves)
@@ -130,6 +137,30 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         _checkOverallLoadingStatus();
       }
       print('RealTimeTasksScreen Worker local survey records stream error: $e');
+    });
+
+    // Stream all user profiles (for manager to reassign tasks)
+    _allUserProfilesStreamSubscription?.cancel();
+    _allUserProfilesStreamSubscription =
+        _authService.streamAllUserProfiles().listen((users) {
+      if (mounted) {
+        setState(() {
+          _allWorkers = users.where((user) => user.role == 'Worker').toList();
+          _isLoadingAllUsers = false;
+        });
+        _checkOverallLoadingStatus();
+      }
+    }, onError: (error) {
+      if (mounted) {
+        SnackBarUtils.showSnackBar(
+            context,
+            AppLocalizations.of(context)!
+                .errorStreamingAllUsers(error.toString()),
+            isError: true);
+        setState(() {
+          _isLoadingAllUsers = false;
+        });
+      }
     });
 
     // Setup other streams
@@ -197,6 +228,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         if (mounted) {
           setState(() {
             _tasks = tasks;
+            // Sort worker tasks by daysLeft (least days first)
+            _tasks.sort((a, b) => a.daysLeft.compareTo(b.daysLeft));
             _isLoadingTasks = false; // Tasks loaded
           });
           _updateSurveyRecordsForWorkerTasks();
@@ -387,6 +420,8 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
         uploadedCompletedCount: uniqueUploadedTowers.length,
       ));
     }
+    // Re-sort enriched tasks after updating counts
+    enrichedTasks.sort((a, b) => a.daysLeft.compareTo(b.daysLeft));
 
     setState(() {
       _tasks = enrichedTasks;
@@ -540,11 +575,187 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                   _deleteTask(task);
                 },
               ),
+              // New options for overdue tasks
+              if (task.isOverdue &&
+                  (widget.currentUserProfile!.role == 'Manager' ||
+                      widget.currentUserProfile!.role == 'Admin'))
+                ListTile(
+                  leading: const Icon(Icons.cancel_schedule_send),
+                  title: Text(localizations.cancelTask),
+                  onTap: () {
+                    Navigator.pop(bc);
+                    _cancelTaskForWorker(task);
+                  },
+                ),
+              if (task.isOverdue &&
+                  (widget.currentUserProfile!.role == 'Manager' ||
+                      widget.currentUserProfile!.role == 'Admin'))
+                ListTile(
+                  leading: const Icon(Icons.assignment_ind),
+                  title: Text(localizations.reassignTask),
+                  onTap: () {
+                    Navigator.pop(bc);
+                    _reassignTask(task);
+                  },
+                ),
             ],
           ),
         );
       },
     );
+  }
+
+  // NEW: Cancel task for current worker
+  Future<void> _cancelTaskForWorker(Task task) async {
+    final localizations = AppLocalizations.of(context)!;
+    final bool confirmCancel = await showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text(localizations.confirmCancellation),
+              content: Text(localizations.cancelTaskConfirmation(task.lineName,
+                  task.targetTowerRange, task.assignedToUserName ?? 'N/A')),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(localizations.no),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error),
+                  child: Text(localizations.yes),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (confirmCancel) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        // Set task status to 'Cancelled'
+        await _taskService.updateTask(task.copyWith(
+          status: 'Cancelled',
+          completionDate: DateTime.now(),
+          reviewNotes: 'Task cancelled by manager/admin due to overdue status.',
+        ));
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context,
+              localizations.taskCancelledSuccessfully(
+                  task.lineName, task.targetTowerRange));
+        }
+      } catch (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, localizations.errorUpdatingTask(e.toString()),
+              isError: true);
+        }
+        print('Error canceling task: $e');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
+  // NEW: Reassign task to another worker
+  Future<void> _reassignTask(Task task) async {
+    final localizations = AppLocalizations.of(context)!;
+    UserProfile? selectedWorkerForReassignment =
+        await showModalBottomSheet<UserProfile?>(
+      context: context,
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  localizations.selectWorkerToReassign,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _allWorkers.length,
+                  itemBuilder: (context, index) {
+                    final worker = _allWorkers[index];
+                    if (worker.id == task.assignedToUserId) {
+                      return const SizedBox
+                          .shrink(); // Don't show current worker
+                    }
+                    return ListTile(
+                      title: Text(worker.displayName ?? worker.email),
+                      onTap: () => Navigator.pop(bc, worker),
+                    );
+                  },
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(bc, null), // Cancel
+                    child: Text(localizations.cancel),
+                  ),
+                ),
+              )
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedWorkerForReassignment != null) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        await _taskService.updateTask(task.copyWith(
+          assignedToUserId: selectedWorkerForReassignment.id,
+          assignedToUserName: selectedWorkerForReassignment.displayName ??
+              selectedWorkerForReassignment.email,
+          status: 'Pending', // Reset status to pending for new worker
+          completionDate: null,
+          reviewNotes:
+              'Reassigned by manager/admin from ${task.assignedToUserName} to ${selectedWorkerForReassignment.displayName ?? selectedWorkerForReassignment.email}.',
+        ));
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context,
+              localizations.taskReassignedSuccessfully(
+                  task.lineName,
+                  task.targetTowerRange,
+                  task.assignedToUserName ?? task.assignedToUserId ?? '',
+                  selectedWorkerForReassignment.displayName ??
+                      selectedWorkerForReassignment.email));
+        }
+      } catch (e) {
+        if (mounted) {
+          SnackBarUtils.showSnackBar(
+              context, localizations.errorUpdatingTask(e.toString()),
+              isError: true);
+        }
+        print('Error reassigning task: $e');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
   }
 
   void _updateTaskStatus(Task task, String newStatus) async {
@@ -825,12 +1036,47 @@ class _RealTimeTasksScreenState extends State<RealTimeTasksScreen> {
                           children: [
                             Text(
                                 '${localizations.due}: ${task.dueDate.toLocal().toString().split(' ')[0]}'),
-                            Text(
-                                '${localizations.status}: ${task.derivedStatus}'),
+                            // Display days left/overdue for worker, or worker info for manager
+                            if (widget.currentUserProfile!.role == 'Worker')
+                              Text(
+                                  task.isOverdue
+                                      ? localizations.overdue
+                                      : localizations.daysLeft(task.daysLeft),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                          fontStyle: FontStyle.italic,
+                                          color: task.isOverdue
+                                              ? Colors.red
+                                              : Colors.green)),
                             if (widget.currentUserProfile!.role == 'Manager' ||
                                 widget.currentUserProfile!.role == 'Admin')
-                              Text(
-                                  '${localizations.assignedToUser}: ${task.assignedToUserName ?? 'N/A'}'),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                      '${localizations.assignedToUser}: ${task.assignedToUserName ?? 'N/A'}'),
+                                  Text(
+                                      '${localizations.progress}: ${task.uploadedCompletedCount} / ${task.numberOfTowersToPatrol} ${localizations.towers}'),
+                                  if (task.isOverdue)
+                                    Text(
+                                      localizations.overdue,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.bold),
+                                    ),
+                                ],
+                              ),
+                            Text(
+                                '${localizations.status}: ${task.derivedStatus}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(fontStyle: FontStyle.italic)),
                           ],
                         ),
                         trailing: (widget.currentUserProfile!.role ==
