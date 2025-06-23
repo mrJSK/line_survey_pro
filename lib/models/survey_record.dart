@@ -49,13 +49,28 @@ class SurveyRecord {
   bool? objectOnEarthwire;
   String? spacers; // Dropdown: OK, Damaged
   String? vibrationDamper; // Dropdown: OK, Damaged
-  String? roadCrossing; // Dropdown: NH, SH, Chakk road, Over Bridge, Underpass
+  // String? roadCrossing; // Old dropdown: NH, SH, Chakk road, Over Bridge, Underpass - REMOVED
   bool? riverCrossing;
-  String? electricalLine; // Dropdown: 400kV, 220kV, 132kV, 33kV, 11kV, PTW
+  // String? electricalLine; // Old dropdown: 400kV, 220kV, 132kV, 33kV, 11kV, PTW - REMOVED
   bool? railwayCrossing;
 
   // NEW: General Notes text area field
   String? generalNotes;
+
+  // NEW: Fields for Road Crossing
+  bool? hasRoadCrossing;
+  List<String>? roadCrossingTypes; // E.g., ["NH", "SH"]
+  String? roadCrossingName; // E.g., "GT road NH21"
+
+  // NEW: Fields for Electrical Line Crossing
+  bool? hasElectricalLineCrossing;
+  List<String>? electricalLineTypes; // E.g., ["400kV", "220kV"]
+  List<String>? electricalLineNames; // E.g., ["Line A", "Line B"]
+
+  // NEW: Fields for Span details
+  String? spanLength; // e.g., "250m"
+  String? bottomConductor; // e.g., "Good", "Damaged"
+  String? topConductor; // e.g., "Good", "Damaged"
 
   SurveyRecord({
     String? id,
@@ -103,12 +118,24 @@ class SurveyRecord {
     this.objectOnEarthwire,
     this.spacers,
     this.vibrationDamper,
-    this.roadCrossing,
+    // this.roadCrossing, // Removed from constructor
     this.riverCrossing,
-    this.electricalLine,
+    // this.electricalLine, // Removed from constructor
     this.railwayCrossing,
     // Initialize NEW General Notes field
     this.generalNotes,
+    // Initialize NEW Road Crossing fields
+    this.hasRoadCrossing,
+    this.roadCrossingTypes,
+    this.roadCrossingName,
+    // Initialize NEW Electrical Line Crossing fields
+    this.hasElectricalLineCrossing,
+    this.electricalLineTypes,
+    this.electricalLineNames,
+    // Initialize NEW Span fields
+    this.spanLength,
+    this.bottomConductor,
+    this.topConductor,
   }) : id = id ?? const Uuid().v4();
 
   // Factory constructor to create a SurveyRecord from a Firestore document's data Map
@@ -159,12 +186,30 @@ class SurveyRecord {
       objectOnEarthwire: map['objectOnEarthwire'] as bool?,
       spacers: map['spacers'] as String?,
       vibrationDamper: map['vibrationDamper'] as String?,
-      roadCrossing: map['roadCrossing'] as String?,
+      // roadCrossing: map['roadCrossing'] as String?, // Removed
       riverCrossing: map['riverCrossing'] as bool?,
-      electricalLine: map['electricalLine'] as String?,
+      // electricalLine: map['electricalLine'] as String?, // Removed
       railwayCrossing: map['railwayCrossing'] as bool?,
       // Read NEW General Notes field
       generalNotes: map['generalNotes'] as String?,
+      // Read NEW Road Crossing fields
+      hasRoadCrossing: map['hasRoadCrossing'] as bool?,
+      roadCrossingTypes: (map['roadCrossingTypes'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      roadCrossingName: map['roadCrossingName'] as String?,
+      // Read NEW Electrical Line Crossing fields
+      hasElectricalLineCrossing: map['hasElectricalLineCrossing'] as bool?,
+      electricalLineTypes: (map['electricalLineTypes'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      electricalLineNames: (map['electricalLineNames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      // Read NEW Span fields
+      spanLength: map['spanLength'] as String?,
+      bottomConductor: map['bottomConductor'] as String?,
+      topConductor: map['topConductor'] as String?,
     );
   }
 
@@ -215,12 +260,24 @@ class SurveyRecord {
       'objectOnEarthwire': objectOnEarthwire,
       'spacers': spacers,
       'vibrationDamper': vibrationDamper,
-      'roadCrossing': roadCrossing,
+      // 'roadCrossing': roadCrossing, // Removed
       'riverCrossing': riverCrossing,
-      'electricalLine': electricalLine,
+      // 'electricalLine': electricalLine, // Removed
       'railwayCrossing': railwayCrossing,
       // Add NEW General Notes field for Firestore
       'generalNotes': generalNotes,
+      // Add NEW Road Crossing fields for Firestore
+      'hasRoadCrossing': hasRoadCrossing,
+      'roadCrossingTypes': roadCrossingTypes,
+      'roadCrossingName': roadCrossingName,
+      // Add NEW Electrical Line Crossing fields for Firestore
+      'hasElectricalLineCrossing': hasElectricalLineCrossing,
+      'electricalLineTypes': electricalLineTypes,
+      'electricalLineNames': electricalLineNames,
+      // Add NEW Span fields for Firestore
+      'spanLength': spanLength,
+      'bottomConductor': bottomConductor,
+      'topConductor': topConductor,
     };
   }
 
@@ -271,12 +328,27 @@ class SurveyRecord {
       objectOnEarthwire: map['objectOnEarthwire'] == 1,
       spacers: map['spacers'] as String?,
       vibrationDamper: map['vibrationDamper'] as String?,
-      roadCrossing: map['roadCrossing'] as String?,
+      // roadCrossing: map['roadCrossing'] as String?, // Removed
       riverCrossing: map['riverCrossing'] == 1,
-      electricalLine: map['electricalLine'] as String?,
+      // electricalLine: map['electricalLine'] as String?, // Removed
       railwayCrossing: map['railwayCrossing'] == 1,
       // Read NEW General Notes field
       generalNotes: map['generalNotes'] as String?,
+      // Read NEW Road Crossing fields
+      hasRoadCrossing: map['hasRoadCrossing'] == 1,
+      roadCrossingTypes: (map['roadCrossingTypes'] as String?)
+          ?.split(','), // Assuming comma-separated string for SQLite
+      roadCrossingName: map['roadCrossingName'] as String?,
+      // Read NEW Electrical Line Crossing fields
+      hasElectricalLineCrossing: map['hasElectricalLineCrossing'] == 1,
+      electricalLineTypes: (map['electricalLineTypes'] as String?)
+          ?.split(','), // Assuming comma-separated string for SQLite
+      electricalLineNames: (map['electricalLineNames'] as String?)
+          ?.split(','), // Assuming comma-separated string for SQLite
+      // Read NEW Span fields
+      spanLength: map['spanLength'] as String?,
+      bottomConductor: map['bottomConductor'] as String?,
+      topConductor: map['topConductor'] as String?,
     );
   }
 
@@ -327,12 +399,27 @@ class SurveyRecord {
       'objectOnEarthwire': objectOnEarthwire == true ? 1 : 0,
       'spacers': spacers,
       'vibrationDamper': vibrationDamper,
-      'roadCrossing': roadCrossing,
+      // 'roadCrossing': roadCrossing, // Removed
       'riverCrossing': riverCrossing == true ? 1 : 0,
-      'electricalLine': electricalLine,
+      // 'electricalLine': electricalLine, // Removed
       'railwayCrossing': railwayCrossing == true ? 1 : 0,
       // Add NEW General Notes field for SQLite
       'generalNotes': generalNotes,
+      // Add NEW Road Crossing fields for SQLite
+      'hasRoadCrossing': hasRoadCrossing == true ? 1 : 0,
+      'roadCrossingTypes':
+          roadCrossingTypes?.join(','), // Store as comma-separated string
+      'roadCrossingName': roadCrossingName,
+      // Add NEW Electrical Line Crossing fields for SQLite
+      'hasElectricalLineCrossing': hasElectricalLineCrossing == true ? 1 : 0,
+      'electricalLineTypes':
+          electricalLineTypes?.join(','), // Store as comma-separated string
+      'electricalLineNames':
+          electricalLineNames?.join(','), // Store as comma-separated string
+      // Add NEW Span fields for SQLite
+      'spanLength': spanLength,
+      'bottomConductor': bottomConductor,
+      'topConductor': topConductor,
     };
   }
 
@@ -368,7 +455,7 @@ class SurveyRecord {
     String? coronaRing,
     String? insulatorType,
     String? opgwJointBox,
-    // Copy new fields
+    // Copy new fields from Line Survey Screen
     bool? building,
     bool? tree,
     int? numberOfTrees,
@@ -381,12 +468,24 @@ class SurveyRecord {
     bool? objectOnEarthwire,
     String? spacers,
     String? vibrationDamper,
-    String? roadCrossing,
+    // String? roadCrossing, // Removed from copyWith
     bool? riverCrossing,
-    String? electricalLine,
+    // String? electricalLine, // Removed from copyWith
     bool? railwayCrossing,
     // Copy NEW General Notes field
     String? generalNotes,
+    // Copy NEW Road Crossing fields
+    bool? hasRoadCrossing,
+    List<String>? roadCrossingTypes,
+    String? roadCrossingName,
+    // Copy NEW Electrical Line Crossing fields
+    bool? hasElectricalLineCrossing,
+    List<String>? electricalLineTypes,
+    List<String>? electricalLineNames,
+    // Copy NEW Span fields
+    String? spanLength,
+    String? bottomConductor,
+    String? topConductor,
   }) {
     return SurveyRecord(
       id: id ?? this.id,
@@ -421,7 +520,7 @@ class SurveyRecord {
       coronaRing: coronaRing ?? this.coronaRing,
       insulatorType: insulatorType ?? this.insulatorType,
       opgwJointBox: opgwJointBox ?? this.opgwJointBox,
-      // Copy new fields
+      // Copy new fields from Line Survey Screen
       building: building ?? this.building,
       tree: tree ?? this.tree,
       numberOfTrees: numberOfTrees ?? this.numberOfTrees,
@@ -434,12 +533,25 @@ class SurveyRecord {
       objectOnEarthwire: objectOnEarthwire ?? this.objectOnEarthwire,
       spacers: spacers ?? this.spacers,
       vibrationDamper: vibrationDamper ?? this.vibrationDamper,
-      roadCrossing: roadCrossing ?? this.roadCrossing,
+      // roadCrossing: roadCrossing ?? this.roadCrossing, // Removed
       riverCrossing: riverCrossing ?? this.riverCrossing,
-      electricalLine: electricalLine ?? this.electricalLine,
+      // electricalLine: electricalLine ?? this.electricalLine, // Removed
       railwayCrossing: railwayCrossing ?? this.railwayCrossing,
       // Copy NEW General Notes field
       generalNotes: generalNotes ?? this.generalNotes,
+      // Copy NEW Road Crossing fields
+      hasRoadCrossing: hasRoadCrossing ?? this.hasRoadCrossing,
+      roadCrossingTypes: roadCrossingTypes ?? this.roadCrossingTypes,
+      roadCrossingName: roadCrossingName ?? this.roadCrossingName,
+      // Copy NEW Electrical Line Crossing fields
+      hasElectricalLineCrossing:
+          hasElectricalLineCrossing ?? this.hasElectricalLineCrossing,
+      electricalLineTypes: electricalLineTypes ?? this.electricalLineTypes,
+      electricalLineNames: electricalLineNames ?? this.electricalLineNames,
+      // Copy NEW Span fields
+      spanLength: spanLength ?? this.spanLength,
+      bottomConductor: bottomConductor ?? this.bottomConductor,
+      topConductor: topConductor ?? this.topConductor,
     );
   }
 

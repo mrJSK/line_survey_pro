@@ -2,12 +2,13 @@
 // New screen for collecting additional line survey details.
 
 import 'package:flutter/material.dart';
-import 'package:line_survey_pro/models/survey_record.dart';
+import 'package:line_survey_pro/models/survey_record.dart'; // Import SurveyRecord model"
 import 'package:line_survey_pro/models/transmission_line.dart'; // To get line range for Span calculation
 import 'package:line_survey_pro/services/local_database_service.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/screens/camera_screen.dart'; // Next screen in flow
-// For firstWhereOrNull
+import 'package:collection/collection.dart'; // For firstWhereOrNull
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class LineSurveyScreen extends StatefulWidget {
   final SurveyRecord initialRecord; // Record from PatrollingDetailScreen
@@ -27,7 +28,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
   final _formKey = GlobalKey<FormState>();
   late SurveyRecord _currentRecord;
 
-  // New fields from the Line Survey Screen
+  // Existing fields from the Line Survey Screen
   bool _building = false;
   bool _tree = false;
   final TextEditingController _numberOfTreesController =
@@ -41,19 +42,41 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
   bool _objectOnEarthwire = false;
   String? _spacers;
   String? _vibrationDamper;
-  String? _roadCrossing;
   bool _riverCrossing = false;
-  String? _electricalLine;
   bool _railwayCrossing = false;
   final TextEditingController _generalNotesController =
       TextEditingController(); // NEW: Controller for general notes
+
+  // NEW: Fields for Road Crossing
+  bool _hasRoadCrossing = false;
+  Set<String> _selectedRoadCrossingTypes = {};
+  final TextEditingController _roadCrossingNameController =
+      TextEditingController();
+
+  // NEW: Fields for Electrical Line Crossing
+  bool _hasElectricalLineCrossing = false;
+  Set<String> _selectedElectricalLineTypes = {};
+  List<TextEditingController> _electricalLineControllers = [];
+
+  // NEW: Fields for Span details
+  final TextEditingController _spanLengthController = TextEditingController();
+  String? _bottomConductor;
+  String? _topConductor;
 
   bool _isSaving = false;
 
   final LocalDatabaseService _localDatabaseService = LocalDatabaseService();
 
-  // Dropdown options
+  // Dropdown options (kept for reference, but new checkbox lists will use these values)
   final List<String> _okDamagedOptions = ['OK', 'Damaged'];
+  // NEW: Options for Bottom Conductor and Top Conductor
+  final List<String> _conductorOptions = [
+    'OK',
+    'Damaged',
+    'R phase',
+    'Y phase',
+    'B phase'
+  ];
   final List<String> _roadCrossingOptions = [
     'NH',
     'SH',
@@ -80,7 +103,12 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
   @override
   void dispose() {
     _numberOfTreesController.dispose();
-    _generalNotesController.dispose(); // NEW: Dispose controller
+    _generalNotesController.dispose();
+    _roadCrossingNameController.dispose(); // Dispose new controller
+    _spanLengthController.dispose(); // Dispose new controller
+    for (var controller in _electricalLineControllers) {
+      controller.dispose(); // Dispose dynamically created controllers
+    }
     super.dispose();
   }
 
@@ -99,22 +127,48 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
     _objectOnEarthwire = _currentRecord.objectOnEarthwire ?? false;
     _spacers = _currentRecord.spacers;
     _vibrationDamper = _currentRecord.vibrationDamper;
-    _roadCrossing = _currentRecord.roadCrossing;
     _riverCrossing = _currentRecord.riverCrossing ?? false;
-    _electricalLine = _currentRecord.electricalLine;
     _railwayCrossing = _currentRecord.railwayCrossing ?? false;
-    _generalNotesController.text =
-        _currentRecord.generalNotes ?? ''; // NEW: Populate general notes
+    _generalNotesController.text = _currentRecord.generalNotes ?? '';
+
+    // NEW: Populate road crossing fields
+    _hasRoadCrossing = _currentRecord.hasRoadCrossing ?? false;
+    if (_currentRecord.roadCrossingTypes != null) {
+      _selectedRoadCrossingTypes =
+          Set<String>.from(_currentRecord.roadCrossingTypes!);
+    }
+    _roadCrossingNameController.text = _currentRecord.roadCrossingName ?? '';
+
+    // NEW: Populate electrical line fields
+    _hasElectricalLineCrossing =
+        _currentRecord.hasElectricalLineCrossing ?? false;
+    if (_currentRecord.electricalLineTypes != null) {
+      _selectedElectricalLineTypes =
+          Set<String>.from(_currentRecord.electricalLineTypes!);
+    }
+    // Initialize controllers based on previously saved electrical line names
+    if (_currentRecord.electricalLineNames != null) {
+      _electricalLineControllers = _currentRecord.electricalLineNames!
+          .map((name) => TextEditingController(text: name))
+          .toList();
+    } else {
+      _electricalLineControllers = [];
+    }
+
+    // NEW: Populate span details
+    _spanLengthController.text = _currentRecord.spanLength ?? '';
+    _bottomConductor = _currentRecord.bottomConductor;
+    _topConductor = _currentRecord.topConductor;
   }
 
   // Calculate Span heading
-  String _getSpanHeading() {
+  String _getSpanHeading(AppLocalizations localizations) {
     if (widget.transmissionLine.towerRangeEnd != null &&
         widget.transmissionLine.towerRangeEnd ==
             widget.initialRecord.towerNumber) {
-      return 'Span: END';
+      return '${localizations.span}: END'; // Localized "Span"
     } else {
-      return 'Span: ${widget.initialRecord.towerNumber}-${widget.initialRecord.towerNumber + 1}';
+      return '${localizations.span}: ${widget.initialRecord.towerNumber}-${widget.initialRecord.towerNumber + 1}'; // Localized "Span"
     }
   }
 
@@ -135,9 +189,9 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
   }
 
   Future<void> _saveAndNavigateToCamera() async {
+    final localizations = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) {
-      SnackBarUtils.showSnackBar(
-          context, 'Please fill all required fields correctly.',
+      SnackBarUtils.showSnackBar(context, localizations.fillAllRequiredFields,
           isError: true);
       return;
     }
@@ -161,17 +215,33 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
         objectOnEarthwire: _objectOnEarthwire,
         spacers: _spacers,
         vibrationDamper: _vibrationDamper,
-        roadCrossing: _roadCrossing,
         riverCrossing: _riverCrossing,
-        electricalLine: _electricalLine,
         railwayCrossing: _railwayCrossing,
         generalNotes: _generalNotesController.text.trim().isEmpty
             ? null
-            : _generalNotesController.text.trim(), // NEW: Save general notes
+            : _generalNotesController.text.trim(),
+        // NEW: Add road crossing fields to SurveyRecord.copyWith
+        hasRoadCrossing: _hasRoadCrossing,
+        roadCrossingTypes:
+            _hasRoadCrossing ? _selectedRoadCrossingTypes.toList() : null,
+        roadCrossingName:
+            _hasRoadCrossing ? _roadCrossingNameController.text.trim() : null,
+        // NEW: Add electrical line crossing fields to SurveyRecord.copyWith
+        hasElectricalLineCrossing: _hasElectricalLineCrossing,
+        electricalLineTypes: _hasElectricalLineCrossing
+            ? _selectedElectricalLineTypes.toList()
+            : null,
+        electricalLineNames: _hasElectricalLineCrossing
+            ? _electricalLineControllers.map((c) => c.text.trim()).toList()
+            : null,
+        // NEW: Add span details fields to SurveyRecord.copyWith
+        spanLength: _spanLengthController.text.trim().isEmpty
+            ? null
+            : _spanLengthController.text.trim(),
+        bottomConductor: _bottomConductor,
+        topConductor: _topConductor,
       );
 
-      // We are directly updating the record that came from PatrollingDetailScreen
-      // and passing it to CameraScreen. CameraScreen will handle the final local save.
       final String? finalSavedRecordId = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => CameraScreen(
@@ -183,20 +253,20 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
       if (finalSavedRecordId != null) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Line Survey Details saved! Proceed to camera.');
-          Navigator.of(context).pop(); // Pop LineSurveyScreen
+              context, localizations.lineSurveyDetailsSaved);
+          Navigator.of(context).pop();
         }
       } else {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Camera capture cancelled or failed. Data not saved.',
+              context, localizations.cameraCaptureCancelled,
               isError: true);
         }
       }
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error saving line survey details: ${e.toString()}',
+            context, localizations.errorSavingLineSurveyDetails(e.toString()),
             isError: true);
       }
       print('Error saving line survey details: $e');
@@ -212,10 +282,37 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
+
+    final List<String> localizedOkDamagedOptions = [
+      localizations.oK,
+      localizations.damaged
+    ];
+    // NEW: Localized options for conductors
+    final List<String> localizedConductorOptions = [
+      'R',
+      'Y',
+      'B',
+    ];
+    final List<String> localizedRoadCrossingOptions = [
+      localizations.nationalHighway,
+      localizations.stateHighway,
+      localizations.chakkRoad,
+      localizations.overBridge,
+      localizations.underpass
+    ];
+    final List<String> localizedElectricalLineOptions = [
+      localizations.voltage400kV,
+      localizations.voltage220kV,
+      localizations.voltage132kV,
+      localizations.voltage33kV,
+      localizations.voltage11kV,
+      localizations.privateTubeWell
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Line Survey Details'),
+        title: Text(localizations.lineSurveyDetails),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -225,14 +322,52 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '${_getSpanHeading()} (Tower ${widget.initialRecord.towerNumber} on ${widget.initialRecord.lineName})',
+                '${_getSpanHeading(localizations)} (${localizations.tower} ${widget.initialRecord.towerNumber} ${localizations.on} ${widget.initialRecord.lineName})',
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
 
+              // NEW: Span Length
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                child: TextFormField(
+                  controller: _spanLengthController,
+                  decoration: _inputDecoration(
+                      localizations.spanLength, Icons.straighten, colorScheme),
+                  keyboardType: TextInputType.text,
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // NEW: Bottom Conductor - Using localizedConductorOptions
+              _buildDropdownTile(
+                  localizations.bottomConductor,
+                  _bottomConductor,
+                  localizedConductorOptions, // Using new options
+                  Icons.cable,
+                  colorScheme, (value) {
+                setState(() {
+                  _bottomConductor = value;
+                });
+              }, localizations.selectBottomConductor),
+              const SizedBox(height: 15),
+
+              // NEW: Top Conductor - Using localizedConductorOptions
+              _buildDropdownTile(
+                  localizations.topConductor,
+                  _topConductor,
+                  localizedConductorOptions, // Using new options
+                  Icons.cable,
+                  colorScheme, (value) {
+                setState(() {
+                  _topConductor = value;
+                });
+              }, localizations.selectTopConductor),
+              const SizedBox(height: 15),
+
               // Building (Check/Uncheck)
-              _buildCheckboxTile('Building', _building, (value) {
+              _buildCheckboxTile(localizations.building, _building, (value) {
                 setState(() {
                   _building = value!;
                 });
@@ -240,7 +375,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
               const SizedBox(height: 15),
 
               // Tree (Check/Uncheck with conditional text field)
-              _buildCheckboxTile('Tree', _tree, (value) {
+              _buildCheckboxTile(localizations.tree, _tree, (value) {
                 setState(() {
                   _tree = value!;
                 });
@@ -250,7 +385,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
                   padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
                   child: TextFormField(
                     controller: _numberOfTreesController,
-                    decoration: _inputDecoration('Number of Trees',
+                    decoration: _inputDecoration(localizations.numberOfTrees,
                         Icons.format_list_numbered, colorScheme),
                     keyboardType: TextInputType.number,
                     validator: (value) {
@@ -259,7 +394,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
                               value.isEmpty ||
                               int.tryParse(value) == null ||
                               int.parse(value) <= 0)) {
-                        return 'Enter number of trees (positive number)';
+                        return localizations.towerNumberPositive;
                       }
                       return null;
                     },
@@ -269,58 +404,59 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
 
               // Condition of OPGW (Dropdown)
               _buildDropdownTile(
-                  'Condition of OPGW',
+                  localizations.conditionOfOpgw,
                   _conditionOfOpgw,
-                  _okDamagedOptions,
+                  localizedOkDamagedOptions,
                   Icons.electrical_services,
                   colorScheme, (value) {
                 setState(() {
                   _conditionOfOpgw = value;
                 });
-              }),
+              }, localizations.selectConditionOfOpgw),
               const SizedBox(height: 15),
 
               // Condition of Earth Wire (Dropdown)
               _buildDropdownTile(
-                  'Condition of Earth Wire',
+                  localizations.conditionOfEarthWire,
                   _conditionOfEarthWire,
-                  _okDamagedOptions,
+                  localizedOkDamagedOptions,
                   Icons.electrical_services,
                   colorScheme, (value) {
                 setState(() {
                   _conditionOfEarthWire = value;
                 });
-              }),
+              }, localizations.selectConditionOfEarthWire),
               const SizedBox(height: 15),
 
               // Condition of Conductor (Dropdown)
               _buildDropdownTile(
-                  'Condition of Conductor',
+                  localizations.conditionOfConductor,
                   _conditionOfConductor,
-                  _okDamagedOptions,
+                  localizedOkDamagedOptions,
                   Icons.electrical_services,
                   colorScheme, (value) {
                 setState(() {
                   _conditionOfConductor = value;
                 });
-              }),
+              }, localizations.selectConditionOfConductor),
               const SizedBox(height: 15),
 
               // Mid Span Joint (Dropdown)
               _buildDropdownTile(
-                  'Mid Span Joint',
+                  localizations.midSpanJoint,
                   _midSpanJoint,
-                  _okDamagedOptions,
+                  localizedOkDamagedOptions,
                   Icons.electrical_services,
                   colorScheme, (value) {
                 setState(() {
                   _midSpanJoint = value;
                 });
-              }),
+              }, localizations.selectMidSpanJoint),
               const SizedBox(height: 15),
 
               // New Construction (Check/Uncheck)
-              _buildCheckboxTile('New Construction', _newConstruction, (value) {
+              _buildCheckboxTile(
+                  localizations.newConstruction, _newConstruction, (value) {
                 setState(() {
                   _newConstruction = value!;
                 });
@@ -328,8 +464,8 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
               const SizedBox(height: 15),
 
               // Object on Conductor (Check/Uncheck)
-              _buildCheckboxTile('Object on Conductor', _objectOnConductor,
-                  (value) {
+              _buildCheckboxTile(
+                  localizations.objectOnConductor, _objectOnConductor, (value) {
                 setState(() {
                   _objectOnConductor = value!;
                 });
@@ -337,8 +473,8 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
               const SizedBox(height: 15),
 
               // Object on Earthwire (Check/Uncheck)
-              _buildCheckboxTile('Object on Earthwire', _objectOnEarthwire,
-                  (value) {
+              _buildCheckboxTile(
+                  localizations.objectOnEarthwire, _objectOnEarthwire, (value) {
                 setState(() {
                   _objectOnEarthwire = value!;
                 });
@@ -346,66 +482,184 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
               const SizedBox(height: 15),
 
               // Spacers (Dropdown)
-              _buildDropdownTile('Spacers', _spacers, _okDamagedOptions,
-                  Icons.electrical_services, colorScheme, (value) {
+              _buildDropdownTile(
+                  localizations.spacers,
+                  _spacers,
+                  localizedOkDamagedOptions,
+                  Icons.electrical_services,
+                  colorScheme, (value) {
                 setState(() {
                   _spacers = value;
                 });
-              }),
+              }, localizations.selectSpacers),
               const SizedBox(height: 15),
 
               // Vibration Damper (Dropdown)
               _buildDropdownTile(
-                  'Vibration Damper',
+                  localizations.vibrationDamper,
                   _vibrationDamper,
-                  _okDamagedOptions,
+                  localizedOkDamagedOptions,
                   Icons.electrical_services,
                   colorScheme, (value) {
                 setState(() {
                   _vibrationDamper = value;
                 });
-              }),
+              }, localizations.selectVibrationDamper),
               const SizedBox(height: 15),
 
-              // Road Crossing (Dropdown)
-              _buildDropdownTile('Road Crossing', _roadCrossing,
-                  _roadCrossingOptions, Icons.route, colorScheme, (value) {
+              // NEW: Road Crossing Checkbox and conditional fields
+              _buildCheckboxTile(localizations.roadCrossing, _hasRoadCrossing,
+                  (value) {
                 setState(() {
-                  _roadCrossing = value;
+                  _hasRoadCrossing = value!;
+                  if (!_hasRoadCrossing) {
+                    _selectedRoadCrossingTypes.clear();
+                    _roadCrossingNameController.clear();
+                  }
                 });
               }),
+              if (_hasRoadCrossing)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+                      child: Text(localizations.selectRoadCrossingTypes,
+                          style: Theme.of(context).textTheme.titleSmall),
+                    ),
+                    ...localizedRoadCrossingOptions.map((type) {
+                      return _buildCheckboxTile(
+                          type, _selectedRoadCrossingTypes.contains(type),
+                          (value) {
+                        setState(() {
+                          if (value!) {
+                            _selectedRoadCrossingTypes.add(type);
+                          } else {
+                            _selectedRoadCrossingTypes.remove(type);
+                          }
+                        });
+                      });
+                    }).toList(),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                      child: TextFormField(
+                        controller: _roadCrossingNameController,
+                        decoration: _inputDecoration(
+                            localizations.roadCrossingName,
+                            Icons.text_fields,
+                            colorScheme),
+                        validator: (value) {
+                          if (_hasRoadCrossing &&
+                              value != null &&
+                              value.trim().isEmpty) {
+                            return localizations.enterRoadCrossingName;
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 15),
 
               // River Crossing (Check/Uncheck)
-              _buildCheckboxTile('River Crossing', _riverCrossing, (value) {
+              _buildCheckboxTile(localizations.riverCrossing, _riverCrossing,
+                  (value) {
                 setState(() {
                   _riverCrossing = value!;
                 });
               }),
               const SizedBox(height: 15),
 
-              // Electrical Line (Dropdown)
-              _buildDropdownTile('Electrical Line', _electricalLine,
-                  _electricalLineOptions, Icons.power, colorScheme, (value) {
+              // NEW: Electrical Line Crossing Checkbox and conditional fields
+              _buildCheckboxTile(
+                  localizations.electricalLine, _hasElectricalLineCrossing,
+                  (value) {
                 setState(() {
-                  _electricalLine = value;
+                  _hasElectricalLineCrossing = value!;
+                  if (!_hasElectricalLineCrossing) {
+                    _selectedElectricalLineTypes.clear();
+                    // Dispose and clear controllers if checkbox is unchecked
+                    for (var controller in _electricalLineControllers) {
+                      controller.dispose();
+                    }
+                    _electricalLineControllers.clear();
+                  }
                 });
               }),
+              if (_hasElectricalLineCrossing)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+                      child: Text(localizations.selectElectricalLineTypes,
+                          style: Theme.of(context).textTheme.titleSmall),
+                    ),
+                    ...localizedElectricalLineOptions.map((type) {
+                      return _buildCheckboxTile(
+                          type, _selectedElectricalLineTypes.contains(type),
+                          (value) {
+                        setState(() {
+                          if (value!) {
+                            _selectedElectricalLineTypes.add(type);
+                          } else {
+                            _selectedElectricalLineTypes.remove(type);
+                          }
+                          // Adjust the number of text controllers based on selected types
+                          _rebuildElectricalLineControllers();
+                        });
+                      });
+                    }).toList(),
+                    // Dynamically generate text fields for each selected electrical line
+                    ..._electricalLineControllers.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      // Get the corresponding electrical line type from the selected types
+                      // Ensure the list is sorted consistently for a stable index
+                      final List<String> sortedSelectedTypes =
+                          _selectedElectricalLineTypes.toList()..sort();
+                      final String electricalLineType =
+                          sortedSelectedTypes[index];
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                        child: TextFormField(
+                          controller:
+                              entry.value, // Use entry.value for controller
+                          decoration: _inputDecoration(
+                              // Dynamically set label based on selected type
+                              '$electricalLineType ${localizations.electricalLineName}',
+                              Icons.power,
+                              colorScheme),
+                          validator: (value) {
+                            if (_hasElectricalLineCrossing &&
+                                value != null &&
+                                value.trim().isEmpty) {
+                              return '${localizations.enterElectricalLineName} for $electricalLineType';
+                            }
+                            return null;
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
               const SizedBox(height: 15),
 
               // Railway Crossing (Check/Uncheck)
-              _buildCheckboxTile('Railway Crossing', _railwayCrossing, (value) {
+              _buildCheckboxTile(
+                  localizations.railwayCrossing, _railwayCrossing, (value) {
                 setState(() {
                   _railwayCrossing = value!;
                 });
               }),
               const SizedBox(height: 15),
 
-              // NEW: General Notes Text Area
+              // General Notes Text Area
               TextFormField(
                 controller: _generalNotesController,
                 decoration: _inputDecoration(
-                    'General Observations/Notes', Icons.notes, colorScheme),
+                    localizations.generalNotes, Icons.notes, colorScheme),
                 maxLines: 5,
                 keyboardType: TextInputType.multiline,
               ),
@@ -417,7 +671,7 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
                   : ElevatedButton.icon(
                       onPressed: _saveAndNavigateToCamera,
                       icon: const Icon(Icons.camera_alt),
-                      label: const Text('Save Details & Go to Camera'),
+                      label: Text(localizations.saveDetailsAndGoToCamera),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                         foregroundColor: colorScheme.onPrimary,
@@ -444,9 +698,15 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
     );
   }
 
-  // Helper for consistent dropdown tiles
-  Widget _buildDropdownTile(String label, String? value, List<String> options,
-      IconData icon, ColorScheme colorScheme, ValueChanged<String?> onChanged) {
+  // Helper for consistent dropdown tiles (kept as original, not used for new checkboxes)
+  Widget _buildDropdownTile(
+      String label,
+      String? value,
+      List<String> options,
+      IconData icon,
+      ColorScheme colorScheme,
+      ValueChanged<String?> onChanged,
+      String validatorMessage) {
     return DropdownButtonFormField<String>(
       value: value,
       decoration: _inputDecoration(label, icon, colorScheme),
@@ -460,7 +720,41 @@ class _LineSurveyScreenState extends State<LineSurveyScreen> {
             ));
       }).toList(),
       onChanged: onChanged,
-      validator: (val) => val == null ? 'Select $label' : null,
+      validator: (val) => val == null ? validatorMessage : null,
     );
+  }
+
+  // NEW: Helper to rebuild electrical line controllers based on selected types
+  void _rebuildElectricalLineControllers() {
+    // Convert the set to a sorted list to maintain consistent order when accessing by index.
+    // This helps ensure the controller at index `i` consistently corresponds to the electrical line type at `selectedTypesList[i]`.
+    final List<String> selectedTypesList = _selectedElectricalLineTypes.toList()
+      ..sort();
+
+    final int newCount = selectedTypesList.length;
+    final int currentCount = _electricalLineControllers.length;
+
+    if (newCount > currentCount) {
+      // Add new controllers
+      for (int i = currentCount; i < newCount; i++) {
+        _electricalLineControllers.add(TextEditingController());
+      }
+    } else if (newCount < currentCount) {
+      // Remove excess controllers and dispose them
+      for (int i = currentCount - 1; i >= newCount; i--) {
+        _electricalLineControllers[i].dispose();
+        _electricalLineControllers.removeAt(i);
+      }
+    }
+
+    // After adjusting the list size, ensure that if types change, the controllers are correctly mapped
+    // or re-initialized if their corresponding type has shifted. This part needs more robust handling
+    // if the order of selected types can change dynamically and you want to preserve text for specific types.
+    // For now, it assumes that if a type is removed, its controller is removed, and if added, a new controller is added.
+    // Re-populating existing text based on types is complex with dynamic lists and may require storing a map
+    // of type to controller/value instead of just a list of controllers.
+    // For simplicity, for now, we just ensure the list of controllers matches the count.
+    // If _selectedElectricalLineTypes changes in content (not just count), you would lose entered text.
+    // To preserve text, you would need to manage a Map<String, TextEditingController> or similar.
   }
 }

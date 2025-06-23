@@ -535,6 +535,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lineSurveyDetails => 'Line Survey Details';
 
   @override
+  String get lineSurveyDetailsSaved => 'Line survey details saved successfully!';
+
+  @override
+  String get selectBottomConductor => 'Select Bottom Conductor';
+
+  @override
+  String get selectTopConductor => 'Select Top Conductor';
+
+  @override
   String get noRecordsToExport => 'No records to export to CSV.';
 
   @override
@@ -1430,6 +1439,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notOkay => 'NOT OKAY';
 
   @override
+  String get oK => 'OKAY';
+
+  @override
   String get unassignedRole => 'Unassigned';
 
   @override
@@ -1448,4 +1460,76 @@ class AppLocalizationsEn extends AppLocalizations {
   String errorDeletingTask(Object error) {
     return 'Error deleting task: $error';
   }
+
+  @override
+  String get span => 'Span';
+
+  @override
+  String get spanLength => 'Span Length';
+
+  @override
+  String get on => 'On';
+
+  @override
+  String get selectConditionOfOpgw => 'Select condition of OPGW';
+
+  @override
+  String get selectConditionOfEarthWire => 'Select condition of Earth Wire';
+
+  @override
+  String get selectConditionOfConductor => 'Select condition of Conductor';
+
+  @override
+  String get selectMidSpanJoint => 'Select Mid Span Joint';
+
+  @override
+  String get selectNewConstruction => 'Select New Construction';
+
+  @override
+  String get selectSpacers => 'Select Spacers';
+
+  @override
+  String get selectVibrationDamper => 'Select Vibration Damper';
+
+  @override
+  String get selectRoadCrossing => 'Select Road Crossing';
+
+  @override
+  String get selectRiverCrossing => 'Select River Crossing';
+
+  @override
+  String get selectElectricalLine => 'Select Electrical Line';
+
+  @override
+  String get selectRailwayCrossing => 'Select Railway Crossing';
+
+  @override
+  String get selectRoadCrossingTypes => 'Select Road Crossing Types';
+
+  @override
+  String get selectElectricalLineTypes => 'Select Electrical Line Types';
+
+  @override
+  String get hasElectricalLineCrossing => 'Has Electrical Crossing';
+
+  @override
+  String get hasRoadCrossing => 'Has Road Crossing';
+
+  @override
+  String get roadCrossingName => 'Road Crossing Name';
+
+  @override
+  String get enterRoadCrossingName => 'Enter road crossing name';
+
+  @override
+  String get electricalLineName => 'Electrical Line Name';
+
+  @override
+  String get enterElectricalLineName => 'Enter electrical line name';
+
+  @override
+  String get bottomConductor => 'Bottom Conductor';
+
+  @override
+  String get topConductor => 'Top Conductor';
 }

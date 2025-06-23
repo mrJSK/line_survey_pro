@@ -535,6 +535,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get lineSurveyDetails => 'लाइन सर्वेक्षण विवरण';
 
   @override
+  String get lineSurveyDetailsSaved => 'लाइन सर्वेक्षण विवरण सफलतापूर्वक सहेजे गए!';
+
+  @override
+  String get selectBottomConductor => 'तल कंडक्टर चुनें';
+
+  @override
+  String get selectTopConductor => 'शीर्ष कंडक्टर चुनें';
+
+  @override
   String get noRecordsToExport => 'निर्यात करने के लिए कोई रिकॉर्ड नहीं।';
 
   @override
@@ -1394,7 +1403,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get nationalHighway => 'National Highway';
+  String get nationalHighway => 'राष्ट्रीय राजमार्ग';
 
   @override
   String get stateHighway => 'राज्य राजमार्ग';
@@ -1430,6 +1439,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get notOkay => 'ठीक नहीं';
 
   @override
+  String get oK => 'ठीक है';
+
+  @override
   String get unassignedRole => 'असाइन नहीं किया गया';
 
   @override
@@ -1448,4 +1460,76 @@ class AppLocalizationsHi extends AppLocalizations {
   String errorDeletingTask(Object error) {
     return 'कार्य हटाने में त्रुटि: $error';
   }
+
+  @override
+  String get span => 'Span';
+
+  @override
+  String get spanLength => 'स्पैन लंबाई';
+
+  @override
+  String get on => 'पर';
+
+  @override
+  String get selectConditionOfOpgw => 'ओपीजीडब्ल्यू की स्थिति चुनें';
+
+  @override
+  String get selectConditionOfEarthWire => 'अर्थ वायर की स्थिति चुनें';
+
+  @override
+  String get selectConditionOfConductor => 'कंडक्टर की स्थिति चुनें';
+
+  @override
+  String get selectMidSpanJoint => 'मिड स्पैन जॉइंट चुनें';
+
+  @override
+  String get selectNewConstruction => 'नया निर्माण चुनें';
+
+  @override
+  String get selectSpacers => 'स्पेसर चुनें';
+
+  @override
+  String get selectVibrationDamper => 'वाइब्रेशन डैम्पर चुनें';
+
+  @override
+  String get selectRoadCrossing => 'सड़क क्रॉसिंग प्रकार चुनें';
+
+  @override
+  String get selectRiverCrossing => 'नदी क्रॉसिंग प्रकार चुनें';
+
+  @override
+  String get selectElectricalLine => 'विद्युत लाइन प्रकार चुनें';
+
+  @override
+  String get selectRailwayCrossing => 'रेलवे क्रॉसिंग प्रकार चुनें';
+
+  @override
+  String get selectRoadCrossingTypes => 'सड़क क्रॉसिंग प्रकार चुनें';
+
+  @override
+  String get selectElectricalLineTypes => 'विद्युत लाइन प्रकार चुनें';
+
+  @override
+  String get hasElectricalLineCrossing => 'विद्युत लाइन क्रॉसिंग है';
+
+  @override
+  String get hasRoadCrossing => 'सड़क क्रॉसिंग है';
+
+  @override
+  String get roadCrossingName => 'सड़क क्रॉसिंग नाम';
+
+  @override
+  String get enterRoadCrossingName => 'सड़क क्रॉसिंग नाम दर्ज करें';
+
+  @override
+  String get electricalLineName => 'विद्युत लाइन नाम';
+
+  @override
+  String get enterElectricalLineName => 'विद्युत लाइन नाम दर्ज करें';
+
+  @override
+  String get bottomConductor => 'तल कंडक्टर';
+
+  @override
+  String get topConductor => 'शीर्ष कंडक्टर';
 }

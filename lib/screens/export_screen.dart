@@ -65,7 +65,7 @@ class _ExportScreenState extends State<ExportScreen>
   StreamSubscription?
       _transmissionLinesSubscription; // NEW: Stream for transmission lines
 
-  // Filter options for export screen
+  // Filter options for export screen - UPDATED TO REFLECT NEW MODEL FIELDS
   final Map<String, List<String>> _filterOptions = {
     'overallIssueStatus': ['Issue', 'OK'],
     'missingTowerParts': ['Damaged', 'Missing', 'OK'],
@@ -136,40 +136,50 @@ class _ExportScreenState extends State<ExportScreen>
     ],
     'opgwJointBox': ['Damaged', 'Open', 'Leaking', 'Corroded', 'OK'],
     // New fields from Line Survey Screen
-    'building': ['OK', 'NOT OKAY'],
-    'tree': ['OK', 'NOT OKAY'],
+    'building': ['OK', 'NOT OKAY'], // Boolean represented as OK/NOT OKAY
+    'tree': ['OK', 'NOT OKAY'], // Boolean represented as OK/NOT OKAY
     'conditionOfOpgw': ['OK', 'Damaged'],
     'conditionOfEarthWire': ['OK', 'Damaged'],
     'conditionOfConductor': ['OK', 'Damaged'],
     'midSpanJoint': ['OK', 'Damaged'],
-    'newConstruction': ['OK', 'NOT OKAY'],
-    'objectOnConductor': ['OK', 'NOT OKAY'],
-    'objectOnEarthwire': ['OK', 'NOT OKAY'],
+    'newConstruction': ['OK', 'NOT OKAY'], // Boolean
+    'objectOnConductor': ['OK', 'NOT OKAY'], // Boolean
+    'objectOnEarthwire': ['OK', 'NOT OKAY'], // Boolean
     'spacers': ['OK', 'Damaged'],
     'vibrationDamper': ['OK', 'Damaged'],
-    'roadCrossing': [
+    // 'roadCrossing': [], // Removed old dropdown field
+    'riverCrossing': ['OK', 'NOT OKAY'], // Boolean
+    // 'electricalLine': [], // Removed old dropdown field
+    'railwayCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'generalNotes': [], // Text field, no direct filter options
+
+    // NEW: Road Crossing Fields
+    'hasRoadCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'roadCrossingTypes': [
       'NH',
       'SH',
       'Chakk road',
       'Over Bridge',
-      'Underpass',
-      'OK',
-      'NOT OKAY'
-    ], // Adding OK/NOT OK for general status
-    'riverCrossing': ['OK', 'NOT OKAY'],
-    'electricalLine': [
+      'Underpass'
+    ], // List of strings
+    'roadCrossingName': [], // Text field
+
+    // NEW: Electrical Line Crossing Fields
+    'hasElectricalLineCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'electricalLineTypes': [
       '400kV',
       '220kV',
       '132kV',
       '33kV',
       '11kV',
-      'PTW',
-      'OK',
-      'NOT OKAY'
-    ], // Adding OK/NOT OK for general status
-    'railwayCrossing': ['OK', 'NOT OKAY'],
-    'generalNotes':
-        [], // General notes is a text field, not a dropdown for filtering. Add as empty for _filterOptions map completeness.
+      'PTW'
+    ], // List of strings
+    'electricalLineNames': [], // Text field
+
+    // NEW: Span Details Fields
+    'spanLength': [], // Text field
+    'bottomConductor': ['OK', 'Damaged'],
+    'topConductor': ['OK', 'Damaged'],
   };
 
   @override
@@ -336,10 +346,16 @@ class _ExportScreenState extends State<ExportScreen>
         return record.towerNumber.toString().contains(lowerCaseQuery) ||
             record.lineName.toLowerCase().contains(lowerCaseQuery) ||
             (record.generalNotes?.toLowerCase().contains(lowerCaseQuery) ??
-                false) || // Search in general notes too
+                false) ||
             (record.missingTowerParts?.toLowerCase().contains(lowerCaseQuery) ??
-                false);
-        // Add other fields you want to be searchable in the main search bar
+                false) ||
+            (record.roadCrossingName?.toLowerCase().contains(lowerCaseQuery) ??
+                false) || // NEW: Search in road crossing name
+            (record.electricalLineNames?.any(
+                    (name) => name.toLowerCase().contains(lowerCaseQuery)) ??
+                false) || // NEW: Search in electrical line names
+            (record.spanLength?.toLowerCase().contains(lowerCaseQuery) ??
+                false); // NEW: Search in span length
       }).toList();
     }
 
@@ -350,35 +366,54 @@ class _ExportScreenState extends State<ExportScreen>
       tempRecords = tempRecords.where((record) {
         if (fieldName == 'overallIssueStatus') {
           final bool isNotOkay = _isNotOkay(record);
-          if (selectedOptions.contains('NOT OKAY') &&
+          if (selectedOptions.contains('Issue') &&
               !selectedOptions.contains('OK')) {
             return isNotOkay;
           } else if (selectedOptions.contains('OK') &&
-              !selectedOptions.contains('NOT OKAY')) {
+              !selectedOptions.contains('Issue')) {
             return !isNotOkay;
           }
-          return true; // If both or neither 'OK'/'NOT OKAY' selected, don't filter by issue status
+          return true; // If both or neither 'OK'/'Issue' selected, don't filter by issue status
         } else {
-          String? fieldValue;
+          dynamic fieldValue = record.toMap()[fieldName];
+
           // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
+          // Now using the actual boolean fields and mapping them to 'OK'/'NOT OKAY' for filtering
           if (fieldName == 'building') {
             fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
-          } else if (fieldName == 'tree')
+          } else if (fieldName == 'tree') {
             fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'newConstruction')
+          } else if (fieldName == 'newConstruction') {
             fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnConductor')
+          } else if (fieldName == 'objectOnConductor') {
             fieldValue = (record.objectOnConductor == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnEarthwire')
+          } else if (fieldName == 'objectOnEarthwire') {
             fieldValue = (record.objectOnEarthwire == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'riverCrossing')
+          } else if (fieldName == 'riverCrossing') {
             fieldValue = (record.riverCrossing == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'railwayCrossing')
+          } else if (fieldName == 'railwayCrossing') {
             fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
-          else
-            fieldValue = record
-                .toMap()[fieldName]
-                ?.toString(); // Get string value for other fields
+          } else if (fieldName == 'hasRoadCrossing') {
+            // NEW: Handle hasRoadCrossing
+            fieldValue = (record.hasRoadCrossing == true ? 'NOT OKAY' : 'OK');
+          } else if (fieldName == 'hasElectricalLineCrossing') {
+            // NEW: Handle hasElectricalLineCrossing
+            fieldValue =
+                (record.hasElectricalLineCrossing == true ? 'NOT OKAY' : 'OK');
+          } else if (fieldName == 'roadCrossingTypes') {
+            // NEW: Handle list of strings for roadCrossingTypes
+            return record.roadCrossingTypes != null &&
+                record.roadCrossingTypes!
+                    .any((type) => selectedOptions.contains(type));
+          } else if (fieldName == 'electricalLineTypes') {
+            // NEW: Handle list of strings for electricalLineTypes
+            return record.electricalLineTypes != null &&
+                record.electricalLineTypes!
+                    .any((type) => selectedOptions.contains(type));
+          } else {
+            // For other fields (String, int, etc.)
+            fieldValue = record.toMap()[fieldName]?.toString();
+          }
 
           return fieldValue != null && selectedOptions.contains(fieldValue);
         }
@@ -422,9 +457,9 @@ class _ExportScreenState extends State<ExportScreen>
       record.midSpanJoint,
       record.spacers,
       record.vibrationDamper,
-      record.roadCrossing,
-      record.electricalLine,
-      // Removed record.riverCrossing and record.railwayCrossing (bool fields)
+      record.bottomConductor, // NEW: Check bottom conductor
+      record.topConductor, // NEW: Check top conductor
+      // 'roadCrossing' and 'electricalLine' old dropdowns are removed/replaced
     ];
 
     // Check for boolean fields that indicate NOT OKAY if true
@@ -434,7 +469,10 @@ class _ExportScreenState extends State<ExportScreen>
         (record.objectOnConductor == true) ||
         (record.objectOnEarthwire == true) ||
         (record.riverCrossing == true) ||
-        (record.railwayCrossing == true);
+        (record.railwayCrossing == true) ||
+        (record.hasRoadCrossing == true) || // NEW: Check hasRoadCrossing
+        (record.hasElectricalLineCrossing ==
+            true); // NEW: Check hasElectricalLineCrossing
 
     // If any issue field is not 'OK', 'Intact', or null/empty, consider it NOT OKAY
     for (final field in issueFields) {
@@ -568,7 +606,15 @@ class _ExportScreenState extends State<ExportScreen>
             final List<SurveyRecord> filteredRecords =
                 recordsForSelectedLine.where((record) {
               return _searchQuery.isEmpty ||
-                  record.towerNumber.toString().contains(_searchQuery);
+                  record.towerNumber.toString().contains(_searchQuery) ||
+                  (record.roadCrossingName
+                          ?.toLowerCase()
+                          .contains(_searchQuery.toLowerCase()) ??
+                      false) || // NEW: search in road crossing name
+                  (record.electricalLineNames?.any((name) => name
+                          .toLowerCase()
+                          .contains(_searchQuery.toLowerCase())) ??
+                      false); // NEW: search in electrical line names
             }).toList();
 
             return AnimatedSize(
@@ -633,7 +679,8 @@ class _ExportScreenState extends State<ExportScreen>
                     TextFormField(
                       controller: localSearchController,
                       decoration: InputDecoration(
-                        labelText: 'Search Tower Number',
+                        labelText:
+                            'Search Tower Number or Crossing Name', // NEW: Updated label
                         prefixIcon:
                             Icon(Icons.search, color: colorScheme.primary),
                         suffixIcon: localSearchController.text.isNotEmpty
@@ -648,7 +695,8 @@ class _ExportScreenState extends State<ExportScreen>
                               )
                             : null,
                       ),
-                      keyboardType: TextInputType.number,
+                      keyboardType: TextInputType
+                          .text, // Changed to text to allow for names
                       onChanged: (value) {
                         modalSetState(() {
                           _searchQuery = value;
@@ -663,7 +711,7 @@ class _ExportScreenState extends State<ExportScreen>
                                 _selectedLineForShare == null
                                     ? 'Please select a transmission line.'
                                     : (_searchQuery.isNotEmpty
-                                        ? 'No towers found matching search.'
+                                        ? 'No records found matching search.' // NEW: Updated message
                                         : 'No images for this line available locally.'),
                                 style: Theme.of(context)
                                     .textTheme
@@ -679,8 +727,36 @@ class _ExportScreenState extends State<ExportScreen>
                                     _selectedImageRecordIds.contains(record.id);
                                 return CheckboxListTile(
                                   title: Text('Tower: ${record.towerNumber}'),
-                                  subtitle: Text(
-                                    'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}',
+                                  subtitle: Column(
+                                    // NEW: Display span length, bottom and top conductor
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}',
+                                      ),
+                                      if (record.spanLength != null &&
+                                          record.spanLength!.isNotEmpty)
+                                        Text(
+                                            'Span Length: ${record.spanLength}'),
+                                      if (record.bottomConductor != null &&
+                                          record.bottomConductor!.isNotEmpty)
+                                        Text(
+                                            'Bottom Conductor: ${record.bottomConductor}'),
+                                      if (record.topConductor != null &&
+                                          record.topConductor!.isNotEmpty)
+                                        Text(
+                                            'Top Conductor: ${record.topConductor}'),
+                                      if (record.roadCrossingName != null &&
+                                          record.roadCrossingName!.isNotEmpty)
+                                        Text(
+                                            'Road Crossing: ${record.roadCrossingName}'),
+                                      if (record.electricalLineNames != null &&
+                                          record
+                                              .electricalLineNames!.isNotEmpty)
+                                        Text(
+                                            'Electrical Lines: ${record.electricalLineNames!.join(', ')}'),
+                                    ],
                                   ),
                                   value: isSelected,
                                   onChanged: (bool? value) {
@@ -735,7 +811,8 @@ class _ExportScreenState extends State<ExportScreen>
                                 final record = recordsWithLocalImages
                                     .firstWhere((r) => r.id == recordId);
                                 if (record.photoPath.isNotEmpty) {
-                                  final File file = File(record.photoPath);
+                                  // No need to explicitly check File(record.photoPath).exists() again
+                                  // as recordsWithLocalImages already filters for this.
                                   final File? overlaidFile = await FileService()
                                       .addTextOverlayToImage(record);
 
@@ -755,6 +832,54 @@ class _ExportScreenState extends State<ExportScreen>
                                         '  *Time:* ${record.timestamp.toLocal().toString().split('.')[0]}');
                                     shareMessage.writeln(
                                         '  *Status:* ${record.status.toUpperCase()}');
+
+                                    if (record.spanLength != null &&
+                                        record.spanLength!.isNotEmpty) {
+                                      // NEW: Add span length to share message
+                                      shareMessage.writeln(
+                                          '  *Span Length:* ${record.spanLength}');
+                                    }
+                                    if (record.bottomConductor != null &&
+                                        record.bottomConductor!.isNotEmpty) {
+                                      // NEW: Add bottom conductor to share message
+                                      shareMessage.writeln(
+                                          '  *Bottom Conductor:* ${record.bottomConductor}');
+                                    }
+                                    if (record.topConductor != null &&
+                                        record.topConductor!.isNotEmpty) {
+                                      // NEW: Add top conductor to share message
+                                      shareMessage.writeln(
+                                          '  *Top Conductor:* ${record.topConductor}');
+                                    }
+                                    if (record.hasRoadCrossing == true &&
+                                        record.roadCrossingName != null &&
+                                        record.roadCrossingName!.isNotEmpty) {
+                                      // NEW: Add road crossing details
+                                      shareMessage.writeln(
+                                          '  *Road Crossing:* ${record.roadCrossingName}');
+                                      if (record.roadCrossingTypes != null &&
+                                          record
+                                              .roadCrossingTypes!.isNotEmpty) {
+                                        shareMessage.writeln(
+                                            '    *Types:* ${record.roadCrossingTypes!.join(', ')}');
+                                      }
+                                    }
+                                    if (record.hasElectricalLineCrossing ==
+                                            true &&
+                                        record.electricalLineNames != null &&
+                                        record
+                                            .electricalLineNames!.isNotEmpty) {
+                                      // NEW: Add electrical line details
+                                      shareMessage.writeln(
+                                          '  *Electrical Lines:* ${record.electricalLineNames!.join(', ')}');
+                                      if (record.electricalLineTypes != null &&
+                                          record.electricalLineTypes!
+                                              .isNotEmpty) {
+                                        shareMessage.writeln(
+                                            '    *Types:* ${record.electricalLineTypes!.join(', ')}');
+                                      }
+                                    }
+
                                     shareMessage.writeln(
                                         '-----------------------------------');
                                     shareMessage.writeln('');
@@ -970,6 +1095,50 @@ class _ExportScreenState extends State<ExportScreen>
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .bodySmall),
+                                          if (record.spanLength != null &&
+                                              record.spanLength!
+                                                  .isNotEmpty) // NEW: Display span length
+                                            Text(
+                                                'Span Length: ${record.spanLength}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall),
+                                          if (record.bottomConductor != null &&
+                                              record.bottomConductor!
+                                                  .isNotEmpty) // NEW: Display bottom conductor
+                                            Text(
+                                                'Bottom Conductor: ${record.bottomConductor}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall),
+                                          if (record.topConductor != null &&
+                                              record.topConductor!
+                                                  .isNotEmpty) // NEW: Display top conductor
+                                            Text(
+                                                'Top Conductor: ${record.topConductor}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall),
+                                          if (record.hasRoadCrossing == true &&
+                                              record.roadCrossingName != null &&
+                                              record.roadCrossingName!
+                                                  .isNotEmpty) // NEW: Display road crossing name
+                                            Text(
+                                                'Road Crossing: ${record.roadCrossingName}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall),
+                                          if (record.hasElectricalLineCrossing ==
+                                                  true &&
+                                              record.electricalLineNames !=
+                                                  null &&
+                                              record.electricalLineNames!
+                                                  .isNotEmpty) // NEW: Display electrical line names
+                                            Text(
+                                                'Electrical Lines: ${record.electricalLineNames!.join(', ')}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall),
                                           Row(
                                             children: [
                                               Text(

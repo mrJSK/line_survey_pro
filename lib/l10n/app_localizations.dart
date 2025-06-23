@@ -1103,6 +1103,24 @@ abstract class AppLocalizations {
   /// **'Line Survey Details'**
   String get lineSurveyDetails;
 
+  /// No description provided for @lineSurveyDetailsSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Line survey details saved successfully!'**
+  String get lineSurveyDetailsSaved;
+
+  /// No description provided for @selectBottomConductor.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Bottom Conductor'**
+  String get selectBottomConductor;
+
+  /// No description provided for @selectTopConductor.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Top Conductor'**
+  String get selectTopConductor;
+
   /// No description provided for @noRecordsToExport.
   ///
   /// In en, this message translates to:
@@ -2645,6 +2663,12 @@ abstract class AppLocalizations {
   /// **'NOT OKAY'**
   String get notOkay;
 
+  /// No description provided for @oK.
+  ///
+  /// In en, this message translates to:
+  /// **'OKAY'**
+  String get oK;
+
   /// No description provided for @unassignedRole.
   ///
   /// In en, this message translates to:
@@ -2680,6 +2704,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error deleting task: {error}'**
   String errorDeletingTask(Object error);
+
+  /// No description provided for @span.
+  ///
+  /// In en, this message translates to:
+  /// **'Span'**
+  String get span;
+
+  /// No description provided for @spanLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Span Length'**
+  String get spanLength;
+
+  /// No description provided for @on.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get on;
+
+  /// No description provided for @selectConditionOfOpgw.
+  ///
+  /// In en, this message translates to:
+  /// **'Select condition of OPGW'**
+  String get selectConditionOfOpgw;
+
+  /// No description provided for @selectConditionOfEarthWire.
+  ///
+  /// In en, this message translates to:
+  /// **'Select condition of Earth Wire'**
+  String get selectConditionOfEarthWire;
+
+  /// No description provided for @selectConditionOfConductor.
+  ///
+  /// In en, this message translates to:
+  /// **'Select condition of Conductor'**
+  String get selectConditionOfConductor;
+
+  /// No description provided for @selectMidSpanJoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Mid Span Joint'**
+  String get selectMidSpanJoint;
+
+  /// No description provided for @selectNewConstruction.
+  ///
+  /// In en, this message translates to:
+  /// **'Select New Construction'**
+  String get selectNewConstruction;
+
+  /// No description provided for @selectSpacers.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Spacers'**
+  String get selectSpacers;
+
+  /// No description provided for @selectVibrationDamper.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Vibration Damper'**
+  String get selectVibrationDamper;
+
+  /// No description provided for @selectRoadCrossing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Road Crossing'**
+  String get selectRoadCrossing;
+
+  /// No description provided for @selectRiverCrossing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select River Crossing'**
+  String get selectRiverCrossing;
+
+  /// No description provided for @selectElectricalLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Electrical Line'**
+  String get selectElectricalLine;
+
+  /// No description provided for @selectRailwayCrossing.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Railway Crossing'**
+  String get selectRailwayCrossing;
+
+  /// No description provided for @selectRoadCrossingTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Road Crossing Types'**
+  String get selectRoadCrossingTypes;
+
+  /// No description provided for @selectElectricalLineTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Electrical Line Types'**
+  String get selectElectricalLineTypes;
+
+  /// No description provided for @hasElectricalLineCrossing.
+  ///
+  /// In en, this message translates to:
+  /// **'Has Electrical Crossing'**
+  String get hasElectricalLineCrossing;
+
+  /// No description provided for @hasRoadCrossing.
+  ///
+  /// In en, this message translates to:
+  /// **'Has Road Crossing'**
+  String get hasRoadCrossing;
+
+  /// No description provided for @roadCrossingName.
+  ///
+  /// In en, this message translates to:
+  /// **'Road Crossing Name'**
+  String get roadCrossingName;
+
+  /// No description provided for @enterRoadCrossingName.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter road crossing name'**
+  String get enterRoadCrossingName;
+
+  /// No description provided for @electricalLineName.
+  ///
+  /// In en, this message translates to:
+  /// **'Electrical Line Name'**
+  String get electricalLineName;
+
+  /// No description provided for @enterElectricalLineName.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter electrical line name'**
+  String get enterElectricalLineName;
+
+  /// No description provided for @bottomConductor.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom Conductor'**
+  String get bottomConductor;
+
+  /// No description provided for @topConductor.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Conductor'**
+  String get topConductor;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -123,28 +123,39 @@ class _LinePatrollingDetailsScreenState
     'objectOnEarthwire': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
     'spacers': ['OK', 'Damaged'],
     'vibrationDamper': ['OK', 'Damaged'],
-    'roadCrossing': [
+    // 'roadCrossing': [], // Removed old dropdown field
+    'riverCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
+    // 'electricalLine': [], // Removed old dropdown field
+    'railwayCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
+    // General Notes is text, not suitable for direct filter dropdown
+
+    // NEW: Road Crossing Fields
+    'hasRoadCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'roadCrossingTypes': [
       'NH',
       'SH',
       'Chakk road',
       'Over Bridge',
-      'Underpass',
-      'OK',
-      'NOT OKAY'
-    ], // Adding OK/NOT OK for general status
-    'riverCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
-    'electricalLine': [
+      'Underpass'
+    ], // List of strings
+    'roadCrossingName': [], // Text field
+
+    // NEW: Electrical Line Crossing Fields
+    'hasElectricalLineCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'electricalLineTypes': [
       '400kV',
       '220kV',
       '132kV',
       '33kV',
       '11kV',
-      'PTW',
-      'OK',
-      'NOT OKAY'
-    ], // Adding OK/NOT OK for general status
-    'railwayCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
-    // General Notes is text, not suitable for direct filter dropdown
+      'PTW'
+    ], // List of strings
+    'electricalLineNames': [], // Text field
+
+    // NEW: Span Details Fields
+    'spanLength': [], // Text field
+    'bottomConductor': ['OK', 'Damaged'],
+    'topConductor': ['OK', 'Damaged'],
   };
 
   @override
@@ -170,7 +181,6 @@ class _LinePatrollingDetailsScreenState
   }
 
   Future<void> _loadLineRecords() async {
-    // Removed: final localizations = AppLocalizations.of(context)!; <-- This line caused the error
     setState(() {
       _isLoading = true;
     });
@@ -306,13 +316,27 @@ class _LinePatrollingDetailsScreenState
         checkBooleanField(record.objectOnEarthwire) ||
         checkStringField(record.spacers) ||
         checkStringField(record.vibrationDamper) ||
-        checkStringField(record
-            .roadCrossing) || // If contains specific issues, e.g., 'Damaged road'
+        // checkStringField(record.roadCrossing) || // Removed old dropdown
         checkBooleanField(record.riverCrossing) ||
-        checkStringField(
-            record.electricalLine) || // If it contains 'Damaged' etc.
-        checkBooleanField(record.railwayCrossing)) {
+        // checkStringField(record.electricalLine) || // Removed old dropdown
+        checkBooleanField(record.railwayCrossing) ||
+        // NEW: Check hasRoadCrossing and hasElectricalLineCrossing booleans
+        checkBooleanField(record.hasRoadCrossing) ||
+        checkBooleanField(record.hasElectricalLineCrossing) ||
+        // NEW: Check condition of conductors for span details
+        checkStringField(record.bottomConductor) ||
+        checkStringField(record.topConductor)) {
       return true; // At least one 'NOT OKAY' condition found
+    }
+
+    // NEW: Check if roadCrossingTypes or electricalLineTypes are non-empty when corresponding has* field is true
+    if ((record.hasRoadCrossing == true &&
+            (record.roadCrossingTypes == null ||
+                record.roadCrossingTypes!.isEmpty)) ||
+        (record.hasElectricalLineCrossing == true &&
+            (record.electricalLineTypes == null ||
+                record.electricalLineTypes!.isEmpty))) {
+      return true; // Consider it an issue if has* is true but types are empty
     }
 
     return false; // No 'NOT OKAY' conditions found
@@ -332,7 +356,17 @@ class _LinePatrollingDetailsScreenState
                 false) ||
             (record.earthing?.toLowerCase().contains(lowerCaseQuery) ??
                 false) ||
-            (record.hotSpots?.toLowerCase().contains(lowerCaseQuery) ?? false);
+            (record.hotSpots?.toLowerCase().contains(lowerCaseQuery) ??
+                false) ||
+            (record.generalNotes?.toLowerCase().contains(lowerCaseQuery) ??
+                false) || // NEW: search in general notes
+            (record.roadCrossingName?.toLowerCase().contains(lowerCaseQuery) ??
+                false) || // NEW: search in road crossing name
+            (record.electricalLineNames?.any(
+                    (name) => name.toLowerCase().contains(lowerCaseQuery)) ??
+                false) || // NEW: search in electrical line names
+            (record.spanLength?.toLowerCase().contains(lowerCaseQuery) ??
+                false); // NEW: search in span length
       }).toList();
     }
 
@@ -355,32 +389,50 @@ class _LinePatrollingDetailsScreenState
       } else {
         // For other filter categories
         tempRecords = tempRecords.where((record) {
-          String? fieldValue;
+          dynamic fieldValue = record.toMap()[fieldName];
+
           // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
           if (fieldName == 'building') {
             fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
-          } else if (fieldName == 'tree')
+          } else if (fieldName == 'tree') {
             fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'newConstruction')
+          } else if (fieldName == 'newConstruction') {
             fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnConductor')
+          } else if (fieldName == 'objectOnConductor') {
             fieldValue = (record.objectOnConductor == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnEarthwire')
+          } else if (fieldName == 'objectOnEarthwire') {
             fieldValue = (record.objectOnEarthwire == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'riverCrossing')
+          } else if (fieldName == 'riverCrossing') {
             fieldValue = (record.riverCrossing == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'railwayCrossing')
+          } else if (fieldName == 'railwayCrossing') {
             fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
-          else
+          } else if (fieldName == 'hasRoadCrossing') {
+            // NEW: Handle hasRoadCrossing
+            fieldValue = (record.hasRoadCrossing == true ? 'NOT OKAY' : 'OK');
+          } else if (fieldName == 'hasElectricalLineCrossing') {
+            // NEW: Handle hasElectricalLineCrossing
+            fieldValue =
+                (record.hasElectricalLineCrossing == true ? 'NOT OKAY' : 'OK');
+          } else if (fieldName == 'roadCrossingTypes') {
+            // NEW: Handle list of strings for roadCrossingTypes
+            return record.roadCrossingTypes != null &&
+                record.roadCrossingTypes!
+                    .any((type) => selectedOptions.contains(type));
+          } else if (fieldName == 'electricalLineTypes') {
+            // NEW: Handle list of strings for electricalLineTypes
+            return record.electricalLineTypes != null &&
+                record.electricalLineTypes!
+                    .any((type) => selectedOptions.contains(type));
+          } else {
             fieldValue = record
                 .toMap()[fieldName]
                 ?.toString(); // Get string value for other fields
+          }
 
           if (fieldValue == null) {
             return false; // If record has no value for this field, it doesn't match a selection
           }
 
-          // For filter categories where specific values are selected (e.g., 'Damaged' for Condition of OPGW)
           return selectedOptions.contains(fieldValue);
         }).toList();
       }
@@ -407,8 +459,8 @@ class _LinePatrollingDetailsScreenState
     setState(() {
       _selectedFilters.clear();
       _selectedFilters['overallIssueStatus'] = {
-        'NOT OKAY'
-      }; // Reset to default 'NOT OKAY' selected
+        'Issue'
+      }; // Reset to default 'Issue' selected
       _applyFilters();
     });
   }
@@ -442,21 +494,25 @@ class _LinePatrollingDetailsScreenState
                 children: _filterOptions.entries.map((entry) {
                   final fieldName = entry.key;
                   final options = entry.value;
-                  return ExpansionTile(
-                    title: Text(_toHumanReadable(fieldName)),
-                    children: options.map((option) {
-                      final isSelected =
-                          _selectedFilters[fieldName]?.contains(option) ??
-                              false;
-                      return CheckboxListTile(
-                        title: Text(option),
-                        value: isSelected,
-                        onChanged: (bool? value) {
-                          _toggleFilterOption(fieldName, option);
-                        },
-                      );
-                    }).toList(),
-                  );
+                  // Only show filter if there are options defined and it's not a direct text field
+                  if (options.isNotEmpty) {
+                    return ExpansionTile(
+                      title: Text(_toHumanReadable(fieldName)),
+                      children: options.map((option) {
+                        final isSelected =
+                            _selectedFilters[fieldName]?.contains(option) ??
+                                false;
+                        return CheckboxListTile(
+                          title: Text(option),
+                          value: isSelected,
+                          onChanged: (bool? value) {
+                            _toggleFilterOption(fieldName, option);
+                          },
+                        );
+                      }).toList(),
+                    );
+                  }
+                  return const SizedBox.shrink(); // Hide if no options
                 }).toList(),
               ),
             ),
@@ -570,6 +626,14 @@ class _LinePatrollingDetailsScreenState
                                 record.latitude.toStringAsFixed(6)),
                             _buildDetailRow(localizations.longitude,
                                 record.longitude.toStringAsFixed(6)),
+                            _buildDetailRow(localizations.spanLength,
+                                record.spanLength), // NEW: Span Length
+                            _buildDetailRow(
+                                localizations.bottomConductor,
+                                record
+                                    .bottomConductor), // NEW: Bottom Conductor
+                            _buildDetailRow(localizations.topConductor,
+                                record.topConductor), // NEW: Top Conductor
                             _buildDetailRow(localizations.missingTowerParts,
                                 record.missingTowerParts),
                             _buildDetailRow(localizations.soilCondition,
@@ -652,15 +716,47 @@ class _LinePatrollingDetailsScreenState
                                 localizations.spacers, record.spacers),
                             _buildDetailRow(localizations.vibrationDamper,
                                 record.vibrationDamper),
-                            _buildDetailRow(localizations.roadCrossing,
-                                record.roadCrossing),
+                            // NEW: Road Crossing Details
+                            _buildDetailRow(
+                                localizations.hasRoadCrossing,
+                                record.hasRoadCrossing == true
+                                    ? localizations.yes
+                                    : localizations.no),
+                            if (record.hasRoadCrossing == true &&
+                                record.roadCrossingTypes != null &&
+                                record.roadCrossingTypes!.isNotEmpty)
+                              _buildDetailRow(
+                                  localizations.selectRoadCrossingTypes,
+                                  record.roadCrossingTypes!.join(', ')),
+                            if (record.hasRoadCrossing == true &&
+                                record.roadCrossingName != null &&
+                                record.roadCrossingName!.isNotEmpty)
+                              _buildDetailRow(localizations.roadCrossingName,
+                                  record.roadCrossingName),
+
                             _buildDetailRow(
                                 localizations.riverCrossing,
                                 record.riverCrossing == true
                                     ? localizations.yes
                                     : localizations.no),
-                            _buildDetailRow(localizations.electricalLine,
-                                record.electricalLine),
+                            // NEW: Electrical Line Crossing Details
+                            _buildDetailRow(
+                                localizations.hasElectricalLineCrossing,
+                                record.hasElectricalLineCrossing == true
+                                    ? localizations.yes
+                                    : localizations.no),
+                            if (record.hasElectricalLineCrossing == true &&
+                                record.electricalLineTypes != null &&
+                                record.electricalLineTypes!.isNotEmpty)
+                              _buildDetailRow(
+                                  localizations.selectElectricalLineTypes,
+                                  record.electricalLineTypes!.join(', ')),
+                            if (record.hasElectricalLineCrossing == true &&
+                                record.electricalLineNames != null &&
+                                record.electricalLineNames!.isNotEmpty)
+                              _buildDetailRow(localizations.electricalLineName,
+                                  record.electricalLineNames!.join(', ')),
+
                             _buildDetailRow(
                                 localizations.railwayCrossing,
                                 record.railwayCrossing == true

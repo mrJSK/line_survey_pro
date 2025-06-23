@@ -75,13 +75,21 @@ class FileService {
       'Number Plate', 'Danger Board', 'Phase Plate', 'Nut and Bolt Condition',
       'Anti Climbing Device', 'Wild Growth', 'Bird Guard', 'Bird Nest',
       'Arching Horn', 'Corona Ring', 'Insulator Type', 'OPGW Joint Box',
-      // NEW Line Survey Details
+      // Line Survey Details (Existing)
       'Building', 'Tree', 'Number of Trees', 'Condition of OPGW',
       'Condition of Earth Wire', 'Condition of Conductor', 'Mid Span Joint',
       'New Construction', 'Object on Conductor', 'Object on Earthwire',
-      'Spacers', 'Vibration Damper', 'Road Crossing', 'River Crossing',
-      'Electrical Line', 'Railway Crossing',
-      'General Notes', // NEW: General Notes
+      'Spacers', 'Vibration Damper',
+      'River Crossing', 'Railway Crossing',
+      'General Notes', // General Notes
+
+      // NEW: Road Crossing Details
+      'Has Road Crossing', 'Road Crossing Types', 'Road Crossing Name',
+      // NEW: Electrical Line Crossing Details
+      'Has Electrical Line Crossing', 'Electrical Line Types',
+      'Electrical Line Names',
+      // NEW: Span Details
+      'Span Length', 'Bottom Conductor', 'Top Conductor',
     ]);
 
     // Iterate through each survey record and convert its properties into a list
@@ -131,7 +139,7 @@ class FileService {
         record.coronaRing ?? '',
         record.insulatorType ?? '',
         record.opgwJointBox ?? '',
-        // NEW Line Survey Details
+        // Line Survey Details (Existing)
         record.building == true ? 'Yes' : 'No',
         record.tree == true ? 'Yes' : 'No',
         record.numberOfTrees ?? '',
@@ -144,11 +152,22 @@ class FileService {
         record.objectOnEarthwire == true ? 'Yes' : 'No',
         record.spacers ?? '',
         record.vibrationDamper ?? '',
-        record.roadCrossing ?? '',
         record.riverCrossing == true ? 'Yes' : 'No',
-        record.electricalLine ?? '',
         record.railwayCrossing == true ? 'Yes' : 'No',
         record.generalNotes ?? '', // Add General Notes
+
+        // NEW: Road Crossing Details
+        record.hasRoadCrossing == true ? 'Yes' : 'No',
+        record.roadCrossingTypes?.join('; ') ?? '', // Join list into string
+        record.roadCrossingName ?? '',
+        // NEW: Electrical Line Crossing Details
+        record.hasElectricalLineCrossing == true ? 'Yes' : 'No',
+        record.electricalLineTypes?.join('; ') ?? '', // Join list into string
+        record.electricalLineNames?.join('; ') ?? '', // Join list into string
+        // NEW: Span Details
+        record.spanLength ?? '',
+        record.bottomConductor ?? '',
+        record.topConductor ?? '',
       ]);
     }
 
@@ -204,12 +223,29 @@ class FileService {
           'Time: ${record.timestamp.toLocal().toString().split('.')[0]}';
       final String statusText = 'Status: ${record.status.toUpperCase()}';
 
+      // NEW: Add new fields to the text overlay
+      final String spanLengthText =
+          record.spanLength != null && record.spanLength!.isNotEmpty
+              ? 'Span Length: ${record.spanLength}'
+              : '';
+      final String bottomConductorText =
+          record.bottomConductor != null && record.bottomConductor!.isNotEmpty
+              ? 'Bottom Conductor: ${record.bottomConductor}'
+              : '';
+      final String topConductorText =
+          record.topConductor != null && record.topConductor!.isNotEmpty
+              ? 'Top Conductor: ${record.topConductor}'
+              : '';
+
       final List<String> textLines = [
         lineText,
         towerText,
         latLonText,
         timeText,
         statusText,
+        if (spanLengthText.isNotEmpty) spanLengthText,
+        if (bottomConductorText.isNotEmpty) bottomConductorText,
+        if (topConductorText.isNotEmpty) topConductorText,
       ];
 
       // Calculate approximate total text height to determine background rectangle size.

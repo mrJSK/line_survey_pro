@@ -41,7 +41,9 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
   List<SurveyRecord> _filteredRecords = []; // Records after applying filters
   // Initialize 'healthyStatus' filter to 'NOT OKAY' by default
   final Map<String, Set<String>> _selectedFilters = {
-    'healthyStatus': {'NOT OKAY'}
+    'overallIssueStatus': {
+      'Issue'
+    } // Changed to 'overallIssueStatus' for consistency
   };
 
   // Data specific to Manager view
@@ -59,10 +61,10 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
   StreamSubscription? _linesSubscription; // NEW
   StreamSubscription? _tasksSubscription; // NEW
 
-  // Define all possible options for filters
+  // Define all possible options for filters - UPDATED TO REFLECT NEW MODEL FIELDS
   final Map<String, List<String>> _filterOptions = {
-    'healthyStatus': ['OK', 'NOT OKAY'], // NEW: Primary filter, reordered
-    'missingTowerParts': ['Damaged', 'Missing', 'OK'], // Updated options
+    'overallIssueStatus': ['Issue', 'OK'], // Primary filter
+    'missingTowerParts': ['Damaged', 'Missing', 'OK'],
     'soilCondition': [
       'Backfilling Required',
       'Revetment Wall Required',
@@ -141,28 +143,39 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
     'objectOnEarthwire': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
     'spacers': ['OK', 'Damaged'],
     'vibrationDamper': ['OK', 'Damaged'],
-    'roadCrossing': [
+    // 'roadCrossing': [], // Removed old dropdown field
+    'riverCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
+    // 'electricalLine': [], // Removed old dropdown field
+    'railwayCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
+    'generalNotes': [], // Text field, not suitable for direct filter dropdown
+
+    // NEW: Road Crossing Fields
+    'hasRoadCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'roadCrossingTypes': [
       'NH',
       'SH',
       'Chakk road',
       'Over Bridge',
-      'Underpass',
-      'OK',
-      'NOT OKAY'
-    ], // Adding OK/NOT OK for general status
-    'riverCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
-    'electricalLine': [
+      'Underpass'
+    ], // List of strings
+    'roadCrossingName': [], // Text field
+
+    // NEW: Electrical Line Crossing Fields
+    'hasElectricalLineCrossing': ['OK', 'NOT OKAY'], // Boolean
+    'electricalLineTypes': [
       '400kV',
       '220kV',
       '132kV',
       '33kV',
       '11kV',
-      'PTW',
-      'OK',
-      'NOT OKAY'
-    ], // Adding OK/NOT OK for general status
-    'railwayCrossing': ['OK', 'NOT OKAY'], // OK=false, NOT OKAY=true
-    // General Notes is text, not suitable for direct filter dropdown
+      'PTW'
+    ], // List of strings
+    'electricalLineNames': [], // Text field
+
+    // NEW: Span Details Fields
+    'spanLength': [], // Text field
+    'bottomConductor': ['OK', 'Damaged'],
+    'topConductor': ['OK', 'Damaged'],
   };
 
   @override
@@ -394,13 +407,27 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
         checkBooleanField(record.objectOnEarthwire) ||
         checkStringField(record.spacers) ||
         checkStringField(record.vibrationDamper) ||
-        checkStringField(record
-            .roadCrossing) || // If contains specific issues, e.g., 'Damaged road'
+        // checkStringField(record.roadCrossing) || // Removed old dropdown
         checkBooleanField(record.riverCrossing) ||
-        checkStringField(
-            record.electricalLine) || // If it contains 'Damaged' etc.
-        checkBooleanField(record.railwayCrossing)) {
+        // checkStringField(record.electricalLine) || // Removed old dropdown
+        checkBooleanField(record.railwayCrossing) ||
+        // NEW: Check hasRoadCrossing and hasElectricalLineCrossing booleans
+        checkBooleanField(record.hasRoadCrossing) ||
+        checkBooleanField(record.hasElectricalLineCrossing) ||
+        // NEW: Check condition of conductors for span details
+        checkStringField(record.bottomConductor) ||
+        checkStringField(record.topConductor)) {
       return true; // At least one 'NOT OKAY' condition found
+    }
+
+    // NEW: Check if roadCrossingTypes or electricalLineTypes are non-empty when corresponding has* field is true
+    if ((record.hasRoadCrossing == true &&
+            (record.roadCrossingTypes == null ||
+                record.roadCrossingTypes!.isEmpty)) ||
+        (record.hasElectricalLineCrossing == true &&
+            (record.electricalLineTypes == null ||
+                record.electricalLineTypes!.isEmpty))) {
+      return true; // Consider it an issue if has* is true but types are empty
     }
 
     return false; // No 'NOT OKAY' conditions found
@@ -415,13 +442,13 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
         return; // Skip if no options selected for this filter
       }
 
-      if (fieldName == 'healthyStatus') {
-        if (selectedOptions.contains('NOT OKAY') &&
+      if (fieldName == 'overallIssueStatus') {
+        if (selectedOptions.contains('Issue') &&
             !selectedOptions.contains('OK')) {
           tempRecords =
               tempRecords.where((record) => _isNotOkay(record)).toList();
         } else if (selectedOptions.contains('OK') &&
-            !selectedOptions.contains('NOT OKAY')) {
+            !selectedOptions.contains('Issue')) {
           tempRecords =
               tempRecords.where((record) => !_isNotOkay(record)).toList();
         }
@@ -429,32 +456,50 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
       } else {
         // For other filter categories
         tempRecords = tempRecords.where((record) {
-          String? fieldValue;
+          dynamic fieldValue = record.toMap()[fieldName];
+
           // Handle boolean fields which map 'true' to 'NOT OKAY' and 'false' to 'OK' in filter
           if (fieldName == 'building') {
             fieldValue = (record.building == true ? 'NOT OKAY' : 'OK');
-          } else if (fieldName == 'tree')
+          } else if (fieldName == 'tree') {
             fieldValue = (record.tree == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'newConstruction')
+          } else if (fieldName == 'newConstruction') {
             fieldValue = (record.newConstruction == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnConductor')
+          } else if (fieldName == 'objectOnConductor') {
             fieldValue = (record.objectOnConductor == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'objectOnEarthwire')
+          } else if (fieldName == 'objectOnEarthwire') {
             fieldValue = (record.objectOnEarthwire == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'riverCrossing')
+          } else if (fieldName == 'riverCrossing') {
             fieldValue = (record.riverCrossing == true ? 'NOT OKAY' : 'OK');
-          else if (fieldName == 'railwayCrossing')
+          } else if (fieldName == 'railwayCrossing') {
             fieldValue = (record.railwayCrossing == true ? 'NOT OKAY' : 'OK');
-          else
+          } else if (fieldName == 'hasRoadCrossing') {
+            // NEW: Handle hasRoadCrossing
+            fieldValue = (record.hasRoadCrossing == true ? 'NOT OKAY' : 'OK');
+          } else if (fieldName == 'hasElectricalLineCrossing') {
+            // NEW: Handle hasElectricalLineCrossing
+            fieldValue =
+                (record.hasElectricalLineCrossing == true ? 'NOT OKAY' : 'OK');
+          } else if (fieldName == 'roadCrossingTypes') {
+            // NEW: Handle list of strings for roadCrossingTypes
+            return record.roadCrossingTypes != null &&
+                record.roadCrossingTypes!
+                    .any((type) => selectedOptions.contains(type));
+          } else if (fieldName == 'electricalLineTypes') {
+            // NEW: Handle list of strings for electricalLineTypes
+            return record.electricalLineTypes != null &&
+                record.electricalLineTypes!
+                    .any((type) => selectedOptions.contains(type));
+          } else {
             fieldValue = record
                 .toMap()[fieldName]
                 ?.toString(); // Get string value for other fields
+          }
 
           if (fieldValue == null) {
             return false; // If record has no value for this field, it doesn't match a selection
           }
 
-          // For filter categories where specific values are selected (e.g., 'Damaged' for Condition of OPGW)
           return selectedOptions.contains(fieldValue);
         }).toList();
       }
@@ -480,9 +525,9 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
   void _clearFilters() {
     setState(() {
       _selectedFilters.clear();
-      _selectedFilters['healthyStatus'] = {
-        'NOT OKAY'
-      }; // Reset to default 'NOT OKAY' selected
+      _selectedFilters['overallIssueStatus'] = {
+        'Issue'
+      }; // Reset to default 'Issue' selected
       _applyFilters();
     });
   }
@@ -515,21 +560,25 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                 children: _filterOptions.entries.map((entry) {
                   final fieldName = entry.key;
                   final options = entry.value;
-                  return ExpansionTile(
-                    title: Text(_toHumanReadable(fieldName)),
-                    children: options.map((option) {
-                      final isSelected =
-                          _selectedFilters[fieldName]?.contains(option) ??
-                              false;
-                      return CheckboxListTile(
-                        title: Text(option),
-                        value: isSelected,
-                        onChanged: (bool? value) {
-                          _toggleFilterOption(fieldName, option);
-                        },
-                      );
-                    }).toList(),
-                  );
+                  // Only show filter if there are options defined and it's not a direct text field
+                  if (options.isNotEmpty) {
+                    return ExpansionTile(
+                      title: Text(_toHumanReadable(fieldName)),
+                      children: options.map((option) {
+                        final isSelected =
+                            _selectedFilters[fieldName]?.contains(option) ??
+                                false;
+                        return CheckboxListTile(
+                          title: Text(option),
+                          value: isSelected,
+                          onChanged: (bool? value) {
+                            _toggleFilterOption(fieldName, option);
+                          },
+                        );
+                      }).toList(),
+                    );
+                  }
+                  return const SizedBox.shrink(); // Hide if no options
                 }).toList(),
               ),
             ),
@@ -727,6 +776,11 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                                 .toLocal()
                                 .toString()
                                 .split('.')[0]),
+                        // NEW: Span Details
+                        _buildDetailRow('Span Length', record.spanLength),
+                        _buildDetailRow(
+                            'Bottom Conductor', record.bottomConductor),
+                        _buildDetailRow('Top Conductor', record.topConductor),
                         _buildDetailRow(
                             'Missing Tower Parts', record.missingTowerParts),
                         _buildDetailRow('Soil Condition', record.soilCondition),
@@ -753,7 +807,7 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                         _buildDetailRow('Corona Ring', record.coronaRing),
                         _buildDetailRow('Insulator Type', record.insulatorType),
                         _buildDetailRow('OPGW Joint Box', record.opgwJointBox),
-                        // NEW Line Survey Details for display
+                        // Line Survey Details for display
                         _buildDetailRow(
                             'Building', record.building == true ? 'Yes' : 'No'),
                         _buildDetailRow(
@@ -777,11 +831,39 @@ class _ManagerWorkerDetailScreenState extends State<ManagerWorkerDetailScreen> {
                         _buildDetailRow('Spacers', record.spacers),
                         _buildDetailRow(
                             'Vibration Damper', record.vibrationDamper),
-                        _buildDetailRow('Road Crossing', record.roadCrossing),
+                        // NEW: Road Crossing Details
+                        _buildDetailRow('Has Road Crossing',
+                            record.hasRoadCrossing == true ? 'Yes' : 'No'),
+                        if (record.hasRoadCrossing == true &&
+                            record.roadCrossingTypes != null &&
+                            record.roadCrossingTypes!.isNotEmpty)
+                          _buildDetailRow('Road Crossing Types',
+                              record.roadCrossingTypes!.join(', ')),
+                        if (record.hasRoadCrossing == true &&
+                            record.roadCrossingName != null &&
+                            record.roadCrossingName!.isNotEmpty)
+                          _buildDetailRow(
+                              'Road Crossing Name', record.roadCrossingName),
+
                         _buildDetailRow('River Crossing',
                             record.riverCrossing == true ? 'Yes' : 'No'),
+                        // NEW: Electrical Line Crossing Details
                         _buildDetailRow(
-                            'Electrical Line', record.electricalLine),
+                            'Has Electrical Line Crossing',
+                            record.hasElectricalLineCrossing == true
+                                ? 'Yes'
+                                : 'No'),
+                        if (record.hasElectricalLineCrossing == true &&
+                            record.electricalLineTypes != null &&
+                            record.electricalLineTypes!.isNotEmpty)
+                          _buildDetailRow('Electrical Line Types',
+                              record.electricalLineTypes!.join(', ')),
+                        if (record.hasElectricalLineCrossing == true &&
+                            record.electricalLineNames != null &&
+                            record.electricalLineNames!.isNotEmpty)
+                          _buildDetailRow('Electrical Line Names',
+                              record.electricalLineNames!.join(', ')),
+
                         _buildDetailRow('Railway Crossing',
                             record.railwayCrossing == true ? 'Yes' : 'No'),
                         _buildDetailRow(
