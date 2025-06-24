@@ -485,5 +485,10 @@
   "grantry": "ग्रैंट्री",
   "userProfile": "उपयोगकर्ता प्रोफ़ाइल",
   "updateUserProfileFields": "अपडेट उपयोगकर्ता प्रोफ़ाइल फ़ील्ड",
-  "displayName": "प्रदर्शित नाम"
+  "displayName": "प्रदर्शित नाम",
+  "noRecordsFoundSearch": "कोई रिकॉर्ड नहीं मिला। कृपया खोज मान बदलें।",
+  "noRecordsFound": "कोई रिकॉर्ड नहीं मिला।",
+  "lineSurveyPhotosForLine": "{lineName} के लिए लाइन सर्वेक्षण फ़ोटो",
+  "types": "प्रकार",
+  "lineSurveyPhotosForTower": "{lineName} पर टॉवर {towerNumber} के लिए लाइन सर्वेक्षण फ़ोटो"
 }

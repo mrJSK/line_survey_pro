@@ -1603,4 +1603,23 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get displayName => 'प्रदर्शित नाम';
+
+  @override
+  String get noRecordsFoundSearch => 'कोई रिकॉर्ड नहीं मिला। कृपया खोज मान बदलें।';
+
+  @override
+  String get noRecordsFound => 'कोई रिकॉर्ड नहीं मिला।';
+
+  @override
+  String lineSurveyPhotosForLine(Object lineName) {
+    return '$lineName के लिए लाइन सर्वेक्षण फ़ोटो';
+  }
+
+  @override
+  String get types => 'प्रकार';
+
+  @override
+  String lineSurveyPhotosForTower(Object lineName, Object towerNumber) {
+    return '$lineName पर टॉवर $towerNumber के लिए लाइन सर्वेक्षण फ़ोटो';
+  }
 }

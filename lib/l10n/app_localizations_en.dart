@@ -1603,4 +1603,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displayName => 'Display Name';
+
+  @override
+  String get noRecordsFoundSearch => 'No records found matching your search.';
+
+  @override
+  String get noRecordsFound => 'No records found.';
+
+  @override
+  String lineSurveyPhotosForLine(Object lineName) {
+    return 'Line Survey Photos for Line: $lineName';
+  }
+
+  @override
+  String get types => 'Types';
+
+  @override
+  String lineSurveyPhotosForTower(Object lineName, Object towerNumber) {
+    return 'Line Survey Photos for Tower: $towerNumber';
+  }
 }

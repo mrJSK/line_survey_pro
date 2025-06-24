@@ -10,8 +10,8 @@ import 'package:collection/collection.dart'; // Ensure collection is imported fo
 class LocalDatabaseService {
   static Database? _database;
   static const String _databaseName = 'line_survey_pro.db';
-  // Increment to a new version (e.g., 8) because we're refactoring fields to TowerDetail and adding towerDetailId
-  static const int _databaseVersion = 8; // UPDATED DATABASE VERSION
+  // Increment to a new version (e.g., 9) as we are changing the schema again.
+  static const int _databaseVersion = 9; // UPDATED DATABASE VERSION
 
   static final StreamController<List<SurveyRecord>>
       _surveyRecordsStreamController =
@@ -59,10 +59,6 @@ class LocalDatabaseService {
     }
     // Migration from version 2 to 3 (if photoUrl was added then removed, or just to sync version)
     if (oldVersion < 3) {
-      // If photoUrl was explicitly added in a version 2 migration, and you want it removed
-      // this is where complex ALTER TABLE (rename, create new, copy, drop) would go.
-      // For now, if you just removed it from SurveyRecord.toMap() and onCreate,
-      // old DBs will just have the unused column.
       print(
           'Migrated to DB Version 3 (no new columns or complex schema change in this version logic).');
     }
@@ -200,13 +196,10 @@ class LocalDatabaseService {
         await db.execute(
             'ALTER TABLE $_surveyRecordsTable ADD COLUMN vibrationDamper TEXT');
       } catch (e) {}
-      // Removed old roadCrossing/electricalLine as they are replaced by new boolean/list fields
-      // try { await db.execute('ALTER TABLE $_surveyRecordsTable ADD COLUMN roadCrossing TEXT'); } catch (e) {}
       try {
         await db.execute(
             'ALTER TABLE $_surveyRecordsTable ADD COLUMN riverCrossing INTEGER'); // Bool as INTEGER
       } catch (e) {}
-      // try { await db.execute('ALTER TABLE $_surveyRecordsTable ADD COLUMN electricalLine TEXT'); } catch (e) {}
       try {
         await db.execute(
             'ALTER TABLE $_surveyRecordsTable ADD COLUMN railwayCrossing INTEGER'); // Bool as INTEGER
@@ -266,28 +259,32 @@ class LocalDatabaseService {
       } catch (e) {}
       print('Migrated to DB Version 7: Added towerType field.');
     }
-    print('Database upgraded from version $oldVersion to $newVersion.');
-
-    // NEW: Migration from version 7 to 8 (Refactoring TowerDetail fields out of SurveyRecord)
-    // For SQLite, we will drop and recreate the table as it's a significant schema change
-    // to remove multiple fields and add a new one. This will clear existing local data for SurveyRecords.
-    // A more complex migration might involve renaming columns or copying data if needed.
+    // Migration from version 7 to 8 (Refactoring TowerDetail fields out of SurveyRecord)
     if (oldVersion < 8) {
-      // Drop and recreate table if you want to enforce the new schema and remove old columns.
-      // WARNING: This will delete all existing data in the survey_records table.
-      // If data preservation is critical, a more complex ALTER TABLE sequence is needed.
-      // For a simple app, deleting and recreating might be acceptable.
+      try {
+        await db.execute(
+            'ALTER TABLE $_surveyRecordsTable ADD COLUMN towerDetailId TEXT'); // Link to TowerDetail
+      } catch (e) {}
+      print('Migrated to DB Version 8: Added towerDetailId field.');
+    }
+    // NEW: Migration from version 8 to 9 (Cleanup / Recreate for consistent schema)
+    // This is the CRITICAL migration step to ensure all columns exist.
+    // WARNING: This will delete all existing data in the survey_records table.
+    if (oldVersion < 9) {
       try {
         await db.execute('DROP TABLE IF EXISTS $_surveyRecordsTable');
-        await _onCreate(db, newVersion); // Recreate with new schema
-        print('Migrated to DB Version 8: Refactored SurveyRecord schema.');
+        await _onCreate(
+            db, newVersion); // Recreate with the fully updated schema
+        print(
+            'Migrated to DB Version 9: Recreated SurveyRecord schema with all columns.');
       } catch (e) {
-        print('Error during DB migration from v7 to v8: $e');
+        print('Error during DB migration from v8 to v9: $e');
       }
     }
+    print('Database upgraded from version $oldVersion to $newVersion.');
   }
 
-  // Define the table schema for NEW database creations (version 8)
+  // Define the table schema for NEW database creations (version 9)
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_surveyRecordsTable(
@@ -300,9 +297,9 @@ class LocalDatabaseService {
         photoPath TEXT,
         status TEXT,
         taskId TEXT,
-        towerDetailId TEXT, -- NEW: Link to TowerDetail
+        towerDetailId TEXT,
         userId TEXT,
-        -- New Patrolling Details (from version 4)
+        -- Patrolling Details (from version 4)
         missingTowerParts TEXT,
         soilCondition TEXT,
         stubCopingLeg TEXT,
@@ -323,16 +320,36 @@ class LocalDatabaseService {
         coronaRing TEXT,
         insulatorType TEXT,
         opgwJointBox TEXT,
-        -- Line Survey Details (Dynamically changing observations)
+        -- Line Survey Details (from version 5 and later)
+        building INTEGER,
+        tree INTEGER,
+        numberOfTrees INTEGER,
         conditionOfOpgw TEXT,
         conditionOfEarthWire TEXT,
         conditionOfConductor TEXT,
         midSpanJoint TEXT,
+        newConstruction INTEGER,
         objectOnConductor INTEGER,
         objectOnEarthwire INTEGER,
+        spacers TEXT,
+        vibrationDamper TEXT,
         riverCrossing INTEGER,
         railwayCrossing INTEGER,
-        generalNotes TEXT -- General Notes
+        generalNotes TEXT,
+        -- Road Crossing fields (from version 6)
+        hasRoadCrossing INTEGER,
+        roadCrossingTypes TEXT,
+        roadCrossingName TEXT,
+        -- Electrical Line Crossing fields (from version 6)
+        hasElectricalLineCrossing INTEGER,
+        electricalLineTypes TEXT,
+        electricalLineNames TEXT,
+        -- Span details fields (from version 6)
+        spanLength TEXT,
+        bottomConductor TEXT,
+        topConductor TEXT,
+        -- Tower Type field (from version 7)
+        towerType TEXT
       )
     ''');
     print('Database created with version $version.');

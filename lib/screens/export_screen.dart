@@ -1,7 +1,4 @@
 // lib/screens/export_screen.dart
-// Allows users to view, export to CSV, and share locally stored survey records and photos.
-// Updated for consistent UI theming, individual record deletion, and separated export/share functionalities
-// via a multi-action Floating Action Button, with an improved, scrollable, searchable image share modal.
 
 import 'dart:io'; // For File operations
 import 'package:flutter/material.dart'; // Flutter UI toolkit
@@ -19,6 +16,7 @@ import 'package:line_survey_pro/services/firestore_service.dart'; // NEW: Import
 import 'package:collection/collection.dart'
     as collection; // Corrected import for collection
 import 'package:line_survey_pro/models/user_profile.dart'; // NEW: Import UserProfile
+import 'package:line_survey_pro/l10n/app_localizations.dart'; // Import AppLocalizations
 
 class ExportScreen extends StatefulWidget {
   final UserProfile? currentUserProfile; // NEW: Receive UserProfile
@@ -32,11 +30,20 @@ class ExportScreen extends StatefulWidget {
 class _ExportScreenState extends State<ExportScreen>
     with SingleTickerProviderStateMixin {
   List<SurveyRecord> _allRecords = []; // Combined records (local + Firestore)
-  bool _isLoading = true; // State for loading records
+  bool _isLoading = true; // Overall loading state for the screen
   Map<String, List<SurveyRecord>> _groupedRecords =
       {}; // Records grouped by line name
   List<TransmissionLine> _transmissionLines =
       []; // List of transmission lines for dropdown
+
+  // Individual loading flags for each data source
+  bool _isLoadingFirestoreRecords = true;
+  bool _isLoadingLocalRecords = true;
+  bool _isLoadingTransmissionLines = true;
+
+  // Stores latest data from streams/local DB
+  List<SurveyRecord> _latestFirestoreRecords = [];
+  List<SurveyRecord> _latestLocalRecords = [];
 
   // Stores selected filter options for each filter field
   final Map<String, List<String>> _selectedFilters = {};
@@ -202,7 +209,7 @@ class _ExportScreenState extends State<ExportScreen>
     _animationController.dispose();
     _searchController.dispose();
     _firestoreRecordsSubscription?.cancel();
-    _transmissionLinesSubscription?.cancel(); // NEW: Cancel subscription
+    _transmissionLinesSubscription?.cancel();
     super.dispose();
   }
 
@@ -227,17 +234,39 @@ class _ExportScreenState extends State<ExportScreen>
     }
   }
 
+  // Helper to check if all individual loading flags are false
+  void _checkOverallLoadingStatus() {
+    if (mounted) {
+      setState(() {
+        _isLoading = _isLoadingFirestoreRecords ||
+            _isLoadingLocalRecords ||
+            _isLoadingTransmissionLines;
+        // If all are loaded and no records, show the snackbar
+        if (!_isLoading && _allRecords.isEmpty) {
+          SnackBarUtils.showSnackBar(context,
+              AppLocalizations.of(context)!.noRecordsFoundConductSurvey,
+              isError: false);
+        }
+      });
+    }
+  }
+
   // Fetches records from Firestore and Local DB, then combines them.
   Future<void> _fetchAndCombineRecords() async {
     if (!mounted) return; // Prevent async operation if widget is disposed
     setState(() {
-      _isLoading = true;
+      _isLoading = true; // Start overall loading
+      _isLoadingFirestoreRecords = true;
+      _isLoadingLocalRecords = true;
+      _isLoadingTransmissionLines = true;
       _selectedImageRecordIds.clear();
+      _allRecords = []; // Clear previous records while loading
     });
 
     _firestoreRecordsSubscription?.cancel();
     _transmissionLinesSubscription?.cancel();
 
+    // 1. Stream for Transmission Lines (Managers need this for filtering)
     _transmissionLinesSubscription =
         _firestoreService.getTransmissionLinesStream().listen((lines) {
       if (mounted) {
@@ -246,89 +275,158 @@ class _ExportScreenState extends State<ExportScreen>
           if (_selectedLineForShare == null && _transmissionLines.isNotEmpty) {
             _selectedLineForShare = _transmissionLines.first;
           }
+          _isLoadingTransmissionLines =
+              false; // Mark transmission lines as loaded
         });
-        _applyFiltersToRecords(); // Re-apply filter if lines data updates
+        _processAndDisplayRecords(); // Re-process and display after lines data updates
+        _checkOverallLoadingStatus(); // Check overall status
       }
     }, onError: (error) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error streaming transmission lines: ${error.toString()}',
+            context,
+            AppLocalizations.of(context)!
+                .errorStreamingManagerLines(error.toString()),
             isError: true);
+        setState(() {
+          _isLoadingTransmissionLines = false; // Mark as loaded even on error
+        });
+        _checkOverallLoadingStatus(); // Check overall status
       }
     });
 
-    _firestoreRecordsSubscription =
-        _surveyFirestoreService.streamAllSurveyRecords().listen(
-      (firestoreRecords) async {
-        if (!mounted) return;
-
-        final allLocalRecords =
-            await _localDatabaseService.getAllSurveyRecords();
-
-        Map<String, SurveyRecord> combinedMap = {};
-        for (var record in allLocalRecords) {
-          combinedMap[record.id] = record;
-        }
-        for (var fRecord in firestoreRecords) {
-          final localRecord = combinedMap[fRecord.id];
-          if (localRecord != null) {
-            combinedMap[fRecord.id] =
-                localRecord.copyWith(status: fRecord.status);
-          } else {
-            combinedMap[fRecord.id] = fRecord;
-          }
-        }
-
-        List<SurveyRecord> finalCombinedList = combinedMap.values.toList();
-        finalCombinedList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-        // Filter based on manager's assigned lines if current user is a manager
-        List<SurveyRecord> recordsToDisplay = [];
-        if (widget.currentUserProfile?.role == 'Manager') {
-          final Set<String> assignedLineNames = _transmissionLines
-              .where((line) =>
-                  widget.currentUserProfile!.assignedLineIds.contains(line.id))
-              .map((line) => line.name)
-              .toSet();
-          recordsToDisplay = finalCombinedList
-              .where((record) => assignedLineNames.contains(record.lineName))
-              .toList();
-        } else {
-          recordsToDisplay =
-              finalCombinedList; // Admins and Workers see all/their own
-        }
-
+    // 2. Fetch all local records once (since this is fast)
+    try {
+      final allLocal = await _localDatabaseService.getAllSurveyRecords();
+      if (mounted) {
         setState(() {
-          _allRecords = recordsToDisplay; // Display the filtered list
-          _groupedRecords = _groupRecordsByLineName(recordsToDisplay);
-          _isLoading = false;
+          _latestLocalRecords = allLocal;
+          _isLoadingLocalRecords = false; // Mark local records as loaded
         });
+        _processAndDisplayRecords(); // Re-process and display after local data updates
+        _checkOverallLoadingStatus(); // Check overall status
+      }
+    } catch (error) {
+      if (mounted) {
+        SnackBarUtils.showSnackBar(
+            context,
+            AppLocalizations.of(context)!
+                .errorStreamingLocalSurveyRecords(error.toString()),
+            isError: true);
+        setState(() {
+          _isLoadingLocalRecords = false;
+        });
+        _checkOverallLoadingStatus();
+      }
+    }
 
-        if (_allRecords.isEmpty && mounted) {
-          SnackBarUtils.showSnackBar(context,
-              'No survey records found. Conduct a survey first and save/upload it!',
-              isError: false);
-        } else if (allLocalRecords.isNotEmpty &&
-            firestoreRecords.isEmpty &&
-            mounted) {
-          SnackBarUtils.showSnackBar(context,
-              'You have local records. Upload them to the cloud for full sync!',
-              isError: false);
-        }
+    // 3. Stream for Firestore Records (filtered by user role)
+    Stream<List<SurveyRecord>> firestoreStream;
+    if (widget.currentUserProfile?.role == 'Worker' &&
+        widget.currentUserProfile?.id != null) {
+      firestoreStream = _surveyFirestoreService
+          .streamSurveyRecordsForUser(widget.currentUserProfile!.id);
+    } else {
+      // Admins and Managers get all records (subject to rules allowing it)
+      firestoreStream = _surveyFirestoreService.streamAllSurveyRecords();
+    }
+
+    _firestoreRecordsSubscription = firestoreStream.listen(
+      (firestoreRecs) async {
+        if (!mounted) return;
+        setState(() {
+          _latestFirestoreRecords = firestoreRecs;
+          _isLoadingFirestoreRecords =
+              false; // Mark Firestore records as loaded
+        });
+        _processAndDisplayRecords(); // Re-process and display after Firestore data updates
+        _checkOverallLoadingStatus(); // Check overall status
       },
       onError: (error) {
         if (mounted) {
           SnackBarUtils.showSnackBar(
-              context, 'Error fetching records: ${error.toString()}',
+              context,
+              AppLocalizations.of(context)!
+                  .errorStreamingAllSurveyRecords(error.toString()),
               isError: true);
           setState(() {
-            _isLoading = false;
+            _isLoadingFirestoreRecords = false; // Mark as loaded even on error
           });
         }
+        _checkOverallLoadingStatus(); // Check overall status
         print('ExportScreen error fetching records: $error');
       },
       cancelOnError: false,
     );
+  }
+
+  // New helper to combine, filter, and process records from all sources
+  void _processAndDisplayRecords() {
+    if (!mounted ||
+        _isLoadingTransmissionLines ||
+        _isLoadingLocalRecords ||
+        _isLoadingFirestoreRecords) {
+      // Only proceed if all initial data sources have reported their status
+      return;
+    }
+
+    Map<String, SurveyRecord> combinedMap = {};
+
+    // Add local records to the map
+    for (var record in _latestLocalRecords) {
+      combinedMap[record.id] = record;
+    }
+
+    // Add/update with Firestore records (Firestore data takes precedence for status)
+    for (var fRecord in _latestFirestoreRecords) {
+      final localMatch = combinedMap[fRecord.id];
+      if (localMatch != null) {
+        // If a local record exists, update its status from Firestore
+        combinedMap[fRecord.id] = localMatch.copyWith(status: fRecord.status);
+      } else {
+        // If no local record, add the Firestore record
+        combinedMap[fRecord.id] = fRecord;
+      }
+    }
+
+    List<SurveyRecord> finalCombinedList = combinedMap.values.toList();
+    finalCombinedList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    // Apply manager-specific line filtering
+    List<SurveyRecord> recordsToDisplay = [];
+    if (widget.currentUserProfile?.role == 'Manager') {
+      final Set<String> assignedLineNames = _transmissionLines
+          .where((line) =>
+              widget.currentUserProfile!.assignedLineIds.contains(line.id))
+          .map((line) => line.name)
+          .toSet();
+      recordsToDisplay = finalCombinedList
+          .where((record) => assignedLineNames.contains(record.lineName))
+          .toList();
+    } else {
+      recordsToDisplay =
+          finalCombinedList; // Admins and Workers see all/their own
+    }
+
+    setState(() {
+      _allRecords = recordsToDisplay; // Display the filtered list
+      _groupedRecords = _groupRecordsByLineName(recordsToDisplay);
+      _isLoading =
+          false; // Finally set overall loading to false after processing
+    });
+
+    // Display initial SnackBars if appropriate records are not found
+    // These should only trigger after the first full load
+    if (_allRecords.isEmpty) {
+      SnackBarUtils.showSnackBar(
+          context, AppLocalizations.of(context)!.noRecordsFoundConductSurvey,
+          isError: false);
+    } else if (_latestLocalRecords.isNotEmpty &&
+        _latestFirestoreRecords.isEmpty) {
+      SnackBarUtils.showSnackBar(
+          context, AppLocalizations.of(context)!.localRecordsPresentUpload,
+          isError: false);
+    }
   }
 
   // Refactor applyFilters to be called when relevant data changes
@@ -632,7 +730,7 @@ class _ExportScreenState extends State<ExportScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text(
-                      'Select Images to Share',
+                      AppLocalizations.of(context)!.selectImagesToShare,
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
@@ -642,7 +740,7 @@ class _ExportScreenState extends State<ExportScreen>
                     DropdownButtonFormField<TransmissionLine>(
                       value: _selectedLineForShare,
                       decoration: InputDecoration(
-                        labelText: 'Select Line',
+                        labelText: AppLocalizations.of(context)!.selectLine,
                         prefixIcon:
                             Icon(Icons.line_axis, color: colorScheme.primary),
                         isDense: true,
@@ -670,7 +768,7 @@ class _ExportScreenState extends State<ExportScreen>
                       },
                       validator: (value) {
                         if (value == null) {
-                          return 'Please select a line';
+                          return AppLocalizations.of(context)!.selectLine;
                         }
                         return null;
                       },
@@ -680,7 +778,7 @@ class _ExportScreenState extends State<ExportScreen>
                       controller: localSearchController,
                       decoration: InputDecoration(
                         labelText:
-                            'Search Tower Number or Crossing Name', // NEW: Updated label
+                            AppLocalizations.of(context)!.searchTowerNumber,
                         prefixIcon:
                             Icon(Icons.search, color: colorScheme.primary),
                         suffixIcon: localSearchController.text.isNotEmpty
@@ -695,8 +793,7 @@ class _ExportScreenState extends State<ExportScreen>
                               )
                             : null,
                       ),
-                      keyboardType: TextInputType
-                          .text, // Changed to text to allow for names
+                      keyboardType: TextInputType.text,
                       onChanged: (value) {
                         modalSetState(() {
                           _searchQuery = value;
@@ -709,10 +806,13 @@ class _ExportScreenState extends State<ExportScreen>
                           ? Center(
                               child: Text(
                                 _selectedLineForShare == null
-                                    ? 'Please select a transmission line.'
+                                    ? AppLocalizations.of(context)!
+                                        .selectTransmissionLine
                                     : (_searchQuery.isNotEmpty
-                                        ? 'No records found matching search.' // NEW: Updated message
-                                        : 'No images for this line available locally.'),
+                                        ? AppLocalizations.of(context)!
+                                            .noRecordsFoundSearch
+                                        : AppLocalizations.of(context)!
+                                            .noImagesForLine),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -726,36 +826,36 @@ class _ExportScreenState extends State<ExportScreen>
                                 final isSelected =
                                     _selectedImageRecordIds.contains(record.id);
                                 return CheckboxListTile(
-                                  title: Text('Tower: ${record.towerNumber}'),
+                                  title: Text(AppLocalizations.of(context)!
+                                      .towerDetails(record.towerNumber)),
                                   subtitle: Column(
-                                    // NEW: Display span length, bottom and top conductor
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}',
+                                        '${AppLocalizations.of(context)!.lat}: ${record.latitude.toStringAsFixed(6)}, ${AppLocalizations.of(context)!.lon}: ${record.longitude.toStringAsFixed(6)}',
                                       ),
                                       if (record.spanLength != null &&
                                           record.spanLength!.isNotEmpty)
                                         Text(
-                                            'Span Length: ${record.spanLength}'),
+                                            '${AppLocalizations.of(context)!.spanLength}: ${record.spanLength}'),
                                       if (record.bottomConductor != null &&
                                           record.bottomConductor!.isNotEmpty)
                                         Text(
-                                            'Bottom Conductor: ${record.bottomConductor}'),
+                                            '${AppLocalizations.of(context)!.bottomConductor}: ${record.bottomConductor}'),
                                       if (record.topConductor != null &&
                                           record.topConductor!.isNotEmpty)
                                         Text(
-                                            'Top Conductor: ${record.topConductor}'),
+                                            '${AppLocalizations.of(context)!.topConductor}: ${record.topConductor}'),
                                       if (record.roadCrossingName != null &&
                                           record.roadCrossingName!.isNotEmpty)
                                         Text(
-                                            'Road Crossing: ${record.roadCrossingName}'),
+                                            '${AppLocalizations.of(context)!.roadCrossing}: ${record.roadCrossingName}'),
                                       if (record.electricalLineNames != null &&
                                           record
                                               .electricalLineNames!.isNotEmpty)
                                         Text(
-                                            'Electrical Lines: ${record.electricalLineNames!.join(', ')}'),
+                                            '${AppLocalizations.of(context)!.electricalLine}: ${record.electricalLineNames!.join(', ')}'),
                                     ],
                                   ),
                                   value: isSelected,
@@ -784,7 +884,6 @@ class _ExportScreenState extends State<ExportScreen>
 
                               String commonLineName = '';
                               if (_selectedImageRecordIds.isNotEmpty) {
-                                // Find the actual TransmissionLine object
                                 final selectedRecord =
                                     collection.IterableExtension<SurveyRecord>(
                                             _allRecords)
@@ -801,9 +900,8 @@ class _ExportScreenState extends State<ExportScreen>
                                 }
                               }
 
-                              // Add a main heading for the shared data
                               shareMessage.writeln(
-                                  '*--- Line Survey Photos for $commonLineName ---*');
+                                  '*--- ${AppLocalizations.of(context)!.lineSurveyPhotosForLine(commonLineName)} ---*'); // Localized
                               shareMessage.writeln('');
 
                               int photoCount = 0;
@@ -811,8 +909,6 @@ class _ExportScreenState extends State<ExportScreen>
                                 final record = recordsWithLocalImages
                                     .firstWhere((r) => r.id == recordId);
                                 if (record.photoPath.isNotEmpty) {
-                                  // No need to explicitly check File(record.photoPath).exists() again
-                                  // as recordsWithLocalImages already filters for this.
                                   final File? overlaidFile = await FileService()
                                       .addTextOverlayToImage(record);
 
@@ -822,48 +918,27 @@ class _ExportScreenState extends State<ExportScreen>
                                     imageFilesToShare
                                         .add(XFile(overlaidFile.path));
 
-                                    // shareMessage.writeln(
-                                    //     '*Photo $photoCount:* ${p.basename(record.photoPath)}');
                                     shareMessage.writeln(
-                                        '  *Line:* ${record.lineName}, *Tower:* ${record.towerNumber}');
+                                        '  *${AppLocalizations.of(context)!.line}:* ${record.lineName}, *${AppLocalizations.of(context)!.tower}:* ${record.towerNumber}');
                                     shareMessage.writeln(
-                                        '  *Latitude:* ${record.latitude.toStringAsFixed(6)}');
+                                        '  *${AppLocalizations.of(context)!.latitude}:* ${record.latitude.toStringAsFixed(6)}');
                                     shareMessage.writeln(
-                                        'Longitude: *${record.longitude.toStringAsFixed(6)}');
+                                        '${AppLocalizations.of(context)!.longitude}: *${record.longitude.toStringAsFixed(6)}');
                                     shareMessage.writeln(
-                                        '  *Time:* ${record.timestamp.toLocal().toString().split('.')[0]}');
+                                        '  *${AppLocalizations.of(context)!.time}:* ${record.timestamp.toLocal().toString().split('.')[0]}');
                                     shareMessage.writeln(
-                                        '  *Status:* ${record.status.toUpperCase()}');
+                                        '  *${AppLocalizations.of(context)!.status}:* ${record.status.toUpperCase()}');
 
-                                    // if (record.spanLength != null &&
-                                    //     record.spanLength!.isNotEmpty) {
-                                    //   // NEW: Add span length to share message
-                                    //   shareMessage.writeln(
-                                    //       '  *Span Length:* ${record.spanLength}');
-                                    // }
-                                    // if (record.bottomConductor != null &&
-                                    //     record.bottomConductor!.isNotEmpty) {
-                                    //   // NEW: Add bottom conductor to share message
-                                    //   shareMessage.writeln(
-                                    //       '  *Bottom Conductor:* ${record.bottomConductor}');
-                                    // }
-                                    // if (record.topConductor != null &&
-                                    //     record.topConductor!.isNotEmpty) {
-                                    //   // NEW: Add top conductor to share message
-                                    //   shareMessage.writeln(
-                                    //       '  *Top Conductor:* ${record.topConductor}');
-                                    // }
                                     if (record.hasRoadCrossing == true &&
                                         record.roadCrossingName != null &&
                                         record.roadCrossingName!.isNotEmpty) {
-                                      // NEW: Add road crossing details
                                       shareMessage.writeln(
-                                          '  *Road Crossing:* ${record.roadCrossingName}');
+                                          '  *${AppLocalizations.of(context)!.roadCrossing}:* ${record.roadCrossingName}');
                                       if (record.roadCrossingTypes != null &&
                                           record
                                               .roadCrossingTypes!.isNotEmpty) {
                                         shareMessage.writeln(
-                                            '    *Types:* ${record.roadCrossingTypes!.join(', ')}');
+                                            '    *${AppLocalizations.of(context)!.types}:* ${record.roadCrossingTypes!.join(', ')}');
                                       }
                                     }
                                     if (record.hasElectricalLineCrossing ==
@@ -871,14 +946,13 @@ class _ExportScreenState extends State<ExportScreen>
                                         record.electricalLineNames != null &&
                                         record
                                             .electricalLineNames!.isNotEmpty) {
-                                      // NEW: Add electrical line details
                                       shareMessage.writeln(
-                                          '  *Electrical Lines:* ${record.electricalLineNames!.join(', ')}');
+                                          '  *${AppLocalizations.of(context)!.electricalLine}:* ${record.electricalLineNames!.join(', ')}');
                                       if (record.electricalLineTypes != null &&
                                           record.electricalLineTypes!
                                               .isNotEmpty) {
                                         shareMessage.writeln(
-                                            '    *Types:* ${record.electricalLineTypes!.join(', ')}');
+                                            '    *${AppLocalizations.of(context)!.types}:* ${record.electricalLineTypes!.join(', ')}');
                                       }
                                     }
 
@@ -896,8 +970,10 @@ class _ExportScreenState extends State<ExportScreen>
                               }
 
                               if (imageFilesToShare.isEmpty) {
-                                SnackBarUtils.showSnackBar(context,
-                                    'No valid images with overlays found for selected records to share.',
+                                SnackBarUtils.showSnackBar(
+                                    context,
+                                    AppLocalizations.of(context)!
+                                        .noValidImagesForShare,
                                     isError: true);
                                 return;
                               }
@@ -906,14 +982,18 @@ class _ExportScreenState extends State<ExportScreen>
                                 await Share.shareXFiles(imageFilesToShare,
                                     text: shareMessage.toString().trim());
                                 if (mounted) {
-                                  SnackBarUtils.showSnackBar(context,
-                                      'Selected images and details shared.');
+                                  SnackBarUtils.showSnackBar(
+                                      context,
+                                      AppLocalizations.of(context)!
+                                          .selectedImagesShared);
                                   Navigator.pop(context);
                                 }
                               } catch (e) {
                                 if (mounted) {
-                                  SnackBarUtils.showSnackBar(context,
-                                      'Error sharing images: ${e.toString()}',
+                                  SnackBarUtils.showSnackBar(
+                                      context,
+                                      AppLocalizations.of(context)!
+                                          .errorSharingImages(e.toString()),
                                       isError: true);
                                 }
                               } finally {
@@ -921,8 +1001,8 @@ class _ExportScreenState extends State<ExportScreen>
                               }
                             },
                       icon: const Icon(Icons.share),
-                      label: Text(
-                          'Share Selected (${_selectedImageRecordIds.length})'),
+                      label: Text(AppLocalizations.of(context)!
+                          .shareSelected(_selectedImageRecordIds.length)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                         foregroundColor: colorScheme.onPrimary,
@@ -941,17 +1021,18 @@ class _ExportScreenState extends State<ExportScreen>
 
   // Deletes a single record. Deletes local file, then details from local DB and Firestore.
   Future<void> _deleteSingleRecord(SurveyRecord recordToDelete) async {
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
     final bool confirmDelete = await showDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: const Text('Confirm Deletion'),
-              content: Text(
-                  'Are you sure you want to delete record for Tower ${recordToDelete.towerNumber} on ${recordToDelete.lineName}? This action cannot be undone.'),
+              title: Text(localizations.confirmDeletion),
+              content: Text(localizations.deleteRecordConfirmation(
+                  recordToDelete.lineName, recordToDelete.towerNumber)),
               actions: <Widget>[
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Cancel'),
+                  child: Text(localizations.cancel),
                 ),
                 ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(true),
@@ -959,7 +1040,7 @@ class _ExportScreenState extends State<ExportScreen>
                     backgroundColor: Theme.of(context).colorScheme.error,
                     foregroundColor: Theme.of(context).colorScheme.onError,
                   ),
-                  child: const Text('Delete'),
+                  child: Text(localizations.delete),
                 ),
               ],
             );
@@ -989,13 +1070,15 @@ class _ExportScreenState extends State<ExportScreen>
           .deleteSurveyRecordDetails(recordToDelete.id);
 
       if (mounted) {
-        SnackBarUtils.showSnackBar(context,
-            'Record for Tower ${recordToDelete.towerNumber} deleted successfully.');
+        SnackBarUtils.showSnackBar(
+            context,
+            localizations
+                .recordDeletedSuccessfully(recordToDelete.towerNumber));
       }
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showSnackBar(
-            context, 'Error deleting record: ${e.toString()}',
+            context, localizations.errorDeletingRecord(e.toString()),
             isError: true);
       }
       print('Export screen delete record error: $e');
@@ -1027,6 +1110,7 @@ class _ExportScreenState extends State<ExportScreen>
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final AppLocalizations localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: _isLoading
@@ -1043,7 +1127,7 @@ class _ExportScreenState extends State<ExportScreen>
                             padding: const EdgeInsets.all(20.0),
                             child: Center(
                               child: Text(
-                                'No survey records found. Conduct a survey first and save/upload it!',
+                                localizations.noRecordsFoundConductSurvey,
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context)
                                     .textTheme
@@ -1072,14 +1156,14 @@ class _ExportScreenState extends State<ExportScreen>
                                 child: ExpansionTile(
                                   initiallyExpanded: true,
                                   title: Text(
-                                    'Line: $lineName (${recordsInLine.length} records)',
+                                    '${localizations.line}: $lineName (${recordsInLine.length} ${localizations.exportRecords})', // Localized 'Line'
                                     style:
                                         Theme.of(context).textTheme.titleMedium,
                                   ),
                                   children: recordsInLine.map((record) {
                                     return ListTile(
                                       title: Text(
-                                          'Tower: ${record.towerNumber}',
+                                          '${localizations.tower}: ${record.towerNumber}', // Localized 'Tower'
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodyLarge),
@@ -1088,12 +1172,12 @@ class _ExportScreenState extends State<ExportScreen>
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                              'Lat: ${record.latitude.toStringAsFixed(6)}, Lon: ${record.longitude.toStringAsFixed(6)}',
+                                              '${localizations.lat}: ${record.latitude.toStringAsFixed(6)}, ${localizations.lon}: ${record.longitude.toStringAsFixed(6)}', // Localized lat/lon
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .bodySmall),
                                           Text(
-                                              'Time: ${record.timestamp.toLocal().toString().split('.')[0]}',
+                                              '${localizations.time}: ${record.timestamp.toLocal().toString().split('.')[0]}', // Localized time
                                               style: Theme.of(context)
                                                   .textTheme
                                                   .bodySmall),
@@ -1101,7 +1185,7 @@ class _ExportScreenState extends State<ExportScreen>
                                               record.spanLength!
                                                   .isNotEmpty) // NEW: Display span length
                                             Text(
-                                                'Span Length: ${record.spanLength}',
+                                                '${localizations.spanLength}: ${record.spanLength}', // Localized span length
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall),
@@ -1109,7 +1193,7 @@ class _ExportScreenState extends State<ExportScreen>
                                               record.bottomConductor!
                                                   .isNotEmpty) // NEW: Display bottom conductor
                                             Text(
-                                                'Bottom Conductor: ${record.bottomConductor}',
+                                                '${localizations.bottomConductor}: ${record.bottomConductor}', // Localized bottom conductor
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall),
@@ -1117,7 +1201,7 @@ class _ExportScreenState extends State<ExportScreen>
                                               record.topConductor!
                                                   .isNotEmpty) // NEW: Display top conductor
                                             Text(
-                                                'Top Conductor: ${record.topConductor}',
+                                                '${localizations.topConductor}: ${record.topConductor}', // Localized top conductor
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall),
@@ -1126,7 +1210,7 @@ class _ExportScreenState extends State<ExportScreen>
                                               record.roadCrossingName!
                                                   .isNotEmpty) // NEW: Display road crossing name
                                             Text(
-                                                'Road Crossing: ${record.roadCrossingName}',
+                                                '${localizations.roadCrossingName}: ${record.roadCrossingName}', // Localized road crossing name
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall),
@@ -1137,14 +1221,14 @@ class _ExportScreenState extends State<ExportScreen>
                                               record.electricalLineNames!
                                                   .isNotEmpty) // NEW: Display electrical line names
                                             Text(
-                                                'Electrical Lines: ${record.electricalLineNames!.join(', ')}',
+                                                '${localizations.electricalLineName}: ${record.electricalLineNames!.join(', ')}', // Localized electrical line name
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall),
                                           Row(
                                             children: [
                                               Text(
-                                                  'Status: ${record.status.toUpperCase()}',
+                                                  '${localizations.status}: ${record.status.toUpperCase()}', // Localized status
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
@@ -1187,7 +1271,8 @@ class _ExportScreenState extends State<ExportScreen>
                                             color: colorScheme.error),
                                         onPressed: () =>
                                             _deleteSingleRecord(record),
-                                        tooltip: 'Delete this record',
+                                        tooltip: localizations
+                                            .delete, // Localized 'Delete'
                                       ),
                                       onTap: () async {
                                         if (record.photoPath.isNotEmpty &&
@@ -1202,8 +1287,10 @@ class _ExportScreenState extends State<ExportScreen>
                                             ),
                                           );
                                         } else {
-                                          SnackBarUtils.showSnackBar(context,
-                                              'Image not available locally for this record. Only details are synced.',
+                                          SnackBarUtils.showSnackBar(
+                                              context,
+                                              localizations
+                                                  .imageNotAvailableLocally, // Localized message
                                               isError: false);
                                         }
                                       },
@@ -1235,7 +1322,7 @@ class _ExportScreenState extends State<ExportScreen>
                         alignment: Alignment.bottomRight,
                         child: _buildFabChild(
                           Icons.image,
-                          'Share Images', // Text label for the button
+                          localizations.shareImages, // Localized 'Share Images'
                           () => _shareSelectedImagesFromModal(context),
                           backgroundColor: colorScheme.secondary,
                           foregroundColor: colorScheme.onSecondary,
@@ -1250,7 +1337,7 @@ class _ExportScreenState extends State<ExportScreen>
                   alignment: Alignment.bottomRight,
                   child: _buildFabChild(
                     Icons.description,
-                    'Export CSV', // Text label for the button
+                    localizations.exportCsv, // Localized 'Export CSV'
                     _exportAllRecordsToCsv,
                     backgroundColor: colorScheme.tertiary,
                     foregroundColor: colorScheme.onTertiary,
@@ -1260,8 +1347,8 @@ class _ExportScreenState extends State<ExportScreen>
                 FloatingActionButton.extended(
                   onPressed: _toggleFab,
                   label: _isFabOpen
-                      ? const Text('Close Menu')
-                      : const Text('Actions'),
+                      ? Text(localizations.closeMenu) // Localized 'Close Menu'
+                      : Text(localizations.actions), // Localized 'Actions'
                   icon: Icon(_isFabOpen ? Icons.close : Icons.menu_open),
                   backgroundColor: colorScheme.primary,
                   foregroundColor: colorScheme.onPrimary,

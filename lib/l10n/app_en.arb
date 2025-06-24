@@ -482,5 +482,10 @@
   "grantry": "Grantry",
   "userProfile": "User Profile",
   "updateUserProfileFields": "Update User Profile Fields",
-  "displayName": "Display Name"
+  "displayName": "Display Name",
+  "noRecordsFoundSearch": "No records found matching your search.",
+  "noRecordsFound": "No records found.",
+  "lineSurveyPhotosForLine": "Line Survey Photos for Line: {lineName}",
+  "types": "Types",
+  "lineSurveyPhotosForTower": "Line Survey Photos for Tower: {towerNumber}"
 }

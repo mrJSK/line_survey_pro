@@ -2974,6 +2974,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Display Name'**
   String get displayName;
+
+  /// No description provided for @noRecordsFoundSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'No records found matching your search.'**
+  String get noRecordsFoundSearch;
+
+  /// No description provided for @noRecordsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No records found.'**
+  String get noRecordsFound;
+
+  /// No description provided for @lineSurveyPhotosForLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Line Survey Photos for Line: {lineName}'**
+  String lineSurveyPhotosForLine(Object lineName);
+
+  /// No description provided for @types.
+  ///
+  /// In en, this message translates to:
+  /// **'Types'**
+  String get types;
+
+  /// No description provided for @lineSurveyPhotosForTower.
+  ///
+  /// In en, this message translates to:
+  /// **'Line Survey Photos for Tower: {towerNumber}'**
+  String lineSurveyPhotosForTower(Object lineName, Object towerNumber);
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
