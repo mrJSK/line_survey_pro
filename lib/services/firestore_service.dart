@@ -2,6 +2,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:line_survey_pro/models/transmission_line.dart';
+import 'package:line_survey_pro/models/tower_detail.dart'; // NEW: Import TowerDetail
 
 class FirestoreService {
   // Get the Firestore instance
@@ -36,6 +37,19 @@ class FirestoreService {
         .withConverter<TransmissionLine>(
           fromFirestore: TransmissionLine.fromFirestore,
           toFirestore: (line, _) => line.toFirestore(),
+        );
+  }
+
+  // NEW: Collection reference for tower details
+  CollectionReference<TowerDetail> get _towerDetailsRef {
+    return _db
+        .collection(_basePath.isEmpty
+            ? 'tower_details' // Use a new collection name
+            : '$_basePath/tower_details')
+        .withConverter<TowerDetail>(
+          fromFirestore: (snapshot, _) =>
+              TowerDetail.fromFirestore(snapshot.data()!),
+          toFirestore: (towerDetail, _) => towerDetail.toFirestore(),
         );
   }
 
@@ -93,6 +107,44 @@ class FirestoreService {
     } catch (e) {
       print('Error deleting transmission line: $e');
       throw Exception('Failed to delete transmission line: $e');
+    }
+  }
+
+  // NEW: Add a new TowerDetail to Firestore.
+  Future<void> addTowerDetail(TowerDetail towerDetail) async {
+    try {
+      await _towerDetailsRef
+          .doc(towerDetail.id)
+          .set(towerDetail); // Use set with ID
+    } catch (e) {
+      print('Error adding tower detail: $e');
+      throw Exception('Failed to add tower detail: $e');
+    }
+  }
+
+  // NEW: Update an existing TowerDetail in Firestore.
+  Future<void> updateTowerDetail(TowerDetail towerDetail) async {
+    try {
+      await _towerDetailsRef
+          .doc(towerDetail.id)
+          .update(towerDetail.toFirestore());
+    } catch (e) {
+      print('Error updating tower detail: $e');
+      throw Exception('Failed to update tower detail: $e');
+    }
+  }
+
+  // NEW: Fetch a single TowerDetail by its ID.
+  Future<TowerDetail?> getTowerDetail(String towerDetailId) async {
+    try {
+      final docSnapshot = await _towerDetailsRef.doc(towerDetailId).get();
+      if (docSnapshot.exists) {
+        return docSnapshot.data();
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching tower detail $towerDetailId: $e');
+      return null;
     }
   }
 }

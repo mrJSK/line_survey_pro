@@ -10,8 +10,8 @@ import 'package:collection/collection.dart'; // Ensure collection is imported fo
 class LocalDatabaseService {
   static Database? _database;
   static const String _databaseName = 'line_survey_pro.db';
-  // Increment to a new version (e.g., 7) because we're adding the towerType column
-  static const int _databaseVersion = 7; // UPDATED DATABASE VERSION
+  // Increment to a new version (e.g., 8) because we're refactoring fields to TowerDetail and adding towerDetailId
+  static const int _databaseVersion = 8; // UPDATED DATABASE VERSION
 
   static final StreamController<List<SurveyRecord>>
       _surveyRecordsStreamController =
@@ -267,9 +267,27 @@ class LocalDatabaseService {
       print('Migrated to DB Version 7: Added towerType field.');
     }
     print('Database upgraded from version $oldVersion to $newVersion.');
+
+    // NEW: Migration from version 7 to 8 (Refactoring TowerDetail fields out of SurveyRecord)
+    // For SQLite, we will drop and recreate the table as it's a significant schema change
+    // to remove multiple fields and add a new one. This will clear existing local data for SurveyRecords.
+    // A more complex migration might involve renaming columns or copying data if needed.
+    if (oldVersion < 8) {
+      // Drop and recreate table if you want to enforce the new schema and remove old columns.
+      // WARNING: This will delete all existing data in the survey_records table.
+      // If data preservation is critical, a more complex ALTER TABLE sequence is needed.
+      // For a simple app, deleting and recreating might be acceptable.
+      try {
+        await db.execute('DROP TABLE IF EXISTS $_surveyRecordsTable');
+        await _onCreate(db, newVersion); // Recreate with new schema
+        print('Migrated to DB Version 8: Refactored SurveyRecord schema.');
+      } catch (e) {
+        print('Error during DB migration from v7 to v8: $e');
+      }
+    }
   }
 
-  // Define the table schema for NEW database creations (version 7)
+  // Define the table schema for NEW database creations (version 8)
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE $_surveyRecordsTable(
@@ -282,6 +300,7 @@ class LocalDatabaseService {
         photoPath TEXT,
         status TEXT,
         taskId TEXT,
+        towerDetailId TEXT, -- NEW: Link to TowerDetail
         userId TEXT,
         -- New Patrolling Details (from version 4)
         missingTowerParts TEXT,
@@ -304,36 +323,16 @@ class LocalDatabaseService {
         coronaRing TEXT,
         insulatorType TEXT,
         opgwJointBox TEXT,
-        -- Line Survey Details (from version 5)
-        building INTEGER,
-        tree INTEGER,
-        numberOfTrees INTEGER,
+        -- Line Survey Details (Dynamically changing observations)
         conditionOfOpgw TEXT,
         conditionOfEarthWire TEXT,
         conditionOfConductor TEXT,
         midSpanJoint TEXT,
-        newConstruction INTEGER,
         objectOnConductor INTEGER,
         objectOnEarthwire INTEGER,
-        spacers TEXT,
-        vibrationDamper TEXT,
         riverCrossing INTEGER,
         railwayCrossing INTEGER,
-        generalNotes TEXT, -- General Notes
-        -- NEW Road Crossing Fields (from version 6)
-        hasRoadCrossing INTEGER,
-        roadCrossingTypes TEXT,
-        roadCrossingName TEXT,
-        -- NEW Electrical Line Crossing Fields (from version 6)
-        hasElectricalLineCrossing INTEGER,
-        electricalLineTypes TEXT,
-        electricalLineNames TEXT,
-        -- NEW Span Details Fields (from version 6)
-        spanLength TEXT,
-        bottomConductor TEXT,
-        topConductor TEXT,
-        -- NEW Tower Type field (from version 7)
-        towerType TEXT
+        generalNotes TEXT -- General Notes
       )
     ''');
     print('Database created with version $version.');
