@@ -1594,4 +1594,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get grantry => 'Grantry';
+
+  @override
+  String get userProfile => 'User Profile';
+
+  @override
+  String get updateUserProfileFields => 'Update User Profile Fields';
+
+  @override
+  String get displayName => 'Display Name';
 }

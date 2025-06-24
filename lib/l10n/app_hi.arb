@@ -482,5 +482,8 @@
   "angle": "एंगल",
   "transposition": "ट्रांसपोज़िशन",
   "deadEnd": "डेड एंड",
-  "grantry": "ग्रैंट्री"
+  "grantry": "ग्रैंट्री",
+  "userProfile": "उपयोगकर्ता प्रोफ़ाइल",
+  "updateUserProfileFields": "अपडेट उपयोगकर्ता प्रोफ़ाइल फ़ील्ड",
+  "displayName": "प्रदर्शित नाम"
 }

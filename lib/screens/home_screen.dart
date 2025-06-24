@@ -4,18 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:line_survey_pro/screens/sign_in_screen.dart';
-import 'package:line_survey_pro/screens/dashboard_tab.dart';
+import 'package:line_survey_pro/screens/dashboard_tab.dart'; // Your DashboardTab
 import 'package:line_survey_pro/screens/export_screen.dart';
 import 'package:line_survey_pro/screens/realtime_tasks_screen.dart';
 import 'package:line_survey_pro/screens/splash_screen.dart';
-import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart';
+import 'package:line_survey_pro/screens/user_profile_screen.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/screens/info_screen.dart';
 import 'package:line_survey_pro/services/auth_service.dart';
-import 'package:line_survey_pro/models/user_profile.dart';
+import 'package:line_survey_pro/models/user_profile.dart' as model;
 import 'package:line_survey_pro/screens/manage_lines_screen.dart';
 import 'package:line_survey_pro/screens/admin_user_management_screen.dart';
-import 'package:line_survey_pro/screens/user_profile_screen.dart';
+import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart';
+// import 'package:line_survey_pro/screens/user_profile.dart'; // Import UserProfileScreen
 import 'package:line_survey_pro/l10n/app_localizations.dart';
 
 final GlobalKey<HomeScreenState> homeScreenKey = GlobalKey<HomeScreenState>();
@@ -95,25 +96,19 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _navigateToUserProfileScreen(UserProfile currentUserProfile) {
-    Navigator.pop(context); // Close the drawer
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => UserProfileScreen(
-          currentUserProfile: currentUserProfile,
-          isForcedCompletion: false, // Not a forced completion here
-        ),
-      ),
-    );
-  }
-
   void _navigateToAdminUserManagementScreen() {
     Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(
           builder: (context) => const AdminUserManagementScreen()),
+    );
+  }
+
+  void _navigateToUserProfileScreen() {
+    Navigator.pop(context); // Close drawer if open
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const UserProfileScreen()),
     );
   }
 
@@ -146,18 +141,18 @@ class HomeScreenState extends State<HomeScreen> {
         appBarTitle = localizations.appTitle;
     }
 
-    return StreamBuilder<UserProfile?>(
+    return StreamBuilder<model.UserProfile?>(
       stream: _authService.userProfileStream,
       builder: (context, snapshot) {
-        final UserProfile? currentUserProfile = snapshot.data;
+        final model.UserProfile? currentUserProfile = snapshot.data;
         final bool isLoadingProfile =
             snapshot.connectionState == ConnectionState.waiting;
 
         Locale? targetLocale;
         if (currentUserProfile?.role == 'Worker') {
-          targetLocale = const Locale('hi');
+          targetLocale = const Locale('hi'); // Hindi for Worker
         } else if (currentUserProfile != null) {
-          targetLocale = const Locale('en');
+          targetLocale = const Locale('en'); // English for everyone else
         }
 
         final currentContextLocale = Localizations.localeOf(context);
@@ -176,17 +171,12 @@ class HomeScreenState extends State<HomeScreen> {
               body: Center(child: CircularProgressIndicator()));
         }
 
-        final List<Widget> _widgetOptions = <Widget>[
-          DashboardTab(currentUserProfile: currentUserProfile),
-          ExportScreen(currentUserProfile: currentUserProfile),
-          RealTimeTasksScreen(currentUserProfile: currentUserProfile),
-        ];
-
         if (isLoadingProfile) {
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
         }
 
+        // Handle unapproved or null profiles
         if (currentUserProfile == null ||
             currentUserProfile.status != 'approved') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -208,7 +198,60 @@ class HomeScreenState extends State<HomeScreen> {
               body: Center(child: CircularProgressIndicator()));
         }
 
-        // Now that currentUserProfile is guaranteed not null and approved, we can use it.
+        // Determine if profile details are missing for a Worker
+        final bool isWorker = currentUserProfile.role == 'Worker';
+        final bool isMobileMissing = currentUserProfile.mobileNumber == null ||
+            currentUserProfile.mobileNumber!.isEmpty;
+        final bool isAadhaarMissing =
+            currentUserProfile.aadhaarNumber == null ||
+                currentUserProfile.aadhaarNumber!.isEmpty;
+        final bool workerNeedsProfileCompletion =
+            isWorker && (isMobileMissing || isAadhaarMissing);
+
+        // If worker needs to complete profile, force navigation to UserProfileScreen
+        if (workerNeedsProfileCompletion) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Safely check if the current route is UserProfileScreen to prevent re-navigation loops.
+            final currentRoute = ModalRoute.of(context);
+            final String? currentRouteName = currentRoute?.settings.name;
+
+            if (currentRouteName == null ||
+                !currentRouteName.contains('UserProfileScreen')) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => const UserProfileScreen(),
+                  settings: const RouteSettings(
+                      name: 'UserProfileScreen'), // Assign a name to this route
+                ),
+              );
+            }
+          });
+          // Show a placeholder while navigation happens
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Please complete your profile details to access the dashboard.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Theme.of(context).primaryColor),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // If worker profile is complete or not a worker, proceed to normal HomeScreen content
+        final List<Widget> _widgetOptions = <Widget>[
+          DashboardTab(currentUserProfile: currentUserProfile),
+          ExportScreen(currentUserProfile: currentUserProfile),
+          RealTimeTasksScreen(currentUserProfile: currentUserProfile),
+        ];
+
         return Scaffold(
           appBar: AppBar(
             title: Text(appBarTitle),
@@ -256,6 +299,13 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 ListTile(
+                  leading: Icon(Icons.person,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: Text(
+                      localizations.userProfile), // Added User Profile entry
+                  onTap: _navigateToUserProfileScreen,
+                ),
+                ListTile(
                   leading: Icon(Icons.info_outline,
                       color: Theme.of(context).colorScheme.primary),
                   title: Text(localizations.info),
@@ -275,16 +325,6 @@ class HomeScreenState extends State<HomeScreen> {
                         color: Theme.of(context).colorScheme.primary),
                     title: Text(localizations.manageTransmissionLines),
                     onTap: _navigateToManageLinesScreen,
-                  ),
-                // NEW: Show "My Profile" only for Workers
-                if (currentUserProfile.role == 'Worker')
-                  ListTile(
-                    leading: Icon(Icons.account_circle,
-                        color: Theme.of(context).colorScheme.primary),
-                    title: const Text(
-                        'My Profile'), // You might want to localize this
-                    onTap: () =>
-                        _navigateToUserProfileScreen(currentUserProfile),
                   ),
                 const Divider(),
                 ListTile(

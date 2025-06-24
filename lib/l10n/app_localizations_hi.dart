@@ -1594,4 +1594,13 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get grantry => 'ग्रैंट्री';
+
+  @override
+  String get userProfile => 'उपयोगकर्ता प्रोफ़ाइल';
+
+  @override
+  String get updateUserProfileFields => 'अपडेट उपयोगकर्ता प्रोफ़ाइल फ़ील्ड';
+
+  @override
+  String get displayName => 'प्रदर्शित नाम';
 }

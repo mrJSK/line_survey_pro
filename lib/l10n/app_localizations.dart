@@ -2956,6 +2956,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Grantry'**
   String get grantry;
+
+  /// No description provided for @userProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'User Profile'**
+  String get userProfile;
+
+  /// No description provided for @updateUserProfileFields.
+  ///
+  /// In en, this message translates to:
+  /// **'Update User Profile Fields'**
+  String get updateUserProfileFields;
+
+  /// No description provided for @displayName.
+  ///
+  /// In en, this message translates to:
+  /// **'Display Name'**
+  String get displayName;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

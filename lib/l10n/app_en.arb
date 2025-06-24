@@ -479,5 +479,8 @@
   "angle": "Angle",
   "transposition": "Transposition",
   "deadEnd": "Dead End",
-  "grantry": "Grantry"
+  "grantry": "Grantry",
+  "userProfile": "User Profile",
+  "updateUserProfileFields": "Update User Profile Fields",
+  "displayName": "Display Name"
 }

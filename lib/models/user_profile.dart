@@ -1,6 +1,6 @@
 // lib/models/user_profile.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart'; // Ensure this is imported for Timestamp if needed
+// Ensure this is imported for Timestamp if needed, though not directly used in UserProfile itself.
 
 class UserProfile {
   final String id;
@@ -8,11 +8,12 @@ class UserProfile {
   String?
       role; // Made nullable to handle cases where role is not yet assigned (e.g., after initial signup)
   final String? displayName;
+  // NEW: Added status for account approval workflow
   String status; // e.g., 'pending', 'approved', 'rejected'
+  // NEW: Added field for lines assigned to a manager
   List<String> assignedLineIds; // Only relevant for Manager role
-
-  // NEW: Additional profile fields
-  String? mobile;
+  // ADDED: Mobile and Aadhaar number fields
+  String? mobileNumber;
   String? aadhaarNumber;
 
   UserProfile({
@@ -22,7 +23,8 @@ class UserProfile {
     this.displayName,
     this.status = 'pending', // Default status for new accounts
     this.assignedLineIds = const [], // Default empty list
-    this.mobile,
+    // ADDED: Initialize new fields
+    this.mobileNumber,
     this.aadhaarNumber,
   });
 
@@ -36,7 +38,8 @@ class UserProfile {
           'pending', // Read status, default to 'pending' if not present
       assignedLineIds: List<String>.from(
           map['assignedLineIds'] ?? []), // Read assignedLineIds
-      mobile: map['mobile'] as String?,
+      // ADDED: Read new fields from map
+      mobileNumber: map['mobileNumber'] as String?,
       aadhaarNumber: map['aadhaarNumber'] as String?,
     );
   }
@@ -49,12 +52,13 @@ class UserProfile {
       'displayName': displayName,
       'status': status,
       'assignedLineIds': assignedLineIds,
-      'mobile': mobile,
+      // ADDED: Write new fields to map
+      'mobileNumber': mobileNumber,
       'aadhaarNumber': aadhaarNumber,
     };
   }
 
-  // copyWith method for immutability and updating specific fields
+  // NEW: copyWith method for immutability and updating specific fields
   UserProfile copyWith({
     String? id,
     String? email,
@@ -62,7 +66,8 @@ class UserProfile {
     String? displayName,
     String? status,
     List<String>? assignedLineIds,
-    String? mobile,
+    // ADDED: Include new fields in copyWith
+    String? mobileNumber,
     String? aadhaarNumber,
   }) {
     return UserProfile(
@@ -72,13 +77,14 @@ class UserProfile {
       displayName: displayName ?? this.displayName,
       status: status ?? this.status,
       assignedLineIds: assignedLineIds ?? this.assignedLineIds,
-      mobile: mobile ?? this.mobile,
+      // ADDED: Copy new fields
+      mobileNumber: mobileNumber ?? this.mobileNumber,
       aadhaarNumber: aadhaarNumber ?? this.aadhaarNumber,
     );
   }
 
   @override
   String toString() {
-    return 'UserProfile(id: $id, email: $email, role: $role, displayName: $displayName, status: $status, assignedLineIds: $assignedLineIds, mobile: $mobile, aadhaarNumber: $aadhaarNumber)';
+    return 'UserProfile(id: $id, email: $email, role: $role, displayName: $displayName, status: $status, assignedLineIds: $assignedLineIds, mobileNumber: $mobileNumber, aadhaarNumber: $aadhaarNumber)';
   }
 }
