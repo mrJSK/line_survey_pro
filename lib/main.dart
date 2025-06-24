@@ -4,16 +4,24 @@
 // Updated for a more modern UI theme, and wrapped with ConnectivityWrapper.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // Add this
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart'; // NEW: Import Firebase Core
+import 'package:line_survey_pro/l10n/app_localizations.dart';
 import 'package:line_survey_pro/screens/home_screen.dart';
 import 'package:line_survey_pro/screens/sign_in_screen.dart';
 import 'package:line_survey_pro/services/local_database_service.dart';
 import 'package:line_survey_pro/screens/splash_screen.dart';
-import 'package:line_survey_pro/l10n/app_localizations.dart';
+import 'package:line_survey_pro/firebase_options.dart'; // NEW: Import Firebase options
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // NEW: Initialize Firebase BEFORE running the app
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Initialize local database (ensure it's ready)
   await LocalDatabaseService().initializeDatabase();
 
   runApp(const MyApp());
@@ -27,23 +35,18 @@ class MyApp extends StatelessWidget {
     const Color primaryBlue = Color(0xFF0D6EFD);
 
     return MaterialApp(
-      title:
-          'Line Survey Pro', // This will be set by the first available localization
+      title: 'Line Survey Pro',
       debugShowCheckedModeBanner: false,
-      // Add these localization delegates
       localizationsDelegates: const [
-        AppLocalizations.delegate, // Generated app localizations
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
-      // Add supported locales (English and Hindi)
       supportedLocales: const [
-        Locale('en'), // English
-        Locale('hi'), // Hindi
+        Locale('en'),
+        Locale('hi'),
       ],
-
       theme: ThemeData(
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(

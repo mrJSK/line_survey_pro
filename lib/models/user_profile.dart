@@ -1,6 +1,6 @@
 // lib/models/user_profile.dart
 
-// Ensure this is imported for Timestamp if needed, though not directly used in UserProfile itself.
+import 'package:cloud_firestore/cloud_firestore.dart'; // Ensure this is imported for Timestamp if needed
 
 class UserProfile {
   final String id;
@@ -8,10 +8,12 @@ class UserProfile {
   String?
       role; // Made nullable to handle cases where role is not yet assigned (e.g., after initial signup)
   final String? displayName;
-  // NEW: Added status for account approval workflow
   String status; // e.g., 'pending', 'approved', 'rejected'
-  // NEW: Added field for lines assigned to a manager
   List<String> assignedLineIds; // Only relevant for Manager role
+
+  // NEW: Additional profile fields
+  String? mobile;
+  String? aadhaarNumber;
 
   UserProfile({
     required this.id,
@@ -20,6 +22,8 @@ class UserProfile {
     this.displayName,
     this.status = 'pending', // Default status for new accounts
     this.assignedLineIds = const [], // Default empty list
+    this.mobile,
+    this.aadhaarNumber,
   });
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
@@ -32,6 +36,8 @@ class UserProfile {
           'pending', // Read status, default to 'pending' if not present
       assignedLineIds: List<String>.from(
           map['assignedLineIds'] ?? []), // Read assignedLineIds
+      mobile: map['mobile'] as String?,
+      aadhaarNumber: map['aadhaarNumber'] as String?,
     );
   }
 
@@ -43,10 +49,12 @@ class UserProfile {
       'displayName': displayName,
       'status': status,
       'assignedLineIds': assignedLineIds,
+      'mobile': mobile,
+      'aadhaarNumber': aadhaarNumber,
     };
   }
 
-  // NEW: copyWith method for immutability and updating specific fields
+  // copyWith method for immutability and updating specific fields
   UserProfile copyWith({
     String? id,
     String? email,
@@ -54,6 +62,8 @@ class UserProfile {
     String? displayName,
     String? status,
     List<String>? assignedLineIds,
+    String? mobile,
+    String? aadhaarNumber,
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -62,11 +72,13 @@ class UserProfile {
       displayName: displayName ?? this.displayName,
       status: status ?? this.status,
       assignedLineIds: assignedLineIds ?? this.assignedLineIds,
+      mobile: mobile ?? this.mobile,
+      aadhaarNumber: aadhaarNumber ?? this.aadhaarNumber,
     );
   }
 
   @override
   String toString() {
-    return 'UserProfile(id: $id, email: $email, role: $role, displayName: $displayName, status: $status, assignedLineIds: $assignedLineIds)';
+    return 'UserProfile(id: $id, email: $email, role: $role, displayName: $displayName, status: $status, assignedLineIds: $assignedLineIds, mobile: $mobile, aadhaarNumber: $aadhaarNumber)';
   }
 }

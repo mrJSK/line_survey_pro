@@ -1,3 +1,5 @@
+// lib/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -6,13 +8,14 @@ import 'package:line_survey_pro/screens/dashboard_tab.dart';
 import 'package:line_survey_pro/screens/export_screen.dart';
 import 'package:line_survey_pro/screens/realtime_tasks_screen.dart';
 import 'package:line_survey_pro/screens/splash_screen.dart';
+import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart';
 import 'package:line_survey_pro/utils/snackbar_utils.dart';
 import 'package:line_survey_pro/screens/info_screen.dart';
 import 'package:line_survey_pro/services/auth_service.dart';
 import 'package:line_survey_pro/models/user_profile.dart';
 import 'package:line_survey_pro/screens/manage_lines_screen.dart';
 import 'package:line_survey_pro/screens/admin_user_management_screen.dart';
-import 'package:line_survey_pro/screens/waiting_for_approval_screen.dart';
+import 'package:line_survey_pro/screens/user_profile_screen.dart';
 import 'package:line_survey_pro/l10n/app_localizations.dart';
 
 final GlobalKey<HomeScreenState> homeScreenKey = GlobalKey<HomeScreenState>();
@@ -28,8 +31,6 @@ class HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final AuthService _authService = AuthService();
 
-  // Removed _isEnglish state variable as language is now role-based and automatic.
-
   @override
   void initState() {
     super.initState();
@@ -38,8 +39,6 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // No longer explicitly managing _isEnglish based on system locale here,
-    // as it's now driven by user role below.
   }
 
   void changeTab(int index) {
@@ -96,6 +95,19 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _navigateToUserProfileScreen(UserProfile currentUserProfile) {
+    Navigator.pop(context); // Close the drawer
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserProfileScreen(
+          currentUserProfile: currentUserProfile,
+          isForcedCompletion: false, // Not a forced completion here
+        ),
+      ),
+    );
+  }
+
   void _navigateToAdminUserManagementScreen() {
     Navigator.pop(context);
     Navigator.push(
@@ -105,16 +117,14 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // This helper method is now strictly for rebuilding the MaterialApp with a new locale.
-  // It no longer handles any direct toggle logic or app title fetching from an old context.
   Widget _buildAppWithNewLocale(Locale newLocale) {
     return MaterialApp(
       locale: newLocale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
-      title: 'Line Survey Pro', // Use a static title for the MaterialApp itself
+      title: 'Line Survey Pro',
       theme: Theme.of(context).copyWith(),
-      home: const SplashScreen(), // SplashScreen will handle redirection
+      home: const SplashScreen(),
     );
   }
 
@@ -143,19 +153,15 @@ class HomeScreenState extends State<HomeScreen> {
         final bool isLoadingProfile =
             snapshot.connectionState == ConnectionState.waiting;
 
-        // Determine target locale based on user role
         Locale? targetLocale;
         if (currentUserProfile?.role == 'Worker') {
-          targetLocale = const Locale('hi'); // Hindi for Worker
+          targetLocale = const Locale('hi');
         } else if (currentUserProfile != null) {
-          targetLocale = const Locale('en'); // English for everyone else
+          targetLocale = const Locale('en');
         }
 
-        // Get the current locale of the context (the actual displayed locale)
         final currentContextLocale = Localizations.localeOf(context);
 
-        // If a target locale is determined and it's different from the current locale,
-        // trigger a rebuild of the entire MaterialApp with the new locale.
         if (targetLocale != null &&
             currentContextLocale.languageCode != targetLocale.languageCode) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -166,7 +172,6 @@ class HomeScreenState extends State<HomeScreen> {
               (route) => false,
             );
           });
-          // While navigation/rebuild happens, show a loading indicator.
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
         }
@@ -203,11 +208,11 @@ class HomeScreenState extends State<HomeScreen> {
               body: Center(child: CircularProgressIndicator()));
         }
 
+        // Now that currentUserProfile is guaranteed not null and approved, we can use it.
         return Scaffold(
           appBar: AppBar(
             title: Text(appBarTitle),
             centerTitle: true,
-            // Language toggle removed from AppBar actions
             actions: const [],
           ),
           drawer: Drawer(
@@ -271,7 +276,16 @@ class HomeScreenState extends State<HomeScreen> {
                     title: Text(localizations.manageTransmissionLines),
                     onTap: _navigateToManageLinesScreen,
                   ),
-                // Language Toggle ListTile removed from Drawer
+                // NEW: Show "My Profile" only for Workers
+                if (currentUserProfile.role == 'Worker')
+                  ListTile(
+                    leading: Icon(Icons.account_circle,
+                        color: Theme.of(context).colorScheme.primary),
+                    title: const Text(
+                        'My Profile'), // You might want to localize this
+                    onTap: () =>
+                        _navigateToUserProfileScreen(currentUserProfile),
+                  ),
                 const Divider(),
                 ListTile(
                   leading: Icon(Icons.logout,
